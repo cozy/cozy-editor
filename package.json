@@ -1,0 +1,37 @@
+{
+    "author": "Benjamin ANDRE",
+    "name": "CNeditor",
+    "description": "An editor for Cozy Notes",
+    "version": "0.0.1",
+    "homepage": "https://github.com/mycozycloud/cozy-note-editor",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/mycozycloud/cozy-note-editor.git"
+    },
+    "engines": {
+        "node": "~0.6.10 || 0.8 || 0.9"
+    },
+    "scripts": {
+        "start": "brunch watch --server"
+    },
+    "dependencies": {
+        "javascript-brunch": "> 1.0 < 1.5",
+        "coffee-script-brunch": "> 1.0 < 1.5",
+
+        "css-brunch": "> 1.0 < 1.5",
+        "stylus-brunch": "> 1.0 < 1.5",
+
+        "jade-brunch": ">= 1.0 < 1.5",
+
+        "uglify-js-brunch": "> 1.0 < 1.5",
+        "clean-css-brunch": "> 1.0 < 1.5",
+
+        "coffeelint-brunch": "> 1.0 < 1.5"
+
+    },
+    "devDependencies": {
+        "mocha": "0.14.0",
+        "expect.js": "0.1.2",
+        "ws": "0.4.21"
+    }
+}
