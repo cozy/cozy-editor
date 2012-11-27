@@ -1,38 +1,35 @@
 
-# Load App Helpers
+# Load librairies used in the app
 require '../lib/app_helpers'
-
 {beautify} = require('views/beautify')
 {CNeditor} = require('views/CNeditor/CNeditor')
 {AutoTest} = require('views/autoTest')
 
-checker = new AutoTest()
 
-# Initialize App
+
+###****************************************************
+ * 0 - INITIALIZE APP
+###
+
 $("body").html require './views/templates/editor'
 editorIframe$ = $("iframe")
+
 # $("iframe").on "onHistoryChanged", (e) ->
     # console.log "history updated"
 # $("iframe").on "onKeyUp", (e) ->
     # console.log "history not updated"
 
-# callback to execute after editor's initialization
-# the contexte (this) inside the function is the editor
-cb = () ->
-   
-    # after load, i don't know why, editorBody$ refers still to a body but a "inactivated" one ??? (light blue in ff console)
-    # editor_html$ = $("iframe").contents().find("html")
-    # editorBody$  = editor_html$.find("body")
-    # editorBody$.parent().attr('id','__ed-iframe-html')
-    # editorBody$.attr("contenteditable", "true")
-    # editorBody$.attr("id","__ed-iframe-body")
-    # editor_head$ = editor_html$.find("head")
-    # editor_css$  = editor_head$.html('<link href="stylesheets/app.css" rel="stylesheet">')
-    
-    # initialisation of the controler
-    # edCtrl = editorFactory.create( editorIframe$ )
 
-    ### initialisation of the page
+###****************************************************
+ * 1 - EDITOR CALL BACK
+ * 
+ * callback to execute after editor's initialization 
+ * the contexte (this) inside the function is the editor
+###
+cb = () ->
+
+    #### -------------------------------------------------------------------
+    ### initialize content of the editor
     this.replaceContent( require('views/templates/content-empty') )
     this.replaceContent( require('views/templates/content-full') )
     this.replaceContent( require('views/templates/content-full-marker') )
@@ -98,6 +95,7 @@ cb = () ->
     #### -------------------------------------------------------------------
     # Special buttons (to be removed later)
     #  > tests the code structure
+    checker = new AutoTest()
     $("#checkBtn").on "click", () ->
         res = checker.checkLines(editorCtrler)
         date = new Date()
@@ -226,5 +224,9 @@ cb = () ->
     # this.editorBody$.on 'keyup', () =>
     #     this.buildSummary()
 
-# creation of the editor
+
+
+###****************************************************
+ * 3 - creation of the editor
+###
 editor = new CNeditor( document.querySelector('#editorIframe'), cb )

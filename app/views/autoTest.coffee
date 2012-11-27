@@ -1,4 +1,4 @@
-class exports.AutoTest extends Backbone.View
+class exports.AutoTest
 
     ### ------------------------------------------------------------------------
     # Checks whether the lines are well structured or not

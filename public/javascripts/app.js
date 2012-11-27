@@ -75,7 +75,7 @@
 })();
 
 window.require.define({"initialize": function(exports, require, module) {
-  var AutoTest, CNeditor, beautify, cb, checker, editor, editorIframe$;
+  var AutoTest, CNeditor, beautify, cb, editor, editorIframe$;
 
   require('../lib/app_helpers');
 
@@ -85,14 +85,25 @@ window.require.define({"initialize": function(exports, require, module) {
 
   AutoTest = require('views/autoTest').AutoTest;
 
-  checker = new AutoTest();
+  /*****************************************************
+   * 0 - INITIALIZE APP
+  */
+
 
   $("body").html(require('./views/templates/editor'));
 
   editorIframe$ = $("iframe");
 
+  /*****************************************************
+   * 1 - EDITOR CALL BACK
+   * 
+   * callback to execute after editor's initialization 
+   * the contexte (this) inside the function is the editor
+  */
+
+
   cb = function() {
-    /* initialisation of the page
+    /* initialize content of the editor
     this.replaceContent( require('views/templates/content-empty') )
     this.replaceContent( require('views/templates/content-full') )
     this.replaceContent( require('views/templates/content-full-marker') )
@@ -102,7 +113,7 @@ window.require.define({"initialize": function(exports, require, module) {
     this.deleteContent()
     */
 
-    var addClassToLines, editorBody$, editorCtrler, getSelectedLines, removeClassFromLines,
+    var addClassToLines, checker, editorBody$, editorCtrler, getSelectedLines, removeClassFromLines,
       _this = this;
     this.replaceContent(require('views/templates/content-shortlines-all'));
     editorCtrler = this;
@@ -158,6 +169,7 @@ window.require.define({"initialize": function(exports, require, module) {
     $("#redoBtn").on("click", function() {
       return editorCtrler.reDo();
     });
+    checker = new AutoTest();
     $("#checkBtn").on("click", function() {
       var date, res, st;
       res = checker.checkLines(editorCtrler);
@@ -286,6 +298,11 @@ window.require.define({"initialize": function(exports, require, module) {
     });
   };
 
+  /*****************************************************
+   * 3 - creation of the editor
+  */
+
+
   editor = new CNeditor(document.querySelector('#editorIframe'), cb);
   
 }});
@@ -311,233 +328,11 @@ window.require.define({"lib/app_helpers": function(exports, require, module) {
   
 }});
 
-window.require.define({"lib/view": function(exports, require, module) {
-  var View,
-    __hasProp = {}.hasOwnProperty,
-    __extends = function(child, parent) { for (var key in parent) { if (__hasProp.call(parent, key)) child[key] = parent[key]; } function ctor() { this.constructor = child; } ctor.prototype = parent.prototype; child.prototype = new ctor(); child.__super__ = parent.prototype; return child; };
-
-  module.exports = View = (function(_super) {
-
-    __extends(View, _super);
-
-    function View() {
-      return View.__super__.constructor.apply(this, arguments);
-    }
-
-    View.prototype.tagName = 'section';
-
-    View.prototype.template = function() {};
-
-    View.prototype.initialize = function() {
-      return this.render();
-    };
-
-    View.prototype.getRenderData = function() {
-      var _ref;
-      return (_ref = this.model) != null ? _ref.toJSON() : void 0;
-    };
-
-    View.prototype.render = function() {
-      this.beforeRender();
-      this.$el.html(this.template(this.getRenderData()));
-      this.afterRender();
-      return this;
-    };
-
-    View.prototype.beforeRender = function() {};
-
-    View.prototype.afterRender = function() {};
-
-    View.prototype.destroy = function() {
-      this.undelegateEvents();
-      this.$el.removeData().unbind();
-      this.remove();
-      return Backbone.View.prototype.remove.call(this);
-    };
-
-    return View;
-
-  })(Backbone.View);
-  
-}});
-
-window.require.define({"lib/view_collection": function(exports, require, module) {
-  var View, ViewCollection, methods,
-    __bind = function(fn, me){ return function(){ return fn.apply(me, arguments); }; },
-    __hasProp = {}.hasOwnProperty,
-    __extends = function(child, parent) { for (var key in parent) { if (__hasProp.call(parent, key)) child[key] = parent[key]; } function ctor() { this.constructor = child; } ctor.prototype = parent.prototype; child.prototype = new ctor(); child.__super__ = parent.prototype; return child; };
-
-  View = require('./view');
-
-  ViewCollection = (function(_super) {
-
-    __extends(ViewCollection, _super);
-
-    function ViewCollection() {
-      this.renderOne = __bind(this.renderOne, this);
-      return ViewCollection.__super__.constructor.apply(this, arguments);
-    }
-
-    ViewCollection.prototype.collection = new Backbone.Collection();
-
-    ViewCollection.prototype.view = new View();
-
-    ViewCollection.prototype.views = [];
-
-    ViewCollection.prototype.length = function() {
-      return this.views.length;
-    };
-
-    ViewCollection.prototype.add = function(views, options) {
-      var view, _i, _len;
-      if (options == null) {
-        options = {};
-      }
-      views = _.isArray(views) ? views.slice() : [views];
-      for (_i = 0, _len = views.length; _i < _len; _i++) {
-        view = views[_i];
-        if (!this.get(view.cid)) {
-          this.views.push(view);
-          if (!options.silent) {
-            this.trigger('add', view, this);
-          }
-        }
-      }
-      return this;
-    };
-
-    ViewCollection.prototype.get = function(cid) {
-      return this.find(function(view) {
-        return view.cid === cid;
-      }) || null;
-    };
-
-    ViewCollection.prototype.remove = function(views, options) {
-      var view, _i, _len;
-      if (options == null) {
-        options = {};
-      }
-      views = _.isArray(views) ? views.slice() : [views];
-      for (_i = 0, _len = views.length; _i < _len; _i++) {
-        view = views[_i];
-        this.destroy(view);
-        if (!options.silent) {
-          this.trigger('remove', view, this);
-        }
-      }
-      return this;
-    };
-
-    ViewCollection.prototype.destroy = function(view, options) {
-      var _views;
-      if (view == null) {
-        view = this;
-      }
-      if (options == null) {
-        options = {};
-      }
-      _views = this.filter(_view)(function() {
-        return view.cid !== _view.cid;
-      });
-      this.views = _views;
-      view.undelegateEvents();
-      view.$el.removeData().unbind();
-      view.remove();
-      Backbone.View.prototype.remove.call(view);
-      if (!options.silent) {
-        this.trigger('remove', view, this);
-      }
-      return this;
-    };
-
-    ViewCollection.prototype.reset = function(views, options) {
-      var view, _i, _j, _len, _len1, _ref;
-      if (options == null) {
-        options = {};
-      }
-      views = _.isArray(views) ? views.slice() : [views];
-      _ref = this.views;
-      for (_i = 0, _len = _ref.length; _i < _len; _i++) {
-        view = _ref[_i];
-        this.destroy(view, options);
-      }
-      if (views.length !== 0) {
-        for (_j = 0, _len1 = views.length; _j < _len1; _j++) {
-          view = views[_j];
-          this.add(view, options);
-        }
-        if (!options.silent) {
-          this.trigger('reset', view, this);
-        }
-      }
-      return this;
-    };
-
-    ViewCollection.prototype.renderOne = function(model) {
-      var view;
-      view = new this.view({
-        model: model
-      });
-      this.$el.append(view.render().el);
-      this.add(view);
-      return this;
-    };
-
-    ViewCollection.prototype.renderAll = function() {
-      this.collection.each(this.renderOne);
-      return this;
-    };
-
-    return ViewCollection;
-
-  })(View);
-
-  methods = ['forEach', 'each', 'map', 'reduce', 'reduceRight', 'find', 'detect', 'filter', 'select', 'reject', 'every', 'all', 'some', 'any', 'include', 'contains', 'invoke', 'max', 'min', 'sortBy', 'sortedIndex', 'toArray', 'size', 'first', 'initial', 'rest', 'last', 'without', 'indexOf', 'shuffle', 'lastIndexOf', 'isEmpty', 'groupBy'];
-
-  _.each(methods, function(method) {
-    return ViewCollection.prototype[method] = function() {
-      return _[method].apply(_, [this.views].concat(_.toArray(arguments)));
-    };
-  });
-
-  module.exports = ViewCollection;
-  
-}});
-
-window.require.define({"routers/app_router": function(exports, require, module) {
-  var AppRouter,
-    __hasProp = {}.hasOwnProperty,
-    __extends = function(child, parent) { for (var key in parent) { if (__hasProp.call(parent, key)) child[key] = parent[key]; } function ctor() { this.constructor = child; } ctor.prototype = parent.prototype; child.prototype = new ctor(); child.__super__ = parent.prototype; return child; };
-
-  module.exports = AppRouter = (function(_super) {
-
-    __extends(AppRouter, _super);
-
-    function AppRouter() {
-      return AppRouter.__super__.constructor.apply(this, arguments);
-    }
-
-    AppRouter.prototype.routes = {
-      '': function() {}
-    };
-
-    return AppRouter;
-
-  })(Backbone.Router);
-  
-}});
-
 window.require.define({"views/autoTest": function(exports, require, module) {
-  var __hasProp = {}.hasOwnProperty,
-    __extends = function(child, parent) { for (var key in parent) { if (__hasProp.call(parent, key)) child[key] = parent[key]; } function ctor() { this.constructor = child; } ctor.prototype = parent.prototype; child.prototype = new ctor(); child.__super__ = parent.prototype; return child; };
+  
+  exports.AutoTest = (function() {
 
-  exports.AutoTest = (function(_super) {
-
-    __extends(AutoTest, _super);
-
-    function AutoTest() {
-      return AutoTest.__super__.constructor.apply(this, arguments);
-    }
+    function AutoTest() {}
 
     /* ------------------------------------------------------------------------
     # Checks whether the lines are well structured or not
@@ -736,7 +531,7 @@ window.require.define({"views/autoTest": function(exports, require, module) {
 
     return AutoTest;
 
-  })(Backbone.View);
+  })();
   
 }});
 
