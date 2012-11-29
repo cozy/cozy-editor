@@ -4667,8 +4667,6 @@ li[class^="icon-"].icon-large:before, li[class*=" icon-"].icon-large:before {
 
 .icon-user-md:before              { content: "\f200"; }
 * {
-  -webkit-box-sizing: border-box;
-  -moz-box-sizing: border-box;
   box-sizing: border-box;
 }
 html,
@@ -4718,9 +4716,7 @@ a:visited:hover {
 }
 .monWell {
   border: 1px solid rgba(0,0,0,0.12);
-  -webkit-border-radius: 7px 7px 7px 7px;
   border-radius: 7px 7px 7px 7px;
-  -webkit-box-shadow: 0 1px 1px rgba(0,0,0,0.05) inset;
   box-shadow: 0 1px 1px rgba(0,0,0,0.05) inset;
   padding: 0px;
   margin: 0px;
