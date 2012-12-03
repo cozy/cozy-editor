@@ -4,20 +4,21 @@ Simple, yet Towerfull : one day it will be !
 
 ## Build
 * for production :
-    + cd inTheFolder
-    + brunch build --minify -c config-prod.coffee
-    = js & css are in public/bin
+    + `cd inTheFolder`
+    + `brunch build --minify -c config-prod.coffee`
+    + `js & css are in public/bin`
 * for developement :
-    + cd inTheFolder
-    + brunch w
-    + code
-    + view public/index.html
-    ° there is an exemple in public/exemple.html
+    + `cd inTheFolder`
+    + `brunch w`
+    + code...
+    + open public/index.html in your browser
+    
+If you require an exemple, check public/exemple.html
 
 ## How to use
 * put in your project the js and css that are in public/bin
 * get the dependencies and add them to your project :
-    * [[Jquery|http://jquery.com/]] : V1.8.2 : 
+    * [Jquery](http://jquery.com/): V1.8.2 : 
     * [[showdownhttps://github.com/coreyti/showdown]] : V0.3.1 : A javascript port of Markdown
     * [[rangy|http://code.google.com/p/rangy/]] : V1.2.3 : a librairie that manages ranges and selection. Two modules are required : Rangy core and the Selection save and restore module.
 * to create a new editor in an iframe :
