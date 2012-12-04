@@ -22,6 +22,8 @@ exports.config =
                 'javascripts/app.js'     : /(^app)(?!(\/views\/CNeditor))/  # /app but not /app/views/CNeditor, it would be redundant
                 'javascripts/CNeditor.js': /^app\/views\/CNeditor/  # the editor class is seperated in order to use the compiled files in other projects
                 'javascripts/vendor.js'  : /^vendor/
+                'test/javascripts/test.js': /^test(\/|\\)(?!vendor)/
+                'test/javascripts/test-vendor.js': /^test(\/|\\)(?=vendor)/
             order:
                 # Files in `vendor` directories are compiled before other files
                 # even if they aren't specified in order.
@@ -32,9 +34,10 @@ exports.config =
                 ]
 
         stylesheets:
-            joinTo: 
+            joinTo:
                 'stylesheets/CNeditor.css': /^app\/views\/CNeditor/ # the editor css is seperated in order to use the compiled files in other projects
                 'stylesheets/app.css': /(^vendor\/styles)|(^app\/views\/styles)/ # /vendor/sytles or app/views/styles but not /app/views/CNeditor, it would be redundant
+                'test/stylesheets/test.css': /^test/
 
             order:
                 before: ['vendor/styles/normalize.css']

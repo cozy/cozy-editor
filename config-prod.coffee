@@ -22,7 +22,7 @@ exports.config =
                 'bin/CNeditor.js': /^app\/views\/CNeditor/
 
         stylesheets:
-            joinTo: 
+            joinTo:
                 'bin/CNeditor.css': /^app\/views\/CNeditor/
 
     modules:

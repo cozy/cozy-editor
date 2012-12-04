@@ -107,34 +107,34 @@ window.require.define({"views/CNeditor/CNeditor": function(exports, require, mod
         #                      is set to the editorCtrl (callBack.call(this))
     */
 
-    function CNeditor(elementTarget, callBack) {
+    function CNeditor(editorTarget, callBack) {
+      var iframe$, node$,
+        _this = this;
+      this.editorTarget = editorTarget;
       this._processPaste = __bind(this._processPaste, this);
+
+      this._waitForPasteData = __bind(this._waitForPasteData, this);
 
       this._keyPressListener = __bind(this._keyPressListener, this);
 
-      var allSetter, iframe$, node$,
-        _this = this;
-      if (elementTarget.nodeName === "IFRAME") {
-        console.log("et hop !");
+      if (this.editorTarget.nodeName === "IFRAME") {
         this.getEditorSelection = function() {
-          return rangy.getIframeSelection(elementTarget);
+          return rangy.getIframeSelection(this.editorTarget);
         };
         this.saveEditorSelection = function() {
-          return rangy.saveSelection(rangy.dom.getIframeWindow(elementTarget));
+          return rangy.saveSelection(rangy.dom.getIframeWindow(this.editorTarget));
         };
-        iframe$ = $(elementTarget);
+        iframe$ = $(this.editorTarget);
         iframe$.on('load', function() {
-          var editorBody$, editor_head$, editor_html$;
+          var editor_head$, editor_html$;
           editor_html$ = iframe$.contents().find("html");
-          editorBody$ = editor_html$.find("body");
-          editorBody$.parent().attr('id', '__ed-iframe-html');
-          editorBody$.attr("contenteditable", "true");
-          editorBody$.attr("id", "__ed-iframe-body");
-          _this.document = editorBody$[0].ownerDocument;
+          _this.editorBody$ = editor_html$.find("body");
+          _this.editorBody$.parent().attr('id', '__ed-iframe-html');
+          _this.editorBody$.attr("contenteditable", "true");
+          _this.editorBody$.attr("id", "__ed-iframe-body");
+          _this.document = _this.editorBody$[0].ownerDocument;
           editor_head$ = editor_html$.find("head");
           editor_head$.html('<link id="editorCSS" href="stylesheets/CNeditor.css" rel="stylesheet">');
-          _this.editorBody$ = editorBody$;
-          _this.editorTarget = elementTarget;
           _this._lines = {};
           _this.newPosition = true;
           _this._highestId = 0;
@@ -148,75 +148,64 @@ window.require.define({"views/CNeditor/CNeditor": function(exports, require, mod
             historyPos: [null]
           };
           _this._lastKey = null;
-          editorBody$.prop('__editorCtl', _this);
-          editorBody$.on('mouseup', function() {
+          _this.editorBody$.prop('__editorCtl', _this);
+          _this.editorBody$.on('mouseup', function() {
             return _this.newPosition = true;
           });
-          editorBody$.on('keydown', _this._keyPressListener);
-          editorBody$.on('keyup', function() {
+          _this.editorBody$.on('keydown', _this._keyPressListener);
+          _this.editorBody$.on('keyup', function() {
             return iframe$.trigger(jQuery.Event("onKeyUp"));
           });
-          editorBody$.on('click', function(e) {
+          _this.editorBody$.on('click', function(event) {
             return _this._lastKey = null;
           });
-          editorBody$.on('paste', function(e) {
-            console.log("pasting...");
+          _this.editorBody$.on('paste', function(event) {
             return _this.paste(e);
           });
           _this._initClipBoard();
-          callBack.call(_this);
-          return _this;
+          return callBack.call(_this);
         });
-        elementTarget.src = '';
+        this.editorTarget.src = '';
       } else {
-        console.log("target is not an iframe...");
         this.getEditorSelection = function() {
           return rangy.getSelection();
         };
         this.saveEditorSelection = function() {
           return rangy.saveSelection();
         };
-        node$ = $(elementTarget);
-        allSetter = function() {
-          var editorBody$;
-          editorBody$ = node$;
-          editorBody$.attr("contenteditable", "true");
-          editorBody$.attr("id", "__ed-iframe-body");
-          _this.editorBody$ = editorBody$;
-          _this.editorTarget = elementTarget;
-          _this._lines = {};
-          _this.newPosition = true;
-          _this._highestId = 0;
-          _this._deepest = 1;
-          _this._firstLine = null;
-          _this._history = {
-            index: 0,
-            history: [null],
-            historySelect: [null],
-            historyScroll: [null],
-            historyPos: [null]
-          };
-          _this._lastKey = null;
-          editorBody$.prop('__editorCtl', _this);
-          editorBody$.on('keydown', _this._keyPressListener);
-          editorBody$.on('mouseup', function() {
-            return _this.newPosition = true;
-          });
-          editorBody$.on('keyup', function() {
-            return node$.trigger(jQuery.Event("onKeyUp"));
-          });
-          editorBody$.on('click', function(e) {
-            return _this._lastKey = null;
-          });
-          editorBody$.on('paste', function(e) {
-            console.log("pasting...");
-            return _this.paste(e);
-          });
-          callBack.call(_this);
-          return _this;
+        node$ = $(this.editorTarget);
+        this.editorBody$ = node$;
+        this.editorBody$.attr("contenteditable", "true");
+        this.editorBody$.attr("id", "__ed-iframe-body");
+        this._lines = {};
+        this.newPosition = true;
+        this._highestId = 0;
+        this._deepest = 1;
+        this._firstLine = null;
+        this._history = {
+          index: 0,
+          history: [null],
+          historySelect: [null],
+          historyScroll: [null],
+          historyPos: [null]
         };
-        allSetter();
+        this._lastKey = null;
+        this.editorBody$.prop('__editorCtl', this);
+        this.editorBody$.on('keydown', this._keyPressListener);
+        this.editorBody$.on('mouseup', function() {
+          return _this.newPosition = true;
+        });
+        this.editorBody$.on('keyup', function() {
+          return node$.trigger(jQuery.Event("onKeyUp"));
+        });
+        this.editorBody$.on('click', function(event) {
+          return _this._lastKey = null;
+        });
+        this.editorBody$.on('paste', function(event) {
+          return _this.paste(event);
+        });
         this._initClipBoard();
+        callBack.call(this);
       }
     }
 
@@ -1747,7 +1736,7 @@ window.require.define({"views/CNeditor/CNeditor": function(exports, require, mod
     /*  -----------------------------------------------------------------------
     #   _readHtml
     # 
-    # Parse a raw html inserted in the iframe in order to update the controler
+    # Parse a raw html inserted in the iframe in order to update the controller
     */
 
 
@@ -2230,6 +2219,8 @@ window.require.define({"views/CNeditor/CNeditor": function(exports, require, mod
       sel = this.getEditorSelection();
       sel.setSingleRange(range);
       range.detach();
+      console.log("event :");
+      console.log(event);
       if (event && event.clipboardData && event.clipboardData.getData) {
         if (event.clipboardData.types === "text/html") {
           mySandBox.innerHTML = event.clipboardData.getData('text/html');
@@ -2238,7 +2229,7 @@ window.require.define({"views/CNeditor/CNeditor": function(exports, require, mod
         } else {
           mySandBox.innerHTML = "";
         }
-        this._waitForPasteData(mySandBox, this._processPaste);
+        this._waitForPasteData(mySandBox);
         if (event.preventDefault) {
           event.stopPropagation();
           event.preventDefault();
@@ -2246,7 +2237,7 @@ window.require.define({"views/CNeditor/CNeditor": function(exports, require, mod
         return false;
       } else {
         mySandBox.innerHTML = "";
-        this._waitForPasteData(mySandBox, this._processPaste);
+        this._waitForPasteData(mySandBox);
         return true;
       }
     };
@@ -2262,19 +2253,18 @@ window.require.define({"views/CNeditor/CNeditor": function(exports, require, mod
 
 
     CNeditor.prototype._initClipBoard = function() {
-      var clipboard, clipboard$, getOffTheScreen;
+      var clipboard$, getOffTheScreen;
       clipboard$ = $(document.createElement('div'));
       getOffTheScreen = {
         left: -300
       };
       clipboard$.offset(getOffTheScreen);
       clipboard$.prependTo(this.editorBody$);
-      clipboard = clipboard$[0];
-      clipboard.style.setProperty('width', '280px');
-      clipboard.style.setProperty('position', 'fixed');
-      clipboard.style.setProperty('overflow', 'hidden');
-      this.clipboard = clipboard;
-      return clipboard;
+      this.clipboard = clipboard$[0];
+      this.clipboard.style.setProperty('width', '280px');
+      this.clipboard.style.setProperty('position', 'fixed');
+      this.clipboard.style.setProperty('overflow', 'hidden');
+      return this.clipboard;
     };
 
     /**
@@ -2286,22 +2276,12 @@ window.require.define({"views/CNeditor/CNeditor": function(exports, require, mod
     */
 
 
-    CNeditor.prototype._waitForPasteData = function(sandbox, processpaste) {
-      var waitforpastedata;
-      return (waitforpastedata = function(elem) {
-        var that;
-        if (elem.childNodes && elem.childNodes.length > 0) {
-          return processpaste();
-        } else {
-          that = {
-            e: elem
-          };
-          that.callself = function() {
-            return waitforpastedata(that.e);
-          };
-          return setTimeout(that.callself, 10);
-        }
-      })(sandbox);
+    CNeditor.prototype._waitForPasteData = function() {
+      if (this.clipboard.childNodes && this.clipboard.childNodes.length > 0) {
+        return this._processPaste();
+      } else {
+        return setTimeout(this._waitForPasteData, 10);
+      }
     };
 
     /*
@@ -2312,12 +2292,11 @@ window.require.define({"views/CNeditor/CNeditor": function(exports, require, mod
 
 
     CNeditor.prototype._processPaste = function() {
-      var absDepth, caretOffset, caretTextNodeTarget, currSel, currentLineFrag, domWalkContext, dummyLine, elToInsert, endLine, endOffset, endTargetLineFrag, firstAddedLine, frag, htmlStr, i, line, lineElements, lineNextStartLine, nbElements, newText, parendDiv, pasteddata, range, sandbox, secondAddedLine, startLine, startOffset, targetNode, targetText, txt;
+      var absDepth, caretOffset, caretTextNodeTarget, currSel, currentLineFrag, domWalkContext, dummyLine, elToInsert, endLine, endOffset, endTargetLineFrag, firstAddedLine, frag, htmlStr, i, line, lineElements, lineNextStartLine, nbElements, newText, parendDiv, range, sandbox, secondAddedLine, startLine, startOffset, targetNode, targetText, txt;
+      console.log("process paste");
       sandbox = this.clipboard;
       currSel = this.currentSel;
-      pasteddata = sandbox.innerHTML;
-      pasteddata = sanitize(pasteddata).xss();
-      sandbox.innerHTML = pasteddata;
+      sandbox.innerHTML = sanitize(sandbox.innerHTML).xss();
       frag = document.createDocumentFragment();
       dummyLine = {
         lineNext: null,
@@ -2343,6 +2322,7 @@ window.require.define({"views/CNeditor/CNeditor": function(exports, require, mod
       htmlStr = this._domWalk(sandbox, domWalkContext);
       sandbox.innerHTML = "";
       frag.removeChild(frag.firstChild);
+      console.log(frag);
       /*
               # TODO : the following steps removes all the styles of the lines in frag
               # Later this will be removed in order to take into account styles.
@@ -2504,6 +2484,7 @@ window.require.define({"views/CNeditor/CNeditor": function(exports, require, mod
       var absDepth, child, deltaHxLevel, lastInsertedEl, prevHxLevel, spanNode, spaneEl, txtNode, _i, _len, _ref, _ref1;
       absDepth = context.absDepth;
       prevHxLevel = context.prevHxLevel;
+      console.log("node to parse");
       _ref = nodeToParse.childNodes;
       for (_i = 0, _len = _ref.length; _i < _len; _i++) {
         child = _ref[_i];
@@ -2517,6 +2498,10 @@ window.require.define({"views/CNeditor/CNeditor": function(exports, require, mod
               spaneEl.appendChild(txtNode);
               context.currentLineEl.appendChild(spaneEl);
             }
+            console.log("lineEl");
+            console.log(context.currentLineEl);
+            console.log(txtNode);
+            this._appendCurrentLineFrag(context, absDepth, absDepth);
             context.isCurrentLineBeingPopulated = true;
             break;
           case 'P':
@@ -2607,6 +2592,9 @@ window.require.define({"views/CNeditor/CNeditor": function(exports, require, mod
         targetLineDepthRel: absDepth
       };
       context.lastAddedLine = this._insertLineAfter(p);
+      console.log(context.currentLineEl);
+      console.log(context.frag);
+      context.frag.appendChild(context.currentLineEl);
       context.currentLineFrag = document.createDocumentFragment();
       context.currentLineEl = context.currentLineFrag;
       return context.isCurrentLineBeingPopulated = false;

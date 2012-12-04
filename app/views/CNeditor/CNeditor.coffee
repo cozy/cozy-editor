@@ -28,36 +28,31 @@ class exports.CNeditor
     #       callBack     = launched when editor ready, the context 
     #                      is set to the editorCtrl (callBack.call(this))
     ###
-    constructor : (elementTarget,callBack) ->
-        #iframe$ = $('<iframe style="width:50%;height:100%"></iframe>').appendTo(iframeTarget)
-        #iframe$ = $(iframeTarget).replaceWith('<iframe  style="width:50%;height:100%"></iframe>')
-        # 
-        
-        if elementTarget.nodeName == "IFRAME"
-            console.log "et hop !"
+    constructor : (@editorTarget, callBack) ->
+        if @editorTarget.nodeName == "IFRAME"
+
             # methods to deal selection on an iframe
             @getEditorSelection = () ->
-                return rangy.getIframeSelection elementTarget
+                return rangy.getIframeSelection @editorTarget
             @saveEditorSelection = () ->
-                return rangy.saveSelection(rangy.dom.getIframeWindow elementTarget)
+                return rangy.saveSelection(rangy.dom.getIframeWindow @editorTarget)
             
-            iframe$ = $(elementTarget)
+            iframe$ = $(@editorTarget)
             
             iframe$.on 'load', () =>
 
                 # 1- preparation of the iframe
                 editor_html$ = iframe$.contents().find("html")
-                editorBody$  = editor_html$.find("body")
-                editorBody$.parent().attr('id','__ed-iframe-html')
-                editorBody$.attr("contenteditable", "true")
-                editorBody$.attr("id","__ed-iframe-body")
-                @document = editorBody$[0].ownerDocument
+                @editorBody$  = editor_html$.find("body")
+                @editorBody$.parent().attr('id','__ed-iframe-html')
+                @editorBody$.attr("contenteditable", "true")
+                @editorBody$.attr("id","__ed-iframe-body")
+
+                @document = @editorBody$[0].ownerDocument
                 editor_head$ = editor_html$.find("head")
                 editor_head$.html('<link id="editorCSS" href="stylesheets/CNeditor.css" rel="stylesheet">')
             
                 # 2- set the properties of the editor
-                @editorBody$  = editorBody$   # label <body> of the iframe
-                @editorTarget = elementTarget # <iframe>
                 @_lines       = {}            # contains every line
                 @newPosition  = true          # true only if cursor has moved
                 @_highestId   = 0             # last inserted line identifier
@@ -72,84 +67,78 @@ class exports.CNeditor
                 @_lastKey     = null      # last pressed key (avoid duplication)
                 
                 # 3- initialize event listeners
-                editorBody$.prop( '__editorCtl', this)
-                editorBody$.on 'mouseup', () =>
+                @editorBody$.prop( '__editorCtl', this)
+                @editorBody$.on 'mouseup', () =>
                     @newPosition = true
-                #editorBody$.on 'keypress', @_keyPressListener
-                editorBody$.on 'keydown', @_keyPressListener
-                editorBody$.on 'keyup', () ->
+                @editorBody$.on 'keydown', @_keyPressListener
+                @editorBody$.on 'keyup', () ->
                     iframe$.trigger jQuery.Event("onKeyUp")
-                editorBody$.on 'click', (e) =>
+                @editorBody$.on 'click', (event) =>
                     @_lastKey = null
-                editorBody$.on 'paste', (e) =>
-                    console.log "pasting..."
+                @editorBody$.on 'paste', (event) =>
                     @paste(e)
 
-                # 4- init clipboard div
+                # init clipboard div
                 @_initClipBoard()
 
                 # 5- return a ref to the editor's controler
                 callBack.call(this)
-                return this
+
             # this line is a trick : 
             # the load event is fired on chrome if the iframe src equals '#' but not in ff.
             # and if src= '', it's the opposite : works in ff but not in chrome
             # with this command we force the load on every browser...
-            elementTarget.src = ''
+            @editorTarget.src = ''
 
 
         # if target is not an iframe
         else
-            console.log "target is not an iframe..."
+
             # methods to deal selection on an non-iframe element
             @getEditorSelection = () ->
                 return rangy.getSelection()
             @saveEditorSelection = () ->
                 return rangy.saveSelection()
                 
-            node$ = $(elementTarget)
-            allSetter = () =>
-                # 1- preparation of the iframe
-                editorBody$  = node$
-                editorBody$.attr("contenteditable", "true")
-                editorBody$.attr("id","__ed-iframe-body")
+            node$ = $(@editorTarget)
+
+            # 1- preparation of the editor jframe
+            @editorBody$  = node$
+            @editorBody$.attr("contenteditable", "true")
+            @editorBody$.attr("id","__ed-iframe-body")
+        
+            # 2- set the properties of the editor
+            @_lines       = {}            # contains every line
+            @newPosition  = true          # true only if cursor has moved
+            @_highestId   = 0             # last inserted line identifier
+            @_deepest     = 1             # current maximum indentation
+            @_firstLine   = null          # pointer to the first line
+            @_history     =               # for history management
+                index        : 0
+                history      : [null]
+                historySelect: [null]
+                historyScroll: [null]
+                historyPos   : [null]
+            @_lastKey     = null      # last pressed key (avoid duplication)
             
-                # 2- set the properties of the editor
-                @editorBody$  = editorBody$   # label <body> of the iframe
-                @editorTarget = elementTarget # <iframe>
-                @_lines       = {}            # contains every line
-                @newPosition  = true          # true only if cursor has moved
-                @_highestId   = 0             # last inserted line identifier
-                @_deepest     = 1             # current maximum indentation
-                @_firstLine   = null          # pointer to the first line
-                @_history     =               # for history management
-                    index        : 0
-                    history      : [null]
-                    historySelect: [null]
-                    historyScroll: [null]
-                    historyPos   : [null]
-                @_lastKey     = null      # last pressed key (avoid duplication)
-                
-                # 3- initialize event listeners
-                editorBody$.prop( '__editorCtl', this)
-                #editorBody$.on 'keypress', @_keyPressListener
-                editorBody$.on 'keydown', @_keyPressListener
-                editorBody$.on 'mouseup', () =>
-                    @newPosition = true
-                editorBody$.on 'keyup', () ->
-                    node$.trigger jQuery.Event("onKeyUp")
-                editorBody$.on 'click', (e) =>
-                    @_lastKey = null
-                editorBody$.on 'paste', (e) =>
-                    console.log "pasting..."
-                    @paste(e)
-                # 4- return a ref to the editor's controler
-                callBack.call(this)
-                return this
-            allSetter()
+            # 3- initialize event listeners
+            @editorBody$.prop( '__editorCtl', this)
+            #editorBody$.on 'keypress', @_keyPressListener
+            @editorBody$.on 'keydown', @_keyPressListener
+            @editorBody$.on 'mouseup', () =>
+                @newPosition = true
+            @editorBody$.on 'keyup', () ->
+                node$.trigger jQuery.Event("onKeyUp")
+            @editorBody$.on 'click', (event) =>
+                @_lastKey = null
+            @editorBody$.on 'paste', (event) =>
+                @paste(event)
+
             # init clipboard div
             @_initClipBoard()
 
+            # 4- return a ref to the editor's controler
+            callBack.call(this)
 
     ### ------------------------------------------------------------------------
     # EXTENSION : _updateDeepest
@@ -183,7 +172,7 @@ class exports.CNeditor
     # Initialize the editor content from a html string
     ###
     replaceContent : (htmlContent) ->
-        @editorBody$.html( htmlContent )
+        @editorBody$.html htmlContent
         @_readHtml()
         @_initClipBoard()
         #@_buildSummary()
@@ -193,7 +182,6 @@ class exports.CNeditor
     ###
     deleteContent : () ->
         @editorBody$.html '<div id="CNID_1" class="Tu-1"><span></span><br></div>'
-        # update the controler
         @_readHtml()
         @_initClipBoard()
         #@_buildSummary()
@@ -1448,7 +1436,7 @@ class exports.CNeditor
     _insertLineAfter : (p) ->
         @_highestId += 1
         lineID          = 'CNID_' + @_highestId
-        if p.fragment? 
+        if p.fragment?
             newLine$ = $("<div id='#{lineID}' class='#{p.targetLineType}-#{p.targetLineDepthAbs}'></div>")
             newLine$.append( p.fragment )
             if newLine$[0].childNodes.length == 0 or newLine$[0].lastChild.nodeName != 'BR'
@@ -1463,7 +1451,7 @@ class exports.CNeditor
             newLine$.append( $('<span></span><br>') )
         sourceLine = p.sourceLine
         newLine$   = newLine$.insertAfter(sourceLine.line$)
-        newLine    =  
+        newLine    =
             line$        : newLine$
             lineID       : lineID
             lineType     : p.targetLineType
@@ -1675,7 +1663,7 @@ class exports.CNeditor
     ###  -----------------------------------------------------------------------
     #   _readHtml
     # 
-    # Parse a raw html inserted in the iframe in order to update the controler
+    # Parse a raw html inserted in the iframe in order to update the controller
     ###
     _readHtml : () ->
         linesDiv$    = @editorBody$.children()  # linesDiv$= $[Div of lines]
@@ -1695,17 +1683,17 @@ class exports.CNeditor
                 lineDepthAbs_old = lineDepthAbs
                 # hypothesis : _readHtml is called only on an html where 
                 #              class="Tu-xx" where xx is the absolute depth
-                lineDepthAbs     = +lineClass[1] 
+                lineDepthAbs     = +lineClass[1]
                 DeltaDepthAbs    = lineDepthAbs - lineDepthAbs_old
                 lineDepthRel_old = lineDepthRel
                 if lineType == "Th"
                     lineDepthRel = 0
-                else 
+                else
                     lineDepthRel = lineDepthRel_old + DeltaDepthAbs
                 lineID=(parseInt(lineID,10)+1)
                 lineID_st = "CNID_"+lineID
                 htmlLine$.prop("id",lineID_st)
-                lineNew = 
+                lineNew =
                     line$        : htmlLine$
                     lineID       : lineID_st
                     lineType     : lineType
@@ -2191,18 +2179,21 @@ class exports.CNeditor
         sel.setSingleRange range
         range.detach()
         # check whether the browser is a Webkit or not
+        console.log "event :"
+        console.log event
         if event and event.clipboardData and event.clipboardData.getData
             # Webkit: 1 - get data from clipboard
             #         2 - put data in the sandbox
             #         3 - clean the sandbox
             #         4 - cancel event (otherwise it pastes twice)
+            
             if event.clipboardData.types == "text/html"
-                mySandBox.innerHTML = event.clipboardData.getData('text/html');
+                mySandBox.innerHTML = event.clipboardData.getData('text/html')
             else if event.clipboardData.types == "text/plain"
-                mySandBox.innerHTML = event.clipboardData.getData('text/plain');
+                mySandBox.innerHTML = event.clipboardData.getData('text/plain')
             else
                 mySandBox.innerHTML = ""
-            @_waitForPasteData(mySandBox, @_processPaste)
+            @_waitForPasteData mySandBox
             if event.preventDefault
                 event.stopPropagation()
                 event.preventDefault()
@@ -2212,7 +2203,7 @@ class exports.CNeditor
             #               2 - paste in sandBox
             #               3 - cleanup the sandBox
             mySandBox.innerHTML = ""
-            @_waitForPasteData(mySandBox, @_processPaste)
+            @_waitForPasteData mySandBox
             return true
 
 
@@ -2228,15 +2219,14 @@ class exports.CNeditor
     _initClipBoard : () ->
         clipboard$ = $ document.createElement('div')
         getOffTheScreen =
-            left: -300 
+            left: -300
         clipboard$.offset getOffTheScreen
         clipboard$.prependTo @editorBody$
-        clipboard = clipboard$[0]
-        clipboard.style.setProperty('width','280px')
-        clipboard.style.setProperty('position','fixed')
-        clipboard.style.setProperty('overflow','hidden')
-        @clipboard = clipboard
-        return clipboard
+        @clipboard = clipboard$[0]
+        @clipboard.style.setProperty('width','280px')
+        @clipboard.style.setProperty('position','fixed')
+        @clipboard.style.setProperty('overflow','hidden')
+        @clipboard
     
 
 
@@ -2247,18 +2237,14 @@ class exports.CNeditor
      * @param  {function} processpaste the function to call back whan paste 
      * is ok
     ###
-    _waitForPasteData : (sandbox, processpaste) ->
-        ( waitforpastedata = (elem) ->
-            # if the clipboard div has child => paste is done => can continue
-            if elem.childNodes and elem.childNodes.length > 0
-                processpaste()
-            # else : paste not ready => wait
-            else
-                that = {e: elem}
-                that.callself = () ->
-                    waitforpastedata that.e
-                setTimeout(that.callself, 10) )(sandbox)
-           
+    _waitForPasteData : =>
+    # if the clipboard div has child => paste is done => can continue
+        if @clipboard.childNodes and @clipboard.childNodes.length > 0
+            @_processPaste()
+        # else : paste not ready => wait
+        else
+            setTimeout @_waitForPasteData, 10
+       
 
 
     ###
@@ -2269,24 +2255,25 @@ class exports.CNeditor
 
     _processPaste : () =>
         # var
+        console.log "process paste"
+        
         sandbox = @.clipboard
         currSel = @currentSel
 
+        
         # 1- Sanitize clipboard content with node-validator 
         # (https://github.com/chriso/node-validator)
         # may be improved with google caja sanitizer :
         # http://code.google.com/p/google-caja/wiki/JsHtmlSanitizer
-        pasteddata = sandbox.innerHTML
-        pasteddata = sanitize(pasteddata).xss();
-        sandbox.innerHTML = pasteddata
-
+        sandbox.innerHTML = sanitize(sandbox.innerHTML).xss()
+        
         # 2- Prepare a fragment where the lines (<div id="CNID_xx" ... </div>)
         # will be prepared before to be inserted in the editor.
         # _insertLineAfter() will work to insert new lines in the frag and 
         # will correctly update the editor. For that we insert a dummyLine 
         # at the beginning so that the first insertLineAfter works.
         frag = document.createDocumentFragment()
-        dummyLine = 
+        dummyLine =
             lineNext : null
             linePrev : null
             line$    : $("<div id='dummy' class='Tu-1'></div>")
@@ -2302,7 +2289,7 @@ class exports.CNeditor
         absDepth = currSel.startLine.lineDepthAbs
         if currSel.startLine.lineType == 'Th'
             absDepth += 1
-        domWalkContext = 
+        domWalkContext =
             # Absolute depth of the current explored node.
             absDepth           : absDepth,
             # level of the Previous  <hx> element (ex : if last title parsed 
@@ -2313,7 +2300,7 @@ class exports.CNeditor
             frag               : frag,
             # previous Cozy Note Line Abs Depth, used for the insertion of 
             # internal lines with  _clipBoard_Insert_InternalLine()
-            prevCNLineAbsDepth : null, 
+            prevCNLineAbsDepth : null,
             # refers to the record of editor.lines[] of the last inserted 
             # line in the frag
             lastAddedLine      : dummyLine,
@@ -2324,12 +2311,16 @@ class exports.CNeditor
             # boolean indicating wether currentLineFrag has already be appended
             # an element.
             isCurrentLineBeingPopulated : false
+
         # go for the walk !
-        htmlStr = @_domWalk(sandbox,domWalkContext)
+        htmlStr = @_domWalk sandbox, domWalkContext
+        
         # empty the clipboard div
         sandbox.innerHTML = ""
         # delete dummy line from the fragment
         frag.removeChild(frag.firstChild)
+        console.log frag
+        
 
         ###
         # TODO : the following steps removes all the styles of the lines in frag
@@ -2482,7 +2473,7 @@ class exports.CNeditor
         this.__domWalk(elemt, context)
         # if a line was being populated, append it to the frag
         if context.currentLineFrag.childNodes.length > 0
-            p = 
+            p =
                 sourceLine         : context.lastAddedLine
                 fragment           : context.currentLineFrag
                 targetLineType     : "Tu"
@@ -2506,6 +2497,8 @@ class exports.CNeditor
         absDepth    = context.absDepth
         prevHxLevel = context.prevHxLevel
         
+        console.log "node to parse"
+        
         # loop on the child nodes of the parsed node
         for child in nodeToParse.childNodes
             switch child.nodeName
@@ -2513,12 +2506,20 @@ class exports.CNeditor
                 when '#text'
                     # text nodes are inserted
                     txtNode = document.createTextNode(child.textContent)
+                    
                     if context.currentLineEl.nodeName in ['SPAN','A']
                         context.currentLineEl.appendChild(txtNode)
                     else
                         spaneEl = document.createElement('span')
-                        spaneEl.appendChild(txtNode)
-                        context.currentLineEl.appendChild(spaneEl)
+                        spaneEl.appendChild txtNode
+                        context.currentLineEl.appendChild spaneEl
+
+                    console.log "lineEl"
+                    console.log context.currentLineEl
+                    console.log txtNode
+                    
+                    
+                    @_appendCurrentLineFrag(context,absDepth,absDepth)
                     context.isCurrentLineBeingPopulated = true
 
                 when 'P', 'UL', 'OL'
@@ -2605,7 +2606,6 @@ class exports.CNeditor
                 #     spanNode = document.createElement('EM')
                 #     initialCurrentLineEl = context.currentLineEl
                 #     context.currentLineEl.appendChild(spanNode)
-                #     context.currentLineEl = spanNode
                 #     @__domWalk(child, context)
                 #     context.currentLineEl = initialCurrentLineEl
                 #     context.isCurrentLineBeingPopulated = true
@@ -2633,7 +2633,7 @@ class exports.CNeditor
                         context.currentLineEl.appendChild(spanNode)
                     context.isCurrentLineBeingPopulated = true
 
-        return true    
+        true
 
 
 
@@ -2648,13 +2648,16 @@ class exports.CNeditor
         if context.currentLineFrag.childNodes.length == 0
             spanNode = document.createElement('span')
             context.currentLineFrag.appendChild(spanNode)
-        p = 
+        p =
             sourceLine         : context.lastAddedLine
             fragment           : context.currentLineFrag
             targetLineType     : "Tu"
             targetLineDepthAbs : absDepth
             targetLineDepthRel : absDepth
         context.lastAddedLine = @_insertLineAfter(p)
+        console.log context.currentLineEl
+        console.log context.frag
+        context.frag.appendChild context.currentLineEl
         # prepare the new lingFrag & lineEl
         context.currentLineFrag = document.createDocumentFragment()
         context.currentLineEl = context.currentLineFrag

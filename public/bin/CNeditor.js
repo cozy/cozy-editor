@@ -1,1 +1,5590 @@
-var __bind=function(e,t){return function(){return e.apply(t,arguments)}};CNeditor=function(){function e(e,t){this._processPaste=__bind(this._processPaste,this),this._keyPressListener=__bind(this._keyPressListener,this);var n,r,i,s=this;e.nodeName==="IFRAME"?(console.log("et hop !"),this.getEditorSelection=function(){return rangy.getIframeSelection(e)},this.saveEditorSelection=function(){return rangy.saveSelection(rangy.dom.getIframeWindow(e))},r=$(e),r.on("load",function(){var n,i,o;return o=r.contents().find("html"),n=o.find("body"),n.parent().attr("id","__ed-iframe-html"),n.attr("contenteditable","true"),n.attr("id","__ed-iframe-body"),s.document=n[0].ownerDocument,i=o.find("head"),i.html('<link id="editorCSS" href="stylesheets/CNeditor.css" rel="stylesheet">'),s.editorBody$=n,s.editorTarget=e,s._lines={},s.newPosition=!0,s._highestId=0,s._deepest=1,s._firstLine=null,s._history={index:0,history:[null],historySelect:[null],historyScroll:[null],historyPos:[null]},s._lastKey=null,n.prop("__editorCtl",s),n.on("mouseup",function(){return s.newPosition=!0}),n.on("keydown",s._keyPressListener),n.on("keyup",function(){return r.trigger(jQuery.Event("onKeyUp"))}),n.on("click",function(e){return s._lastKey=null}),n.on("paste",function(e){return console.log("pasting..."),s.paste(e)}),s._initClipBoard(),t.call(s),s}),e.src=""):(console.log("target is not an iframe..."),this.getEditorSelection=function(){return rangy.getSelection()},this.saveEditorSelection=function(){return rangy.saveSelection()},i=$(e),n=function(){var n;return n=i,n.attr("contenteditable","true"),n.attr("id","__ed-iframe-body"),s.editorBody$=n,s.editorTarget=e,s._lines={},s.newPosition=!0,s._highestId=0,s._deepest=1,s._firstLine=null,s._history={index:0,history:[null],historySelect:[null],historyScroll:[null],historyPos:[null]},s._lastKey=null,n.prop("__editorCtl",s),n.on("keydown",s._keyPressListener),n.on("mouseup",function(){return s.newPosition=!0}),n.on("keyup",function(){return i.trigger(jQuery.Event("onKeyUp"))}),n.on("click",function(e){return s._lastKey=null}),n.on("paste",function(e){return console.log("pasting..."),s.paste(e)}),t.call(s),s},n(),this._initClipBoard())}return e.prototype._updateDeepest=function(){var e,t,n;n=1,t=this._lines;for(e in t)this.editorBody$.children("#"+(""+t[e].lineID)).length>0&&t[e].lineType==="Th"&&t[e].lineDepthAbs>n&&(n=this._lines[e].lineDepthAbs);if(n!==this._deepest)return this._deepest=n,n<4?this.replaceCSS("stylesheets/app-deep-"+n+".css"):this.replaceCSS("stylesheets/app-deep-4.css")},e.prototype.replaceContent=function(e){return this.editorBody$.html(e),this._readHtml(),this._initClipBoard()},e.prototype.deleteContent=function(){return this.editorBody$.html('<div id="CNID_1" class="Tu-1"><span></span><br></div>'),this._readHtml(),this._initClipBoard()},e.prototype.getEditorContent=function(){var e;return e=this.editorBody$.html(),this._cozy2md(e)},e.prototype.setEditorContent=function(e){var t;return t=this._md2cozy(e),this.editorBody$.html(t),this._readHtml(),this._initClipBoard()},e.prototype.replaceCSS=function(e){var t,n;return t=this.document,n=t.querySelector("#editorCSS"),n.setAttribute("href",e),t.head.appendChild(n)},e.prototype._putEndOnEnd=function(e,t){var n,r;return t.lastChild!=null?(r=t.lastChild.textContent.length,r===0&&(t.lastChild.data=" ",r=1),e.setEnd(t.lastChild,r)):(n=document.createTextNode(" "),t.appendChild(n),e.setEnd(n,1))},e.prototype._putStartOnEnd=function(e,t){var n,r;return t.lastChild!=null?(r=t.lastChild.textContent.length,r===0&&(t.lastChild.data=" ",r=1),e.setStart(t.lastChild,r)):(n=document.createTextNode(" "),t.appendChild(n),e.setStart(n,0))},e.prototype._putEndOnStart=function(e,t){var n,r;return t.firstChild!=null?(r=t.firstChild.textContent.length,r===0&&(t.firstChild.data=" "),e.setEnd(t.firstChild,0)):(n=document.createTextNode(" "),t.appendChild(n),e.setEnd(n,0))},e.prototype._putStartOnStart=function(e,t){var n,r;return t.firstChild!=null?(r=t.firstChild.textContent.length,r===0&&(t.firstChild.data=" "),e.setStart(t.firstChild,0)):(n=document.createTextNode(" "),t.appendChild(n),e.setStart(n,0))},e.prototype._normalize=function(e){var t,n,r,i,s,o,u,a,f;e.startContainer.nodeName==="BODY"?o=e.startContainer.children[e.startOffset]:o=e.startContainer,e.endContainer.nodeName==="BODY"?r=e.endContainer.children[e.endOffset-1]:r=e.endContainer,o.nodeName!=="DIV"&&(o=$(o).parents("div")[0]),r.nodeName!=="DIV"&&(r=$(r).parents("div")[0]),o===r&&o.innerHTML==="<span></span><br>"&&(this.isEmptyLine=!0),s=e.startContainer;if(s.nodeName==="BODY")t=s.children[e.startOffset].firstChild,this._putStartOnStart(e,t);else if(s.nodeName==="DIV")this.isEmptyLine?(t=s.childNodes[0],this._putStartOnStart(e,t)):e.startOffset<s.childNodes.length-1?(t=s.childNodes[e.startOffset],this._putStartOnStart(e,t)):(t=s.lastChild.previousElementSibling,this._putStartOnEnd(e,t));else if((a=s.nodeName)==="SPAN"||a==="IMG"||a==="A")s.firstChild===null||s.textContent.length===0?this._putStartOnEnd(e,s):e.startOffset<s.childNodes.length?(u=s.childNodes[e.startOffset],e.setStart(u,0)):(u=s.lastChild,i=u.data.length,e.setStart(u,i));n=e.endContainer,n.nodeName==="BODY"&&(t=n.children[e.endOffset-1].lastChild,this._putEndOnEnd(e,t.previousElementSibling));if(n.nodeName==="DIV")e.endOffset<n.childNodes.length-1?(t=n.childNodes[e.endOffset],this._putEndOnStart(e,t)):(t=n.lastChild.previousElementSibling,this._putEndOnEnd(e,t));else if((f=n.nodeName)==="SPAN"||f==="IMG"||f==="A")(n.firstChild===null||n.textContent.length===0)&&this._putEndOnEnd(e,n),e.endOffset<n.childNodes.length?(u=s.childNodes[e.endOffset],e.setEnd(u,0)):(u=n.lastChild,i=u.data.length,e.setEnd(u,i));return e},e.prototype._keyPressListener=function(e){var t,n,r,i,s,o,u;n=(e.altKey?"Alt":"")+(e.ctrlKey?"Ctrl":"")+(e.shiftKey?"Shift":"");switch(e.keyCode){case 13:t="return";break;case 35:t="end";break;case 36:t="home";break;case 33:t="pgUp";break;case 34:t="pgDwn";break;case 37:t="left";break;case 38:t="up";break;case 39:t="right";break;case 40:t="down";break;case 9:t="tab";break;case 8:t="backspace";break;case 32:t="space";break;case 27:t="esc";break;case 46:t="suppr";break;case 16:e.preventDefault();return;case 17:e.preventDefault();return;case 18:e.preventDefault();return;default:switch(e.which){case 32:t="space";break;case 8:t="backspace";break;case 65:t="A";break;case 83:t="S";break;case 86:t="V";break;case 89:t="Y";break;case 90:t="Z";break;default:t="other"}}u=n+"-"+t;if(u==="-A"||u==="-S"||u==="-V"||u==="-Y"||u==="-Z")u="-other";this._lastKey!==u&&(u==="-tab"||u==="-return"||u==="-backspace"||u==="-suppr"||u==="CtrlShift-down"||u==="CtrlShift-up"||u==="CtrlShift-left"||u==="CtrlShift-right"||u==="Ctrl-V"||u==="Shift-tab"||u==="-space"||u==="-other")&&this._addHistory(),this._lastKey=u,this.newPosition&&(u==="-other"||u==="-space"||u==="-suppr"||u==="-backspace"||u==="-return")&&(this.newPosition=!1,o=this.getEditorSelection(),s=o.getRangeAt(0),r=rangy.createRange(),r=this._normalize(s),i=this.getEditorSelection(),i.setSingleRange(r)),(t==="left"||t==="up"||t==="right"||t==="down"||t==="pgUp"||t==="pgDwn"||t==="end"||t==="home"||t==="return"||t==="suppr"||t==="backspace")&&u!=="CtrlShift-down"&&u!=="CtrlShift-up"&&u!=="CtrlShift-right"&&u!=="CtrlShift-left"&&(this.newPosition=!0),this.currentSel=null;switch(u){case"-return":return this._return(),e.preventDefault();case"-tab":return this.tab(),e.preventDefault();case"CtrlShift-right":return this.tab(),e.preventDefault();case"-backspace":return this._backspace(e);case"-suppr":return this._suppr(e);case"CtrlShift-down":return this._moveLinesDown(),e.preventDefault();case"CtrlShift-up":return this._moveLinesUp(),e.preventDefault();case"Shift-tab":return this.shiftTab(),e.preventDefault();case"CtrlShift-left":return this.shiftTab(),e.preventDefault();case"Alt-A":return this._toggleLineType(),e.preventDefault();case"Ctrl-V":return!0;case"Ctrl-S":return $(this.editorTarget).trigger(jQuery.Event("saveRequest")),e.preventDefault();case"Ctrl-Z":return e.preventDefault(),this.unDo();case"Ctrl-Y":return e.preventDefault(),this.reDo()}},e.prototype._suppr=function(e){var t,n;this._findLinesAndIsStartIsEnd(),t=this.currentSel,this.isEmptyLine&&(this.isEmptyLine=!1,t.range.deleteContents()),n=t.startLine;if(!t.range.collapsed)return t.endLine===n?(t.range.deleteContents(),e.preventDefault()):(this._deleteMultiLinesSelections(),e.preventDefault());if(t.rangeIsEndLine)return n.lineNext!==null?(t.range.setEndBefore(n.lineNext.line$[0].firstChild),t.endLine=n.lineNext,this._deleteMultiLinesSelections(),e.preventDefault()):e.preventDefault()},e.prototype._backspace=function(e){var t,n;this._findLinesAndIsStartIsEnd(),t=this.currentSel,this.isEmptyLine&&(this.isEmptyLine=!1,t.range.deleteContents()),n=t.startLine;if(!t.range.collapsed)return t.endLine===n?(t.range.deleteContents(),e.preventDefault()):(this._deleteMultiLinesSelections(),e.preventDefault());if(t.rangeIsStartLine)return n.linePrev!==null?(t.range.setStartBefore(n.linePrev.line$[0].lastChild),t.startLine=n.linePrev,this._deleteMultiLinesSelections(),e.preventDefault()):e.preventDefault()},e.prototype.titleList=function(){var e,t,n,r,i,s,o,u;s=this.getEditorSelection(),i=s.getRangeAt(0),i.startContainer.nodeName==="BODY"?o=i.startContainer.children[i.startOffset]:o=i.startContainer,i.endContainer.nodeName==="BODY"?e=i.endContainer.children[i.endOffset-1]:e=i.endContainer,o.nodeName!=="DIV"&&(o=$(o).parents("div")[0]),e.nodeName!=="DIV"&&(e=$(e).parents("div")[0]),n=e.id,r=this._lines[o.id],t=e.id,u=[];for(;;){this._line2titleList(r);if(r.lineID===t)break;u.push(r=r.lineNext)}return u},e.prototype._line2titleList=function(e){var t,n;if(e.lineType!=="Th"){e.lineType[0]==="L"&&(e.lineType="Tu",e.lineDepthAbs+=1),this._titilizeSiblings(e),t=this._findParent1stSibling(e),n=[];while(t!==null&&t.lineType!=="Th")this._titilizeSiblings(t),n.push(t=this._findParent1stSibling(t));return n}},e.prototype._titilizeSiblings=function(e){var t,n;n=e.lineDepthAbs,t=e;while(t!==null&&t.lineDepthAbs>=n){if(t.lineDepthAbs===n)switch(t.lineType){case"Tu":case"To":t.line$.prop("class","Th-"+n),t.lineType="Th",t.lineDepthRel=0;break;case"Lu":case"Lo":t.line$.prop("class","Lh-"+n),t.lineType="Lh",t.lineDepthRel=0}t=t.lineNext}t=e.linePrev;while(t!==null&&t.lineDepthAbs>=n){if(t.lineDepthAbs===n)switch(t.lineType){case"Tu":case"To":t.line$.prop("class","Th-"+n),t.lineType="Th",t.lineDepthRel=0;break;case"Lu":case"Lo":t.line$.prop("class","Lh-"+n),t.lineType="Lh",t.lineDepthRel=0}t=t.linePrev}return!0},e.prototype.markerList=function(e){var t,n,r,i,s,o,u,a;e!=null?(u=e.lineID,n=u):(s=this.getEditorSelection().getRangeAt(0),s.startContainer.nodeName==="BODY"?o=s.startContainer.children[s.startOffset]:o=s.startContainer,s.endContainer.nodeName==="BODY"?t=s.endContainer.children[s.endOffset-1]:t=s.endContainer,o.nodeName!=="DIV"&&(o=$(o).parents("div")[0]),u=o.id,t.nodeName!=="DIV"&&(t=$(t).parents("div")[0]),n=t.id),r=this._lines[u],a=[];for(;;){switch(r.lineType){case"Th":i="Tu",e=r.lineNext;while(e!==null&&e.lineDepthAbs>=r.lineDepthAbs){switch(e.lineType){case"Th":e.line$.prop("class","Tu-"+e.lineDepthAbs),e.lineType="Tu",e.lineDepthRel=this._findDepthRel(e);break;case"Lh":e.line$.prop("class","Lu-"+e.lineDepthAbs),e.lineType="Lu",e.lineDepthRel=this._findDepthRel(e)}e=e.lineNext}e=r.linePrev;while(e!==null&&e.lineDepthAbs>=r.lineDepthAbs){switch(e.lineType){case"Th":e.line$.prop("class","Tu-"+e.lineDepthAbs),e.lineType="Tu",e.lineDepthRel=this._findDepthRel(e);break;case"Lh":e.line$.prop("class","Lu-"+e.lineDepthAbs),e.lineType="Lu",e.lineDepthRel=this._findDepthRel(e)}e=e.linePrev}break;case"Lh":case"Lu":this.tab(r);break;default:i=!1}i&&(r.line$.prop("class",""+i+"-"+r.lineDepthAbs),r.lineType=i);if(r.lineID===n)break;a.push(r=r.lineNext)}return a},e.prototype._findDepthRel=function(e){var t;if(e.lineDepthAbs===1)return e.lineType[1]==="h"?0:1;t=e.linePrev;while(t!==null&&t.lineDepthAbs>=e.lineDepthAbs)t=t.linePrev;return t!==null?t.lineDepthRel+1:0},e.prototype._toggleLineType=function(){var e,t,n,r,i,s,o,u,a;o=this.getEditorSelection(),s=o.getRangeAt(0),s.startContainer.nodeName==="BODY"?u=s.startContainer.children[s.startOffset]:u=s.startContainer,s.endContainer.nodeName==="BODY"?e=s.endContainer.children[s.endOffset-1]:e=s.endContainer,u.nodeName!=="DIV"&&(u=$(u).parents("div")[0]),e.nodeName!=="DIV"&&(e=$(e).parents("div")[0]),t=e.id,r=this._lines[u.id],a=[];for(;;){switch(r.lineType){case"Tu":i="Th",n=r.lineNext;while(n!==null&&n.lineDepthAbs>=r.lineDepthAbs)n.lineDepthAbs===r.lineDepthAbs&&(n.lineType==="Tu"?(n.line$.prop("class","Th-"+r.lineDepthAbs),n.lineType="Th"):(n.line$.prop("class","Lh-"+r.lineDepthAbs),n.lineType="Lh")),n=n.lineNext;n=r.linePrev;while(n!==null&&n.lineDepthAbs>=r.lineDepthAbs)n.lineDepthAbs===r.lineDepthAbs&&(n.lineType==="Tu"?(n.line$.prop("class","Th-"+r.lineDepthAbs),n.lineType="Th"):(n.line$.prop("class","Lh-"+r.lineDepthAbs),n.lineType="Lh")),n=n.linePrev;break;case"Th":i="Tu",n=r.lineNext;while(n!==null&&n.lineDepthAbs>=r.lineDepthAbs)n.lineDepthAbs===r.lineDepthAbs&&(n.lineType==="Th"?(n.line$.prop("class","Tu-"+r.lineDepthAbs),n.lineType="Tu"):(n.line$.prop("class","Lu-"+r.lineDepthAbs),n.lineType="Lu")),n=n.lineNext;n=r.linePrev;while(n!==null&&n.lineDepthAbs>=r.lineDepthAbs)n.lineDepthAbs===r.lineDepthAbs&&(n.lineType==="Th"?(n.line$.prop("class","Tu-"+r.lineDepthAbs),n.lineType="Tu"):(n.line$.prop("class","Lu-"+r.lineDepthAbs),n.lineType="Lu")),n=n.linePrev;break;default:i=!1}i&&(r.line$.prop("class",""+i+"-"+r.lineDepthAbs),r.lineType=i);if(r.lineID===e.id)break;a.push(r=r.lineNext)}return a},e.prototype.tab=function(e){var t,n,r,i,s,o,u,a,f,l,c,h,p;e!=null?(h=e.line$[0],t=h):(c=this.getEditorSelection(),l=c.getRangeAt(0),l.startContainer.nodeName==="BODY"?h=l.startContainer.children[l.startOffset]:h=l.startContainer,l.endContainer.nodeName==="BODY"?t=l.endContainer.children[l.endOffset-1]:t=l.endContainer),h.nodeName!=="DIV"&&(h=$(h).parents("div")[0]),t.nodeName!=="DIV"&&(t=$(t).parents("div")[0]),n=t.id,i=this._lines[h.id],p=[];for(;;){switch(i.lineType){case"Tu":case"Th":u=this._findPrevSibling(i);if(u===null)r=!1;else{r=!0;if(u.lineType==="Th")a="Lh";else{u.lineType==="Tu"?a="Lu":a="Lo";if(i.lineType==="Th"){s=i.lineNext;while(s!==null&&s.lineDepthAbs>i.lineDepthAbs)switch(s.lineType){case"Th":s.lineType="Tu",i.line$.prop("class","Tu-"+s.lineDepthAbs),f=prevTxType;break;case"Tu":f="Lu";break;case"To":f="Lo";break;case"Lh":s.lineType=f,i.line$.prop("class",""+f+"-"+s.lineDepthAbs)}}}}break;case"Lh":case"Lu":case"Lo":s=i.lineNext,a=null;while(s!==null&&s.lineDepthAbs>=i.lineDepthAbs)s.lineDepthAbs!==i.lineDepthAbs+1?s=s.lineNext:(a=s.lineType,s=null);if(a===null){o=i.linePrev;while(o!==null&&o.lineDepthAbs>=i.lineDepthAbs)o.lineDepthAbs===i.lineDepthAbs+1?(a=o.lineType,o=null):o=o.linePrev}if(a===null)r=!0,a="Tu",i.lineDepthAbs+=1,i.lineDepthRel+=1;else{a==="Th"&&(r=!0,i.lineDepthAbs+=1,i.lineDepthRel=0);if(a==="Tu"||a==="To")r=!0,i.lineDepthAbs+=1,i.lineDepthRel+=1}}r&&(i.line$.prop("class",""+a+"-"+i.lineDepthAbs),i.lineType=a);if(i.lineID===n)break;p.push(i=i.lineNext)}return p},e.prototype.shiftTab=function(e){var t,n,r,i,s,o,u,a,f,l,c;e!=null?a=e:(f=this.getEditorSelection(),a=f.getRangeAt(0)),a.startContainer.nodeName==="BODY"?l=a.startContainer.children[a.startOffset]:l=a.startContainer,a.endContainer.nodeName==="BODY"?t=a.endContainer.children[a.endOffset-1]:t=a.endContainer,l.nodeName!=="DIV"&&(l=$(l).parents("div")[0]),t.nodeName!=="DIV"&&(t=$(t).parents("div")[0]),n=t.id,i=this._lines[l.id],c=[];for(;;){switch(i.lineType){case"Tu":case"Th":case"To":u=i.linePrev;while(u!==null&&u.lineDepthAbs>=i.lineDepthAbs)u=u.linePrev;u!==null?(r=!0,s=u.lineType,s="L"+s.charAt(1),i.lineDepthAbs-=1,i.lineDepthRel-=u.lineDepthRel,i.lineNext!=null&&i.lineNext.lineType[0]==="L"&&(o=i.lineNext,o.lineType="T"+o.lineType[1],o.line$.prop("class",""+o.lineType+"-"+o.lineDepthAbs))):r=!1;break;case"Lh":r=!0,s="Th";break;case"Lu":r=!0,s="Tu";break;case"Lo":r=!0,s="To"}r&&(i.line$.prop("class",""+s+"-"+i.lineDepthAbs),i.lineType=s);if(i.lineID===t.id)break;c.push(i=i.lineNext)}return c},e.prototype._return=function(){var e,t,n,r,i,s;return this._findLinesAndIsStartIsEnd(),e=this.currentSel,s=e.startLine,t=e.endLine,e.range.collapsed||(t===s?e.range.deleteContents():(this._deleteMultiLinesSelections(),this._findLinesAndIsStartIsEnd(),e=this.currentSel,s=e.startLine)),e.rangeIsEndLine?(r=this._insertLineAfter({sourceLine:s,targetLineType:s.lineType,targetLineDepthAbs:s.lineDepthAbs,targetLineDepthRel:s.lineDepthRel}),i=rangy.createRange(),i.collapseToPoint(r.line$[0].firstChild,0),e.sel.setSingleRange(i)):e.rangeIsStartLine?(r=this._insertLineBefore({sourceLine:s,targetLineType:s.lineType,targetLineDepthAbs:s.lineDepthAbs,targetLineDepthRel:s.lineDepthRel}),i=rangy.createRange(),i.collapseToPoint(s.line$[0].firstChild,0),e.sel.setSingleRange(i)):(e.range.setEndBefore(s.line$[0].lastChild),n=e.range.extractContents(),e.range.deleteContents(),r=this._insertLineAfter({sourceLine:s,targetLineType:s.lineType,targetLineDepthAbs:s.lineDepthAbs,targetLineDepthRel:s.lineDepthRel,fragment:n}),i=rangy.createRange(),i.collapseToPoint(r.line$[0].firstChild,0),e.sel.setSingleRange(i),this.currentSel=null)},e.prototype._findParent1stSibling=function(e){var t,n;t=e.lineDepthAbs,n=e.linePrev;if(n===null)return e;if(t<=2){while(n.linePrev!==null)n=n.linePrev;return n}while(n!==null&&n.lineDepthAbs>t-2)n=n.linePrev;return n.lineNext},e.prototype._findPrevSibling=function(e){var t,n;t=e.lineDepthAbs,n=e.linePrev;if(n===null)return null;if(n.lineDepthAbs<t)return null;while(n.lineDepthAbs>t)n=n.linePrev;while(n.lineType[0]==="L")n=n.linePrev;return n},e.prototype._deleteMultiLinesSelections=function(e,t){var n,r,i,s,o,u,a,f,l,c,h,p,d,v,m,g,y,b,w,E,S,x,T;y=!0,e!==void 0?(y=!1,v=rangy.createRange(),e===null?(e=t,t=t.lineNext,this._putStartOnStart(v,e.line$[0].firstElementChild),t.line$.prepend("<span></span>"),this._putEndOnStart(v,t.line$[0].firstElementChild)):(S=e.line$[0].lastElementChild.previousElementSibling,o=t.line$[0].lastElementChild.previousElementSibling,v.setStartAfter(S,0),v.setEndAfter(o,0))):(this._findLines(),v=this.currentSel.range,b=v.startContainer,x=v.startOffset,e=this.currentSel.startLine,t=this.currentSel.endLine),s=t.lineDepthAbs,E=e.lineDepthAbs,n=s-E,g=rangy.createRangyRange(),g.setStart(v.endContainer,v.endOffset),g.setEndAfter(t.line$[0].lastChild),u=g.cloneContents(),t.lineType[1]==="h"&&e.lineType[1]!=="h"&&(t.lineType[0]==="L"&&(t.lineType="T"+t.lineType[1],t.line$.prop("class",""+t.lineType+"-"+t.lineDepthAbs)),this.markerList(t)),v.deleteContents(),e.line$[0].lastChild.nodeName==="BR"&&e.line$[0].removeChild(e.line$[0].lastChild),w=u.childNodes[0],c=e.line$[0].lastElementChild;if(w.tagName===(T=c.tagName)&&T==="SPAN"&&w.className===c.className){x=c.textContent.length,p=c.textContent+w.textContent,c.innerHTML=p,b=c.firstChild,f=1;while(f<u.childNodes.length)$(u.childNodes[f]).appendTo(e.line$),f++}else e.line$.append(u);e.lineNext=t.lineNext,t.lineNext!==null&&(t.lineNext.linePrev=e),t.line$.remove(),delete this._lines[t.lineID],l=e.lineNext;if(l!==null){r=l.lineDepthAbs-E;if(r>=1)while(l!==null&&l.lineDepthAbs>=s)h=l.lineDepthAbs-n,l.lineDepthAbs=h,l.line$.prop("class",""+l.lineType+"-"+h),l=l.lineNext}if(l!==null){l.lineType[0]==="L"&&(l.lineType="T"+l.lineType[1],l.line$.prop("class",""+l.lineType+"-"+l.lineDepthAbs)),a=l,i=l.lineDepthAbs,l=l.linePrev;while(l!==null&&l.lineDepthAbs>i)l=l.linePrev;l!==null&&(d=l.lineType,a.lineType!==d&&(d[1]==="h"?this._line2titleList(a):this.markerList(a)))}if(y)return m=rangy.createRange(),m.collapseToPoint(b,x),this.currentSel.sel.setSingleRange(m),this.currentSel=null},e.prototype._insertLineAfter=function(e){var t,n,r,i;return this._highestId+=1,t="CNID_"+this._highestId,e.fragment!=null?(r=$("<div id='"+t+"' class='"+e.targetLineType+"-"+e.targetLineDepthAbs+"'></div>"),r.append(e.fragment),(r[0].childNodes.length===0||r[0].lastChild.nodeName!=="BR")&&r.append("<br>")):e.innerHTML!=null?(r=$("<div id='"+t+"' class='"+e.targetLineType+"-"+e.targetLineDepthAbs+"'>                "+e.innerHTML+"</div>"),r[0].lastChild.nodeName!=="BR"&&r.append("<br>")):(r=$("<div id='"+t+"' class='"+e.targetLineType+"-"+e.targetLineDepthAbs+"'></div>"),r.append($("<span></span><br>"))),i=e.sourceLine,r=r.insertAfter(i.line$),n={line$:r,lineID:t,lineType:e.targetLineType,lineDepthAbs:e.targetLineDepthAbs,lineDepthRel:e.targetLineDepthRel,lineNext:i.lineNext,linePrev:i},this._lines[t]=n,i.lineNext!==null&&(i.lineNext.linePrev=n),i.lineNext=n,n},e.prototype._insertLineBefore=function(e){var t,n,r,i;return this._highestId+=1,t="CNID_"+this._highestId,r=$("<div id='"+t+"' class='"+e.targetLineType+"-"+e.targetLineDepthAbs+"'></div>"),e.fragment!=null?(r.append(e.fragment),r.append($("<br>"))):r.append($("<span></span><br>")),i=e.sourceLine,r=r.insertBefore(i.line$),n={line$:r,lineID:t,lineType:e.targetLineType,lineDepthAbs:e.targetLineDepthAbs,lineDepthRel:e.targetLineDepthRel,lineNext:i,linePrev:i.linePrev},this._lines[t]=n,i.linePrev!==null&&(i.linePrev.lineNext=n),i.linePrev=n,n},e.prototype._findLines=function(){var e,t,n,r,i,s,o,u;if(this.currentSel===null)return s=this.getEditorSelection(),i=s.getRangeAt(0),o=i.startContainer,e=i.endContainer,r=i.startOffset,n=i.endOffset,e.id!=null&&e.id.substr(0,5)==="CNID_"?t=this._lines[e.id]:t=this._lines[$(e).parents("div")[0].id],o.nodeName==="DIV"?u=this._lines[o.id]:u=this._lines[$(o).parents("div")[0].id],this.currentSel={sel:s,range:i,startLine:u,endLine:t,rangeIsStartLine:null,rangeIsEndLine:null}},e.prototype._findLinesAndIsStartIsEnd=function(){var e,t,n,r,i,s,o,u,a,f,l,c,h;if(this.currentSel===null){l=this.getEditorSelection(),u=l.getRangeAt(0),c=u.startContainer,e=u.endContainer,r=u.startOffset,n=u.endOffset;if(e.id!=null&&e.id.substr(0,5)==="CNID_")t=this._lines[e.id],a=e.children.length<n||e.children[n].nodeName==="BR";else{t=this._lines[$(e).parents("div")[0].id],a=!1,e.nodeType===Node.TEXT_NODE?a=e.nextSibling===null&&n===e.textContent.length:a=e.nodeName==="BR"||e.nextSibling.nodeName==="BR"&&e.childNodes.length===n,s=e.parentNode;while(a&&s.nodeName!=="DIV")i=s.nextSibling,a=i===null||i.nodeName==="BR",s=s.parentNode}if(c.nodeName==="DIV")h=this._lines[c.id],f=r===0;else{h=this._lines[$(c).parents("div")[0].id],c.nodeType===Node.TEXT_NODE?f=e.previousSibling===null&&r===0:f=r===0,o=c.parentNode;while(f&&o.nodeName!=="DIV")f=o.previousSibling===null,o=o.parentNode}return t.line$[0].innerHTML==="<span></span><br>"&&(a=!0),h.line$[0].innerHTML==="<span></span><br>"&&(f=!0),this.currentSel={sel:l,range:u,startLine:h,endLine:t,rangeIsStartLine:f,rangeIsEndLine:a}}},e.prototype._readHtml=function(){var e,t,n,r,i,s,o,u,a,f,l,c,h,p,d,v,m,g;d=this.editorBody$.children(),i=0,o=0,a=0,this._lines={},h=null,c=null;for(v=0,m=d.length;v<m;v++)t=d[v],n=$(t),r=(g=n.attr("class"))!=null?g:"",r=r.split("-"),p=r[0],p!==""&&(s=i,i=+r[1],e=i-s,u=o,p==="Th"?o=0:o=u+e,a=parseInt(a,10)+1,f="CNID_"+a,n.prop("id",f),l={line$:n,lineID:f,lineType:p,lineDepthAbs:i,lineDepthRel:o,lineNext:null,linePrev:h},h!==null&&(h.lineNext=l),h=l,this._lines[f]=l);return this._highestId=a},e.prototype._moveLinesDown=function(){var e,t,n,r,i,s,o,u,a,f,l,c,h,p,d,v;c=this.getEditorSelection(),l=c.getRangeAt(0),l.startContainer.nodeName==="BODY"?h=l.startContainer.children[l.startOffset]:h=l.startContainer,l.endContainer.nodeName==="BODY"?t=l.endContainer.children[l.endOffset-1]:t=l.endContainer,h.nodeName!=="DIV"&&(h=$(h).parents("div")[0]),p=h.id,t.nodeName!=="DIV"&&(t=$(t).parents("div")[0]),n=t.id,u=this._lines[p],i=this._lines[n],o=u.linePrev,s=i.lineNext;if(s!==null){e={line$:s.line$.clone(),lineID:s.lineID,lineType:s.lineType,lineDepthAbs:s.lineDepthAbs,lineDepthRel:s.lineDepthRel,linePrev:s.linePrev,lineNext:s.lineNext},this._deleteMultiLinesSelections(i,s),s=e,this._lines[s.lineID]=s,s.linePrev=o,u.linePrev=s,s.lineNext!==null&&(s.lineNext.linePrev=i),i.lineNext=s.lineNext,s.lineNext=u,o!==null&&(o.lineNext=s),u.line$.before(s.line$);if(o===null)return;if(s.lineDepthAbs<=o.lineDepthAbs){r=s;while(r.lineNext!==null&&r.lineNext.lineDepthAbs>s.lineDepthAbs)r=r.lineNext;r.lineNext!==null&&(r=r.lineNext),a=rangy.createRange(),a.setStart(u.line$[0],0),a.setEnd(r.line$[0],0),f=u.lineDepthAbs-s.lineDepthAbs,s.lineNext.lineType[0]==="T"&&(u.lineType[0]==="T"?f-=1:f+=1),d=[];while(f>=0)this.shiftTab(a),d.push(f-=1);return d}a=rangy.createRange(),a.setStart(s.line$[0],0),a.setEnd(s.line$[0],0),f=s.lineDepthAbs-o.lineDepthAbs,u.lineType[0]==="T"&&(o.lineType[0]==="T"?f-=1:f+=1),v=[];while(f>=0)this.shiftTab(a),v.push(f-=1);return v}},e.prototype._moveLinesUp=function(){var e,t,n,r,i,s,o,u,a,f,l,c,h,p,d,v,m;h=this.getEditorSelection(),c=h.getRangeAt(0),c.startContainer.nodeName==="BODY"?p=c.startContainer.children[c.startOffset]:p=c.startContainer,c.endContainer.nodeName==="BODY"?t=c.endContainer.children[c.endOffset-1]:t=c.endContainer,p.nodeName!=="DIV"&&(p=$(p).parents("div")[0]),d=p.id,t.nodeName!=="DIV"&&(t=$(t).parents("div")[0]),n=t.id,a=this._lines[d],s=this._lines[n],u=a.linePrev,o=s.lineNext;if(u!==null){r=u.linePrev===null,e={line$:u.line$.clone(),lineID:u.lineID,lineType:u.lineType,lineDepthAbs:u.lineDepthAbs,lineDepthRel:u.lineDepthRel,linePrev:u.linePrev,lineNext:u.lineNext},this._deleteMultiLinesSelections(u.linePrev,u),r&&($(u.line$[0].firstElementChild).remove(),u.line$.append("<br>"),a.line$=u.line$,a.line$.attr("id",a.lineID),this._lines[a.lineID]=a),u=e,this._lines[u.lineID]=u,u.lineNext=o,s.lineNext=u,u.linePrev!==null&&(u.linePrev.lineNext=a),a.linePrev=u.linePrev,u.linePrev=s,o!==null&&(o.linePrev=u),s.line$.after(u.line$);if(u.lineDepthAbs<=s.lineDepthAbs&&o!==null){i=u;while(i.lineNext!==null&&i.lineNext.lineDepthAbs>u.lineDepthAbs)i=i.lineNext;i.lineNext!==null&&(i=i.lineNext),f=rangy.createRange(),f.setStart(o.line$[0],0),f.setEnd(i.line$[0],0),l=o.lineDepthAbs-u.lineDepthAbs,u.lineNext.lineType[0]==="T"&&(u.lineType[0]==="T"?l-=1:l+=1),v=[];while(l>=0)this.shiftTab(f),v.push(l-=1);return v}f=rangy.createRange(),f.setStart(u.line$[0],0),f.setEnd(u.line$[0],0),l=u.lineDepthAbs-s.lineDepthAbs,u.lineType[0]==="T"&&(s.lineType[0]==="T"?l-=1:l+=1),m=[];while(l>=0)this.shiftTab(f),m.push(l-=1);return m}},e.prototype._addHistory=function(){var e,t;return t=this.saveEditorSelection(),this._history.historySelect.push(t),e={xcoord:this.editorBody$.scrollTop(),ycoord:this.editorBody$.scrollLeft()},this._history.historyScroll.push(e),this._history.historyPos.push(this.newPosition),this._history.history.push(this.editorBody$.html()),rangy.removeMarkers(t),this._history.index=this._history.history.length-1},e.prototype.undoPossible=function(){return this._history.index>0},e.prototype.redoPossible=function(){return this._history.index<this._history.history.length-2},e.prototype.unDo=function(){var e,t,n;if(this.undoPossible())return this._history.index===this._history.history.length-1&&(this._addHistory(),this._history.index-=1),this.newPosition=this._history.historyPos[this._history.index],this.editorBody$.html(this._history.history[this._history.index]),e=this._history.historySelect[this._history.index],e.restored=!1,rangy.restoreSelection(e),t=this._history.historyScroll[this._history.index].xcoord,n=this._history.historyScroll[this._history.index].ycoord,this.editorBody$.scrollTop(t),this.editorBody$.scrollLeft(n),this._readHtml(),this._history.index-=1},e.prototype.reDo=function(){var e,t,n;if(this.redoPossible())return this.newPosition=this._history.historyPos[this._history.index+1],this._history.index+=1,this.editorBody$.html(this._history.history[this._history.index+1]),e=this._history.historySelect[this._history.index+1],e.restored=!1,rangy.restoreSelection(e),t=this._history.historyScroll[this._history.index+1].xcoord,n=this._history.historyScroll[this._history.index+1].ycoord,this.editorBody$.scrollTop(t),this.editorBody$.scrollLeft(n),this._readHtml()},e.prototype._initSummary=function(){var e;return e=this.editorBody$.children("#navi"),e.length===0&&(e=$(document.createElement("div")),e.attr("id","navi"),e.prependTo(this.editorBody$)),e},e.prototype._buildSummary=function(){var e,t,n,r;n=this.initSummary(),this.editorBody$.children("#navi").children().remove(),t=this._lines,r=[];for(e in t)this.editorBody$.children("#"+(""+t[e].lineID)).length>0&&t[e].lineType==="Th"?r.push(t[e].line$.clone().appendTo(n)):r.push(void 0);return r},e.prototype.paste=function(e){var t,n,r;return t=this.clipboard,this._findLinesAndIsStartIsEnd(),n=rangy.createRange(),n.selectNodeContents(t),r=this.getEditorSelection(),r.setSingleRange(n),n.detach(),e&&e.clipboardData&&e.clipboardData.getData?(e.clipboardData.types==="text/html"?t.innerHTML=e.clipboardData.getData("text/html"):e.clipboardData.types==="text/plain"?t.innerHTML=e.clipboardData.getData("text/plain"):t.innerHTML="",this._waitForPasteData(t,this._processPaste),e.preventDefault&&(e.stopPropagation(),e.preventDefault()),!1):(t.innerHTML="",this._waitForPasteData(t,this._processPaste),!0)},e.prototype._initClipBoard=function(){var e,t,n;return t=$(document.createElement("div")),n={left:-300},t.offset(n),t.prependTo(this.editorBody$),e=t[0],e.style.setProperty("width","280px"),e.style.setProperty("position","fixed"),e.style.setProperty("overflow","hidden"),this.clipboard=e,e},e.prototype._waitForPasteData=function(e,t){var n;return(n=function(e){var r;return e.childNodes&&e.childNodes.length>0?t():(r={e:e},r.callself=function(){return n(r.e)},setTimeout(r.callself,10))})(e)},e.prototype._processPaste=function(){var e,t,n,r,i,s,o,u,a,f,l,c,h,p,d,v,m,g,y,b,w,E,S,x,T,N,C,k,L,A;x=this.clipboard,r=this.currentSel,E=x.innerHTML,E=sanitize(E).xss(),x.innerHTML=E,h=document.createDocumentFragment(),o={lineNext:null,linePrev:null,line$:$("<div id='dummy' class='Tu-1'></div>")},h.appendChild(o.line$[0]),i=document.createDocumentFragment(),e=r.startLine.lineDepthAbs,r.startLine.lineType==="Th"&&(e+=1),s={absDepth:e,prevHxLevel:null,frag:h,prevCNLineAbsDepth:null,lastAddedLine:o,currentLineFrag:i,currentLineEl:i,isCurrentLineBeingPopulated:!1},p=this._domWalk(x,s),x.innerHTML="",h.removeChild(h.firstChild),d=0;while(d<h.childNodes.length)v=h.childNodes[d],A=v.textContent,v.innerHTML="<span></span><br>",v.firstChild.appendChild(document.createTextNode(A)),d+=1;N=r.startLine,a=r.endLine,r.range.collapsed||(a===N?r.range.deleteContents():(this._deleteMultiLinesSelections(),r=this._findLinesAndIsStartIsEnd(),N=r.startLine)),k=r.range.startContainer,C=r.range.startOffset,k.length?f=k.length-C:f=k.childNodes.length-C,d=0,m=h.firstChild.childNodes,y=m.length;while(d<y-1)u=m[d],d+=1,u.tagName==="SPAN"&&(k.tagName==="SPAN"||k.nodeType===Node.TEXT_NODE)&&(L=k.textContent,b=L.substr(0,C),b+=u.textContent,b+=L.substr(C),k.textContent=b,C+=u.textContent.length);if(h.childNodes.length>1){S=document.createRange(),S.setStart(k,C),w=k;while(w.tagName!=="DIV")w=w.parentElement;S.setEnd(w,w.children.length-1),l=S.extractContents(),S.detach(),this._insertFrag(h.lastChild,h.lastChild.children.length-1,l),w=k;while(w.tagName!=="DIV")w=w.parentElement}return c=o.lineNext,T=c.lineNext,h.removeChild(h.firstChild),delete this._lines[c.lineID],T!==null&&(g=r.startLine.lineNext,r.startLine.lineNext=T,T.linePrev=r.startLine,g===null?this.editorBody$[0].appendChild(h):(s.lastAddedLine.lineNext=g,g.linePrev=s.lastAddedLine,this.editorBody$[0].insertBefore(h,g.line$[0]))),T!==null?(n=g.linePrev.line$[0].childNodes[0].firstChild,t=n.length-f,r.sel.collapse(n,t)):r.sel.collapse(k,C)},e.prototype._insertFrag=function(e,t,n){var r,i;if(t===0)return r=document.createRange(),r.setStart(startContainer,startOffset),r.setEnd(startContainer,startOffset),r.insertNode(n),r.detach();if(n.childNodes.length>0)return i=e.childNodes[t-1],i.textContent+=n.firstChild.textContent},e.prototype._domWalk=function(e,t){var n;this.__domWalk(e,t);if(t.currentLineFrag.childNodes.length>0)return n={sourceLine:t.lastAddedLine,fragment:t.currentLineFrag,targetLineType:"Tu",targetLineDepthAbs:t.absDepth,targetLineDepthRel:t.absDepth},t.lastAddedLine=this._insertLineAfter(n)},e.prototype.__domWalk=function(e,t){var n,r,i,s,o,u,a,f,l,c,h,p;n=t.absDepth,o=t.prevHxLevel,h=e.childNodes;for(l=0,c=h.length;l<c;l++){r=h[l];switch(r.nodeName){case"#text":f=document.createTextNode(r.textContent),(p=t.currentLineEl.nodeName)==="SPAN"||p==="A"?t.currentLineEl.appendChild(f):(a=document.createElement("span"),a.appendChild(f),t.currentLineEl.appendChild(a)),t.isCurrentLineBeingPopulated=!0;break;case"P":case"UL":case"OL":t.absDepth=n,this.__domWalk(r,t),t.isCurrentLineBeingPopulated&&this._appendCurrentLineFrag(t,n,n);break;case"H1":case"H2":case"H3":case"H4":case"H5":case"H6":i=0,this.__domWalk(r,t),t.isCurrentLineBeingPopulated&&this._appendCurrentLineFrag(t,Math.min(0,i)+n,Math.min(0,i)+n);break;case"LI":t.isCurrentLineBeingPopulated&&this._appendCurrentLineFrag(t,n,n),this.__domWalk(r,t),t.isCurrentLineBeingPopulated&&this._appendCurrentLineFrag(t,n,n);break;case"BR":this._appendCurrentLineFrag(t,n,n);break;case"A":s=t.currentLineEl.lastChild,s!==null&&s.nodeName==="SPAN"?s.textContent+="[["+r.textContent+"|"+r.href+"]]":(u=document.createElement("span"),u.textContent=r.textContent+" [["+r.href+"]] ",t.currentLineEl.appendChild(u)),t.isCurrentLineBeingPopulated=!0;break;case"DIV":r.id.substr(0,5)==="CNID_"?this._clipBoard_Insert_InternalLine(r,t):this.__domWalk(r,t);break;default:s=t.currentLineEl.lastChild,s!==null&&s.nodeName==="SPAN"?s.textContent+=r.textContent:(u=document.createElement("span"),u.textContent=r.textContent,t.currentLineEl.appendChild(u)),t.isCurrentLineBeingPopulated=!0}}return!0},e.prototype._appendCurrentLineFrag=function(e,t,n){var r,i;return e.currentLineFrag.childNodes.length===0&&(i=document.createElement("span"),e.currentLineFrag.appendChild(i)),r={sourceLine:e.lastAddedLine,fragment:e.currentLineFrag,targetLineType:"Tu",targetLineDepthAbs:t,targetLineDepthRel:t},e.lastAddedLine=this._insertLineAfter(r),e.currentLineFrag=document.createDocumentFragment(),e.currentLineEl=e.currentLineFrag,e.isCurrentLineBeingPopulated=!1},e.prototype._clipBoard_Insert_InternalLine=function(e,t){var n,r,i,s;return r=e.className.split("-"),i=+r[1],r=r[0],t.prevCNLineAbsDepth||(t.prevCNLineAbsDepth=i),n=i-t.prevCNLineAbsDepth,n>0,s={sourceLine:t.lastAddedLine,innerHTML:e.innerHTML,targetLineType:"Tu",targetLineDepthAbs:t.absDepth,targetLineDepthRel:t.absDepth},t.lastAddedLine=this._insertLineAfter(s)},e.prototype._cozy2md=function(e){var t,n,r,i,s,o,u,a,f,l,c,h,p,d,v;s=$(document.createElement("div")).html(e),c="",i=0,r={A:function(e){var t,n;return n=e.attr("title")!=null?e.attr("title"):"",t=e.attr("href")!=null?e.attr("href"):"","["+e.html()+"]("+t+' "'+n+'")'},IMG:function(e){var t,n,r;return r=e.attr("title")!=null?e.attr("title"):"",t=e.attr("alt")!=null?e.attr("alt"):"",n=e.attr("src")!=null?e.attr("src"):"","!["+t+"]("+n+' "'+r+'")'},SPAN:function(e){return e.text()}},h={Th:function(e,t){var n,r;i=t,n="",r=0;while(r<t)n+="#",r++;return"\n"+n+" "},Lh:function(e,t){return"\n"},Tu:function(e,t){return"\n"+e+"+   "},Lu:function(e,t){return"\n"+e+"    "},To:function(e,t){return"\n"+e+"1.   "},Lo:function(e,t){return"\n"+e+"    "}},n=function(e){var t,n,r,s,o;s=e.split("-"),o=s[0],n=parseInt(s[1],10),t="",r=1;while(r<n-i)t+="    ",r++;return h[o](t,n)},t=s.children();for(o=d=0,v=t.length-1;0<=v?d<=v:d>=v;o=0<=v?++d:--d){f=$(t.get(o)),f.attr("class")!=null&&(c+=n(f.attr("class"))),a=f.children().length,u=0,p=" ";while(u<a)l=f.children().get(u),u+2===a&&(p=""),l.nodeType===1&&r[l.nodeName]!=null?c+=r[l.nodeName]($(l))+p:c+=$(l).text()+p,u++;c+="\n"}return c},e.prototype._md2cozy=function(e){var t,n,r,i,s,o,u,a;return t=new Showdown.converter,e=t.makeHtml(e),s=$(document.createElement("ul")).html(e),n="",o=0,r=function(e,t,n){var r;return o++,r="",n.contents().each(function(){var e;e=this.nodeName;if(e==="#text")return r+="<span>"+$(this).text()+"</span>";if(this.tagName!=null)return $(this).wrap("<div></div>"),r+=""+$(this).parent().html(),$(this).unwrap()}),"<div id=CNID_"+o+" class="+e+"-"+t+">"+r+"<br></div>"},i=0,u=function(e){var t;return t=e[0].tagName,t[0]==="H"?(i=parseInt(t[1],10),n+=r("Th",i,e)):t==="P"?n+=r("Lh",i,e):a(e,"u")},a=function(e,t){var s,o,u,f,l,c;u=e[0].tagName;if(u==="UL")return i++,e.children().each(function(){return a($(this),"u")}),i--;if(u==="OL")return i++,e.children().each(function(){return a($(this),"o")}),i--;if(u==="LI"&&e.contents().get(0)!=null){e.contents().get(0).nodeName==="#text"&&(e=e.clone().wrap("<p></p>").parent()),c=[];for(o=f=0,l=e.children().length-1;0<=l?f<=l:f>=l;o=0<=l?++f:--f)s=$(e.children().get(o)),o===0?c.push(n+=r("T"+t,i,s)):c.push(a(s,t));return c}if(u==="P")return n+=r("L"+t,i,e)},s.children().each(function(){return u($(this))}),n},e}();var __bind=function(e,t){return function(){return e.apply(t,arguments)}};exports.CNeditor=function(){function e(e,t){this._processPaste=__bind(this._processPaste,this),this._keyPressListener=__bind(this._keyPressListener,this);var n,r,i,s=this;e.nodeName==="IFRAME"?(console.log("et hop !"),this.getEditorSelection=function(){return rangy.getIframeSelection(e)},this.saveEditorSelection=function(){return rangy.saveSelection(rangy.dom.getIframeWindow(e))},r=$(e),r.on("load",function(){var n,i,o;return o=r.contents().find("html"),n=o.find("body"),n.parent().attr("id","__ed-iframe-html"),n.attr("contenteditable","true"),n.attr("id","__ed-iframe-body"),s.document=n[0].ownerDocument,i=o.find("head"),i.html('<link id="editorCSS" href="stylesheets/CNeditor.css" rel="stylesheet">'),s.editorBody$=n,s.editorTarget=e,s._lines={},s.newPosition=!0,s._highestId=0,s._deepest=1,s._firstLine=null,s._history={index:0,history:[null],historySelect:[null],historyScroll:[null],historyPos:[null]},s._lastKey=null,n.prop("__editorCtl",s),n.on("mouseup",function(){return s.newPosition=!0}),n.on("keydown",s._keyPressListener),n.on("keyup",function(){return r.trigger(jQuery.Event("onKeyUp"))}),n.on("click",function(e){return s._lastKey=null}),n.on("paste",function(e){return console.log("pasting..."),s.paste(e)}),s._initClipBoard(),t.call(s),s}),e.src=""):(console.log("target is not an iframe..."),this.getEditorSelection=function(){return rangy.getSelection()},this.saveEditorSelection=function(){return rangy.saveSelection()},i=$(e),n=function(){var n;return n=i,n.attr("contenteditable","true"),n.attr("id","__ed-iframe-body"),s.editorBody$=n,s.editorTarget=e,s._lines={},s.newPosition=!0,s._highestId=0,s._deepest=1,s._firstLine=null,s._history={index:0,history:[null],historySelect:[null],historyScroll:[null],historyPos:[null]},s._lastKey=null,n.prop("__editorCtl",s),n.on("keydown",s._keyPressListener),n.on("mouseup",function(){return s.newPosition=!0}),n.on("keyup",function(){return i.trigger(jQuery.Event("onKeyUp"))}),n.on("click",function(e){return s._lastKey=null}),n.on("paste",function(e){return console.log("pasting..."),s.paste(e)}),t.call(s),s},n(),this._initClipBoard())}return e.prototype._updateDeepest=function(){var e,t,n;n=1,t=this._lines;for(e in t)this.editorBody$.children("#"+(""+t[e].lineID)).length>0&&t[e].lineType==="Th"&&t[e].lineDepthAbs>n&&(n=this._lines[e].lineDepthAbs);if(n!==this._deepest)return this._deepest=n,n<4?this.replaceCSS("stylesheets/app-deep-"+n+".css"):this.replaceCSS("stylesheets/app-deep-4.css")},e.prototype.replaceContent=function(e){return this.editorBody$.html(e),this._readHtml(),this._initClipBoard()},e.prototype.deleteContent=function(){return this.editorBody$.html('<div id="CNID_1" class="Tu-1"><span></span><br></div>'),this._readHtml(),this._initClipBoard()},e.prototype.getEditorContent=function(){var e;return e=this.editorBody$.html(),this._cozy2md(e)},e.prototype.setEditorContent=function(e){var t;return t=this._md2cozy(e),this.editorBody$.html(t),this._readHtml(),this._initClipBoard()},e.prototype.replaceCSS=function(e){var t,n;return t=this.document,n=t.querySelector("#editorCSS"),n.setAttribute("href",e),t.head.appendChild(n)},e.prototype._putEndOnEnd=function(e,t){var n,r;return t.lastChild!=null?(r=t.lastChild.textContent.length,r===0&&(t.lastChild.data=" ",r=1),e.setEnd(t.lastChild,r)):(n=document.createTextNode(" "),t.appendChild(n),e.setEnd(n,1))},e.prototype._putStartOnEnd=function(e,t){var n,r;return t.lastChild!=null?(r=t.lastChild.textContent.length,r===0&&(t.lastChild.data=" ",r=1),e.setStart(t.lastChild,r)):(n=document.createTextNode(" "),t.appendChild(n),e.setStart(n,0))},e.prototype._putEndOnStart=function(e,t){var n,r;return t.firstChild!=null?(r=t.firstChild.textContent.length,r===0&&(t.firstChild.data=" "),e.setEnd(t.firstChild,0)):(n=document.createTextNode(" "),t.appendChild(n),e.setEnd(n,0))},e.prototype._putStartOnStart=function(e,t){var n,r;return t.firstChild!=null?(r=t.firstChild.textContent.length,r===0&&(t.firstChild.data=" "),e.setStart(t.firstChild,0)):(n=document.createTextNode(" "),t.appendChild(n),e.setStart(n,0))},e.prototype._normalize=function(e){var t,n,r,i,s,o,u,a,f;e.startContainer.nodeName==="BODY"?o=e.startContainer.children[e.startOffset]:o=e.startContainer,e.endContainer.nodeName==="BODY"?r=e.endContainer.children[e.endOffset-1]:r=e.endContainer,o.nodeName!=="DIV"&&(o=$(o).parents("div")[0]),r.nodeName!=="DIV"&&(r=$(r).parents("div")[0]),o===r&&o.innerHTML==="<span></span><br>"&&(this.isEmptyLine=!0),s=e.startContainer;if(s.nodeName==="BODY")t=s.children[e.startOffset].firstChild,this._putStartOnStart(e,t);else if(s.nodeName==="DIV")this.isEmptyLine?(t=s.childNodes[0],this._putStartOnStart(e,t)):e.startOffset<s.childNodes.length-1?(t=s.childNodes[e.startOffset],this._putStartOnStart(e,t)):(t=s.lastChild.previousElementSibling,this._putStartOnEnd(e,t));else if((a=s.nodeName)==="SPAN"||a==="IMG"||a==="A")s.firstChild===null||s.textContent.length===0?this._putStartOnEnd(e,s):e.startOffset<s.childNodes.length?(u=s.childNodes[e.startOffset],e.setStart(u,0)):(u=s.lastChild,i=u.data.length,e.setStart(u,i));n=e.endContainer,n.nodeName==="BODY"&&(t=n.children[e.endOffset-1].lastChild,this._putEndOnEnd(e,t.previousElementSibling));if(n.nodeName==="DIV")e.endOffset<n.childNodes.length-1?(t=n.childNodes[e.endOffset],this._putEndOnStart(e,t)):(t=n.lastChild.previousElementSibling,this._putEndOnEnd(e,t));else if((f=n.nodeName)==="SPAN"||f==="IMG"||f==="A")(n.firstChild===null||n.textContent.length===0)&&this._putEndOnEnd(e,n),e.endOffset<n.childNodes.length?(u=s.childNodes[e.endOffset],e.setEnd(u,0)):(u=n.lastChild,i=u.data.length,e.setEnd(u,i));return e},e.prototype._keyPressListener=function(e){var t,n,r,i,s,o,u;n=(e.altKey?"Alt":"")+(e.ctrlKey?"Ctrl":"")+(e.shiftKey?"Shift":"");switch(e.keyCode){case 13:t="return";break;case 35:t="end";break;case 36:t="home";break;case 33:t="pgUp";break;case 34:t="pgDwn";break;case 37:t="left";break;case 38:t="up";break;case 39:t="right";break;case 40:t="down";break;case 9:t="tab";break;case 8:t="backspace";break;case 32:t="space";break;case 27:t="esc";break;case 46:t="suppr";break;case 16:e.preventDefault();return;case 17:e.preventDefault();return;case 18:e.preventDefault();return;default:switch(e.which){case 32:t="space";break;case 8:t="backspace";break;case 65:t="A";break;case 83:t="S";break;case 86:t="V";break;case 89:t="Y";break;case 90:t="Z";break;default:t="other"}}u=n+"-"+t;if(u==="-A"||u==="-S"||u==="-V"||u==="-Y"||u==="-Z")u="-other";this._lastKey!==u&&(u==="-tab"||u==="-return"||u==="-backspace"||u==="-suppr"||u==="CtrlShift-down"||u==="CtrlShift-up"||u==="CtrlShift-left"||u==="CtrlShift-right"||u==="Ctrl-V"||u==="Shift-tab"||u==="-space"||u==="-other")&&this._addHistory(),this._lastKey=u,this.newPosition&&(u==="-other"||u==="-space"||u==="-suppr"||u==="-backspace"||u==="-return")&&(this.newPosition=!1,o=this.getEditorSelection(),s=o.getRangeAt(0),r=rangy.createRange(),r=this._normalize(s),i=this.getEditorSelection(),i.setSingleRange(r)),(t==="left"||t==="up"||t==="right"||t==="down"||t==="pgUp"||t==="pgDwn"||t==="end"||t==="home"||t==="return"||t==="suppr"||t==="backspace")&&u!=="CtrlShift-down"&&u!=="CtrlShift-up"&&u!=="CtrlShift-right"&&u!=="CtrlShift-left"&&(this.newPosition=!0),this.currentSel=null;switch(u){case"-return":return this._return(),e.preventDefault();case"-tab":return this.tab(),e.preventDefault();case"CtrlShift-right":return this.tab(),e.preventDefault();case"-backspace":return this._backspace(e);case"-suppr":return this._suppr(e);case"CtrlShift-down":return this._moveLinesDown(),e.preventDefault();case"CtrlShift-up":return this._moveLinesUp(),e.preventDefault();case"Shift-tab":return this.shiftTab(),e.preventDefault();case"CtrlShift-left":return this.shiftTab(),e.preventDefault();case"Alt-A":return this._toggleLineType(),e.preventDefault();case"Ctrl-V":return!0;case"Ctrl-S":return $(this.editorTarget).trigger(jQuery.Event("saveRequest")),e.preventDefault();case"Ctrl-Z":return e.preventDefault(),this.unDo();case"Ctrl-Y":return e.preventDefault(),this.reDo()}},e.prototype._suppr=function(e){var t,n;this._findLinesAndIsStartIsEnd(),t=this.currentSel,this.isEmptyLine&&(this.isEmptyLine=!1,t.range.deleteContents()),n=t.startLine;if(!t.range.collapsed)return t.endLine===n?(t.range.deleteContents(),e.preventDefault()):(this._deleteMultiLinesSelections(),e.preventDefault());if(t.rangeIsEndLine)return n.lineNext!==null?(t.range.setEndBefore(n.lineNext.line$[0].firstChild),t.endLine=n.lineNext,this._deleteMultiLinesSelections(),e.preventDefault()):e.preventDefault()},e.prototype._backspace=function(e){var t,n;this._findLinesAndIsStartIsEnd(),t=this.currentSel,this.isEmptyLine&&(this.isEmptyLine=!1,t.range.deleteContents()),n=t.startLine;if(!t.range.collapsed)return t.endLine===n?(t.range.deleteContents(),e.preventDefault()):(this._deleteMultiLinesSelections(),e.preventDefault());if(t.rangeIsStartLine)return n.linePrev!==null?(t.range.setStartBefore(n.linePrev.line$[0].lastChild),t.startLine=n.linePrev,this._deleteMultiLinesSelections(),e.preventDefault()):e.preventDefault()},e.prototype.titleList=function(){var e,t,n,r,i,s,o,u;s=this.getEditorSelection(),i=s.getRangeAt(0),i.startContainer.nodeName==="BODY"?o=i.startContainer.children[i.startOffset]:o=i.startContainer,i.endContainer.nodeName==="BODY"?e=i.endContainer.children[i.endOffset-1]:e=i.endContainer,o.nodeName!=="DIV"&&(o=$(o).parents("div")[0]),e.nodeName!=="DIV"&&(e=$(e).parents("div")[0]),n=e.id,r=this._lines[o.id],t=e.id,u=[];for(;;){this._line2titleList(r);if(r.lineID===t)break;u.push(r=r.lineNext)}return u},e.prototype._line2titleList=function(e){var t,n;if(e.lineType!=="Th"){e.lineType[0]==="L"&&(e.lineType="Tu",e.lineDepthAbs+=1),this._titilizeSiblings(e),t=this._findParent1stSibling(e),n=[];while(t!==null&&t.lineType!=="Th")this._titilizeSiblings(t),n.push(t=this._findParent1stSibling(t));return n}},e.prototype._titilizeSiblings=function(e){var t,n;n=e.lineDepthAbs,t=e;while(t!==null&&t.lineDepthAbs>=n){if(t.lineDepthAbs===n)switch(t.lineType){case"Tu":case"To":t.line$.prop("class","Th-"+n),t.lineType="Th",t.lineDepthRel=0;break;case"Lu":case"Lo":t.line$.prop("class","Lh-"+n),t.lineType="Lh",t.lineDepthRel=0}t=t.lineNext}t=e.linePrev;while(t!==null&&t.lineDepthAbs>=n){if(t.lineDepthAbs===n)switch(t.lineType){case"Tu":case"To":t.line$.prop("class","Th-"+n),t.lineType="Th",t.lineDepthRel=0;break;case"Lu":case"Lo":t.line$.prop("class","Lh-"+n),t.lineType="Lh",t.lineDepthRel=0}t=t.linePrev}return!0},e.prototype.markerList=function(e){var t,n,r,i,s,o,u,a;e!=null?(u=e.lineID,n=u):(s=this.getEditorSelection().getRangeAt(0),s.startContainer.nodeName==="BODY"?o=s.startContainer.children[s.startOffset]:o=s.startContainer,s.endContainer.nodeName==="BODY"?t=s.endContainer.children[s.endOffset-1]:t=s.endContainer,o.nodeName!=="DIV"&&(o=$(o).parents("div")[0]),u=o.id,t.nodeName!=="DIV"&&(t=$(t).parents("div")[0]),n=t.id),r=this._lines[u],a=[];for(;;){switch(r.lineType){case"Th":i="Tu",e=r.lineNext;while(e!==null&&e.lineDepthAbs>=r.lineDepthAbs){switch(e.lineType){case"Th":e.line$.prop("class","Tu-"+e.lineDepthAbs),e.lineType="Tu",e.lineDepthRel=this._findDepthRel(e);break;case"Lh":e.line$.prop("class","Lu-"+e.lineDepthAbs),e.lineType="Lu",e.lineDepthRel=this._findDepthRel(e)}e=e.lineNext}e=r.linePrev;while(e!==null&&e.lineDepthAbs>=r.lineDepthAbs){switch(e.lineType){case"Th":e.line$.prop("class","Tu-"+e.lineDepthAbs),e.lineType="Tu",e.lineDepthRel=this._findDepthRel(e);break;case"Lh":e.line$.prop("class","Lu-"+e.lineDepthAbs),e.lineType="Lu",e.lineDepthRel=this._findDepthRel(e)}e=e.linePrev}break;case"Lh":case"Lu":this.tab(r);break;default:i=!1}i&&(r.line$.prop("class",""+i+"-"+r.lineDepthAbs),r.lineType=i);if(r.lineID===n)break;a.push(r=r.lineNext)}return a},e.prototype._findDepthRel=function(e){var t;if(e.lineDepthAbs===1)return e.lineType[1]==="h"?0:1;t=e.linePrev;while(t!==null&&t.lineDepthAbs>=e.lineDepthAbs)t=t.linePrev;return t!==null?t.lineDepthRel+1:0},e.prototype._toggleLineType=function(){var e,t,n,r,i,s,o,u,a;o=this.getEditorSelection(),s=o.getRangeAt(0),s.startContainer.nodeName==="BODY"?u=s.startContainer.children[s.startOffset]:u=s.startContainer,s.endContainer.nodeName==="BODY"?e=s.endContainer.children[s.endOffset-1]:e=s.endContainer,u.nodeName!=="DIV"&&(u=$(u).parents("div")[0]),e.nodeName!=="DIV"&&(e=$(e).parents("div")[0]),t=e.id,r=this._lines[u.id],a=[];for(;;){switch(r.lineType){case"Tu":i="Th",n=r.lineNext;while(n!==null&&n.lineDepthAbs>=r.lineDepthAbs)n.lineDepthAbs===r.lineDepthAbs&&(n.lineType==="Tu"?(n.line$.prop("class","Th-"+r.lineDepthAbs),n.lineType="Th"):(n.line$.prop("class","Lh-"+r.lineDepthAbs),n.lineType="Lh")),n=n.lineNext;n=r.linePrev;while(n!==null&&n.lineDepthAbs>=r.lineDepthAbs)n.lineDepthAbs===r.lineDepthAbs&&(n.lineType==="Tu"?(n.line$.prop("class","Th-"+r.lineDepthAbs),n.lineType="Th"):(n.line$.prop("class","Lh-"+r.lineDepthAbs),n.lineType="Lh")),n=n.linePrev;break;case"Th":i="Tu",n=r.lineNext;while(n!==null&&n.lineDepthAbs>=r.lineDepthAbs)n.lineDepthAbs===r.lineDepthAbs&&(n.lineType==="Th"?(n.line$.prop("class","Tu-"+r.lineDepthAbs),n.lineType="Tu"):(n.line$.prop("class","Lu-"+r.lineDepthAbs),n.lineType="Lu")),n=n.lineNext;n=r.linePrev;while(n!==null&&n.lineDepthAbs>=r.lineDepthAbs)n.lineDepthAbs===r.lineDepthAbs&&(n.lineType==="Th"?(n.line$.prop("class","Tu-"+r.lineDepthAbs),n.lineType="Tu"):(n.line$.prop("class","Lu-"+r.lineDepthAbs),n.lineType="Lu")),n=n.linePrev;break;default:i=!1}i&&(r.line$.prop("class",""+i+"-"+r.lineDepthAbs),r.lineType=i);if(r.lineID===e.id)break;a.push(r=r.lineNext)}return a},e.prototype.tab=function(e){var t,n,r,i,s,o,u,a,f,l,c,h,p;e!=null?(h=e.line$[0],t=h):(c=this.getEditorSelection(),l=c.getRangeAt(0),l.startContainer.nodeName==="BODY"?h=l.startContainer.children[l.startOffset]:h=l.startContainer,l.endContainer.nodeName==="BODY"?t=l.endContainer.children[l.endOffset-1]:t=l.endContainer),h.nodeName!=="DIV"&&(h=$(h).parents("div")[0]),t.nodeName!=="DIV"&&(t=$(t).parents("div")[0]),n=t.id,i=this._lines[h.id],p=[];for(;;){switch(i.lineType){case"Tu":case"Th":u=this._findPrevSibling(i);if(u===null)r=!1;else{r=!0;if(u.lineType==="Th")a="Lh";else{u.lineType==="Tu"?a="Lu":a="Lo";if(i.lineType==="Th"){s=i.lineNext;while(s!==null&&s.lineDepthAbs>i.lineDepthAbs)switch(s.lineType){case"Th":s.lineType="Tu",i.line$.prop("class","Tu-"+s.lineDepthAbs),f=prevTxType;break;case"Tu":f="Lu";break;case"To":f="Lo";break;case"Lh":s.lineType=f,i.line$.prop("class",""+f+"-"+s.lineDepthAbs)}}}}break;case"Lh":case"Lu":case"Lo":s=i.lineNext,a=null;while(s!==null&&s.lineDepthAbs>=i.lineDepthAbs)s.lineDepthAbs!==i.lineDepthAbs+1?s=s.lineNext:(a=s.lineType,s=null);if(a===null){o=i.linePrev;while(o!==null&&o.lineDepthAbs>=i.lineDepthAbs)o.lineDepthAbs===i.lineDepthAbs+1?(a=o.lineType,o=null):o=o.linePrev}if(a===null)r=!0,a="Tu",i.lineDepthAbs+=1,i.lineDepthRel+=1;else{a==="Th"&&(r=!0,i.lineDepthAbs+=1,i.lineDepthRel=0);if(a==="Tu"||a==="To")r=!0,i.lineDepthAbs+=1,i.lineDepthRel+=1}}r&&(i.line$.prop("class",""+a+"-"+i.lineDepthAbs),i.lineType=a);if(i.lineID===n)break;p.push(i=i.lineNext)}return p},e.prototype.shiftTab=function(e){var t,n,r,i,s,o,u,a,f,l,c;e!=null?a=e:(f=this.getEditorSelection(),a=f.getRangeAt(0)),a.startContainer.nodeName==="BODY"?l=a.startContainer.children[a.startOffset]:l=a.startContainer,a.endContainer.nodeName==="BODY"?t=a.endContainer.children[a.endOffset-1]:t=a.endContainer,l.nodeName!=="DIV"&&(l=$(l).parents("div")[0]),t.nodeName!=="DIV"&&(t=$(t).parents("div")[0]),n=t.id,i=this._lines[l.id],c=[];for(;;){switch(i.lineType){case"Tu":case"Th":case"To":u=i.linePrev;while(u!==null&&u.lineDepthAbs>=i.lineDepthAbs)u=u.linePrev;u!==null?(r=!0,s=u.lineType,s="L"+s.charAt(1),i.lineDepthAbs-=1,i.lineDepthRel-=u.lineDepthRel,i.lineNext!=null&&i.lineNext.lineType[0]==="L"&&(o=i.lineNext,o.lineType="T"+o.lineType[1],o.line$.prop("class",""+o.lineType+"-"+o.lineDepthAbs))):r=!1;break;case"Lh":r=!0,s="Th";break;case"Lu":r=!0,s="Tu";break;case"Lo":r=!0,s="To"}r&&(i.line$.prop("class",""+s+"-"+i.lineDepthAbs),i.lineType=s);if(i.lineID===t.id)break;c.push(i=i.lineNext)}return c},e.prototype._return=function(){var e,t,n,r,i,s;return this._findLinesAndIsStartIsEnd(),e=this.currentSel,s=e.startLine,t=e.endLine,e.range.collapsed||(t===s?e.range.deleteContents():(this._deleteMultiLinesSelections(),this._findLinesAndIsStartIsEnd(),e=this.currentSel,s=e.startLine)),e.rangeIsEndLine?(r=this._insertLineAfter({sourceLine:s,targetLineType:s.lineType,targetLineDepthAbs:s.lineDepthAbs,targetLineDepthRel:s.lineDepthRel}),i=rangy.createRange(),i.collapseToPoint(r.line$[0].firstChild,0),e.sel.setSingleRange(i)):e.rangeIsStartLine?(r=this._insertLineBefore({sourceLine:s,targetLineType:s.lineType,targetLineDepthAbs:s.lineDepthAbs,targetLineDepthRel:s.lineDepthRel}),i=rangy.createRange(),i.collapseToPoint(s.line$[0].firstChild,0),e.sel.setSingleRange(i)):(e.range.setEndBefore(s.line$[0].lastChild),n=e.range.extractContents(),e.range.deleteContents(),r=this._insertLineAfter({sourceLine:s,targetLineType:s.lineType,targetLineDepthAbs:s.lineDepthAbs,targetLineDepthRel:s.lineDepthRel,fragment:n}),i=rangy.createRange(),i.collapseToPoint(r.line$[0].firstChild,0),e.sel.setSingleRange(i),this.currentSel=null)},e.prototype._findParent1stSibling=function(e){var t,n;t=e.lineDepthAbs,n=e.linePrev;if(n===null)return e;if(t<=2){while(n.linePrev!==null)n=n.linePrev;return n}while(n!==null&&n.lineDepthAbs>t-2)n=n.linePrev;return n.lineNext},e.prototype._findPrevSibling=function(e){var t,n;t=e.lineDepthAbs,n=e.linePrev;if(n===null)return null;if(n.lineDepthAbs<t)return null;while(n.lineDepthAbs>t)n=n.linePrev;while(n.lineType[0]==="L")n=n.linePrev;return n},e.prototype._deleteMultiLinesSelections=function(e,t){var n,r,i,s,o,u,a,f,l,c,h,p,d,v,m,g,y,b,w,E,S,x,T;y=!0,e!==void 0?(y=!1,v=rangy.createRange(),e===null?(e=t,t=t.lineNext,this._putStartOnStart(v,e.line$[0].firstElementChild),t.line$.prepend("<span></span>"),this._putEndOnStart(v,t.line$[0].firstElementChild)):(S=e.line$[0].lastElementChild.previousElementSibling,o=t.line$[0].lastElementChild.previousElementSibling,v.setStartAfter(S,0),v.setEndAfter(o,0))):(this._findLines(),v=this.currentSel.range,b=v.startContainer,x=v.startOffset,e=this.currentSel.startLine,t=this.currentSel.endLine),s=t.lineDepthAbs,E=e.lineDepthAbs,n=s-E,g=rangy.createRangyRange(),g.setStart(v.endContainer,v.endOffset),g.setEndAfter(t.line$[0].lastChild),u=g.cloneContents(),t.lineType[1]==="h"&&e.lineType[1]!=="h"&&(t.lineType[0]==="L"&&(t.lineType="T"+t.lineType[1],t.line$.prop("class",""+t.lineType+"-"+t.lineDepthAbs)),this.markerList(t)),v.deleteContents(),e.line$[0].lastChild.nodeName==="BR"&&e.line$[0].removeChild(e.line$[0].lastChild),w=u.childNodes[0],c=e.line$[0].lastElementChild;if(w.tagName===(T=c.tagName)&&T==="SPAN"&&w.className===c.className){x=c.textContent.length,p=c.textContent+w.textContent,c.innerHTML=p,b=c.firstChild,f=1;while(f<u.childNodes.length)$(u.childNodes[f]).appendTo(e.line$),f++}else e.line$.append(u);e.lineNext=t.lineNext,t.lineNext!==null&&(t.lineNext.linePrev=e),t.line$.remove(),delete this._lines[t.lineID],l=e.lineNext;if(l!==null){r=l.lineDepthAbs-E;if(r>=1)while(l!==null&&l.lineDepthAbs>=s)h=l.lineDepthAbs-n,l.lineDepthAbs=h,l.line$.prop("class",""+l.lineType+"-"+h),l=l.lineNext}if(l!==null){l.lineType[0]==="L"&&(l.lineType="T"+l.lineType[1],l.line$.prop("class",""+l.lineType+"-"+l.lineDepthAbs)),a=l,i=l.lineDepthAbs,l=l.linePrev;while(l!==null&&l.lineDepthAbs>i)l=l.linePrev;l!==null&&(d=l.lineType,a.lineType!==d&&(d[1]==="h"?this._line2titleList(a):this.markerList(a)))}if(y)return m=rangy.createRange(),m.collapseToPoint(b,x),this.currentSel.sel.setSingleRange(m),this.currentSel=null},e.prototype._insertLineAfter=function(e){var t,n,r,i;return this._highestId+=1,t="CNID_"+this._highestId,e.fragment!=null?(r=$("<div id='"+t+"' class='"+e.targetLineType+"-"+e.targetLineDepthAbs+"'></div>"),r.append(e.fragment),(r[0].childNodes.length===0||r[0].lastChild.nodeName!=="BR")&&r.append("<br>")):e.innerHTML!=null?(r=$("<div id='"+t+"' class='"+e.targetLineType+"-"+e.targetLineDepthAbs+"'>                "+e.innerHTML+"</div>"),r[0].lastChild.nodeName!=="BR"&&r.append("<br>")):(r=$("<div id='"+t+"' class='"+e.targetLineType+"-"+e.targetLineDepthAbs+"'></div>"),r.append($("<span></span><br>"))),i=e.sourceLine,r=r.insertAfter(i.line$),n={line$:r,lineID:t,lineType:e.targetLineType,lineDepthAbs:e.targetLineDepthAbs,lineDepthRel:e.targetLineDepthRel,lineNext:i.lineNext,linePrev:i},this._lines[t]=n,i.lineNext!==null&&(i.lineNext.linePrev=n),i.lineNext=n,n},e.prototype._insertLineBefore=function(e){var t,n,r,i;return this._highestId+=1,t="CNID_"+this._highestId,r=$("<div id='"+t+"' class='"+e.targetLineType+"-"+e.targetLineDepthAbs+"'></div>"),e.fragment!=null?(r.append(e.fragment),r.append($("<br>"))):r.append($("<span></span><br>")),i=e.sourceLine,r=r.insertBefore(i.line$),n={line$:r,lineID:t,lineType:e.targetLineType,lineDepthAbs:e.targetLineDepthAbs,lineDepthRel:e.targetLineDepthRel,lineNext:i,linePrev:i.linePrev},this._lines[t]=n,i.linePrev!==null&&(i.linePrev.lineNext=n),i.linePrev=n,n},e.prototype._findLines=function(){var e,t,n,r,i,s,o,u;if(this.currentSel===null)return s=this.getEditorSelection(),i=s.getRangeAt(0),o=i.startContainer,e=i.endContainer,r=i.startOffset,n=i.endOffset,e.id!=null&&e.id.substr(0,5)==="CNID_"?t=this._lines[e.id]:t=this._lines[$(e).parents("div")[0].id],o.nodeName==="DIV"?u=this._lines[o.id]:u=this._lines[$(o).parents("div")[0].id],this.currentSel={sel:s,range:i,startLine:u,endLine:t,rangeIsStartLine:null,rangeIsEndLine:null}},e.prototype._findLinesAndIsStartIsEnd=function(){var e,t,n,r,i,s,o,u,a,f,l,c,h;if(this.currentSel===null){l=this.getEditorSelection(),u=l.getRangeAt(0),c=u.startContainer,e=u.endContainer,r=u.startOffset,n=u.endOffset;if(e.id!=null&&e.id.substr(0,5)==="CNID_")t=this._lines[e.id],a=e.children.length<n||e.children[n].nodeName==="BR";else{t=this._lines[$(e).parents("div")[0].id],a=!1,e.nodeType===Node.TEXT_NODE?a=e.nextSibling===null&&n===e.textContent.length:a=e.nodeName==="BR"||e.nextSibling.nodeName==="BR"&&e.childNodes.length===n,s=e.parentNode;while(a&&s.nodeName!=="DIV")i=s.nextSibling,a=i===null||i.nodeName==="BR",s=s.parentNode}if(c.nodeName==="DIV")h=this._lines[c.id],f=r===0;else{h=this._lines[$(c).parents("div")[0].id],c.nodeType===Node.TEXT_NODE?f=e.previousSibling===null&&r===0:f=r===0,o=c.parentNode;while(f&&o.nodeName!=="DIV")f=o.previousSibling===null,o=o.parentNode}return t.line$[0].innerHTML==="<span></span><br>"&&(a=!0),h.line$[0].innerHTML==="<span></span><br>"&&(f=!0),this.currentSel={sel:l,range:u,startLine:h,endLine:t,rangeIsStartLine:f,rangeIsEndLine:a}}},e.prototype._readHtml=function(){var e,t,n,r,i,s,o,u,a,f,l,c,h,p,d,v,m,g;d=this.editorBody$.children(),i=0,o=0,a=0,this._lines={},h=null,c=null;for(v=0,m=d.length;v<m;v++)t=d[v],n=$(t),r=(g=n.attr("class"))!=null?g:"",r=r.split("-"),p=r[0],p!==""&&(s=i,i=+r[1],e=i-s,u=o,p==="Th"?o=0:o=u+e,a=parseInt(a,10)+1,f="CNID_"+a,n.prop("id",f),l={line$:n,lineID:f,lineType:p,lineDepthAbs:i,lineDepthRel:o,lineNext:null,linePrev:h},h!==null&&(h.lineNext=l),h=l,this._lines[f]=l);return this._highestId=a},e.prototype._moveLinesDown=function(){var e,t,n,r,i,s,o,u,a,f,l,c,h,p,d,v;c=this.getEditorSelection(),l=c.getRangeAt(0),l.startContainer.nodeName==="BODY"?h=l.startContainer.children[l.startOffset]:h=l.startContainer,l.endContainer.nodeName==="BODY"?t=l.endContainer.children[l.endOffset-1]:t=l.endContainer,h.nodeName!=="DIV"&&(h=$(h).parents("div")[0]),p=h.id,t.nodeName!=="DIV"&&(t=$(t).parents("div")[0]),n=t.id,u=this._lines[p],i=this._lines[n],o=u.linePrev,s=i.lineNext;if(s!==null){e={line$:s.line$.clone(),lineID:s.lineID,lineType:s.lineType,lineDepthAbs:s.lineDepthAbs,lineDepthRel:s.lineDepthRel,linePrev:s.linePrev,lineNext:s.lineNext},this._deleteMultiLinesSelections(i,s),s=e,this._lines[s.lineID]=s,s.linePrev=o,u.linePrev=s,s.lineNext!==null&&(s.lineNext.linePrev=i),i.lineNext=s.lineNext,s.lineNext=u,o!==null&&(o.lineNext=s),u.line$.before(s.line$);if(o===null)return;if(s.lineDepthAbs<=o.lineDepthAbs){r=s;while(r.lineNext!==null&&r.lineNext.lineDepthAbs>s.lineDepthAbs)r=r.lineNext;r.lineNext!==null&&(r=r.lineNext),a=rangy.createRange(),a.setStart(u.line$[0],0),a.setEnd(r.line$[0],0),f=u.lineDepthAbs-s.lineDepthAbs,s.lineNext.lineType[0]==="T"&&(u.lineType[0]==="T"?f-=1:f+=1),d=[];while(f>=0)this.shiftTab(a),d.push(f-=1);return d}a=rangy.createRange(),a.setStart(s.line$[0],0),a.setEnd(s.line$[0],0),f=s.lineDepthAbs-o.lineDepthAbs,u.lineType[0]==="T"&&(o.lineType[0]==="T"?f-=1:f+=1),v=[];while(f>=0)this.shiftTab(a),v.push(f-=1);return v}},e.prototype._moveLinesUp=function(){var e,t,n,r,i,s,o,u,a,f,l,c,h,p,d,v,m;h=this.getEditorSelection(),c=h.getRangeAt(0),c.startContainer.nodeName==="BODY"?p=c.startContainer.children[c.startOffset]:p=c.startContainer,c.endContainer.nodeName==="BODY"?t=c.endContainer.children[c.endOffset-1]:t=c.endContainer,p.nodeName!=="DIV"&&(p=$(p).parents("div")[0]),d=p.id,t.nodeName!=="DIV"&&(t=$(t).parents("div")[0]),n=t.id,a=this._lines[d],s=this._lines[n],u=a.linePrev,o=s.lineNext;if(u!==null){r=u.linePrev===null,e={line$:u.line$.clone(),lineID:u.lineID,lineType:u.lineType,lineDepthAbs:u.lineDepthAbs,lineDepthRel:u.lineDepthRel,linePrev:u.linePrev,lineNext:u.lineNext},this._deleteMultiLinesSelections(u.linePrev,u),r&&($(u.line$[0].firstElementChild).remove(),u.line$.append("<br>"),a.line$=u.line$,a.line$.attr("id",a.lineID),this._lines[a.lineID]=a),u=e,this._lines[u.lineID]=u,u.lineNext=o,s.lineNext=u,u.linePrev!==null&&(u.linePrev.lineNext=a),a.linePrev=u.linePrev,u.linePrev=s,o!==null&&(o.linePrev=u),s.line$.after(u.line$);if(u.lineDepthAbs<=s.lineDepthAbs&&o!==null){i=u;while(i.lineNext!==null&&i.lineNext.lineDepthAbs>u.lineDepthAbs)i=i.lineNext;i.lineNext!==null&&(i=i.lineNext),f=rangy.createRange(),f.setStart(o.line$[0],0),f.setEnd(i.line$[0],0),l=o.lineDepthAbs-u.lineDepthAbs,u.lineNext.lineType[0]==="T"&&(u.lineType[0]==="T"?l-=1:l+=1),v=[];while(l>=0)this.shiftTab(f),v.push(l-=1);return v}f=rangy.createRange(),f.setStart(u.line$[0],0),f.setEnd(u.line$[0],0),l=u.lineDepthAbs-s.lineDepthAbs,u.lineType[0]==="T"&&(s.lineType[0]==="T"?l-=1:l+=1),m=[];while(l>=0)this.shiftTab(f),m.push(l-=1);return m}},e.prototype._addHistory=function(){var e,t;return t=this.saveEditorSelection(),this._history.historySelect.push(t),e={xcoord:this.editorBody$.scrollTop(),ycoord:this.editorBody$.scrollLeft()},this._history.historyScroll.push(e),this._history.historyPos.push(this.newPosition),this._history.history.push(this.editorBody$.html()),rangy.removeMarkers(t),this._history.index=this._history.history.length-1},e.prototype.undoPossible=function(){return this._history.index>0},e.prototype.redoPossible=function(){return this._history.index<this._history.history.length-2},e.prototype.unDo=function(){var e,t,n;if(this.undoPossible())return this._history.index===this._history.history.length-1&&(this._addHistory(),this._history.index-=1),this.newPosition=this._history.historyPos[this._history.index],this.editorBody$.html(this._history.history[this._history.index]),e=this._history.historySelect[this._history.index],e.restored=!1,rangy.restoreSelection(e),t=this._history.historyScroll[this._history.index].xcoord,n=this._history.historyScroll[this._history.index].ycoord,this.editorBody$.scrollTop(t),this.editorBody$.scrollLeft(n),this._readHtml(),this._history.index-=1},e.prototype.reDo=function(){var e,t,n;if(this.redoPossible())return this.newPosition=this._history.historyPos[this._history.index+1],this._history.index+=1,this.editorBody$.html(this._history.history[this._history.index+1]),e=this._history.historySelect[this._history.index+1],e.restored=!1,rangy.restoreSelection(e),t=this._history.historyScroll[this._history.index+1].xcoord,n=this._history.historyScroll[this._history.index+1].ycoord,this.editorBody$.scrollTop(t),this.editorBody$.scrollLeft(n),this._readHtml()},e.prototype._initSummary=function(){var e;return e=this.editorBody$.children("#navi"),e.length===0&&(e=$(document.createElement("div")),e.attr("id","navi"),e.prependTo(this.editorBody$)),e},e.prototype._buildSummary=function(){var e,t,n,r;n=this.initSummary(),this.editorBody$.children("#navi").children().remove(),t=this._lines,r=[];for(e in t)this.editorBody$.children("#"+(""+t[e].lineID)).length>0&&t[e].lineType==="Th"?r.push(t[e].line$.clone().appendTo(n)):r.push(void 0);return r},e.prototype.paste=function(e){var t,n,r;return t=this.clipboard,this._findLinesAndIsStartIsEnd(),n=rangy.createRange(),n.selectNodeContents(t),r=this.getEditorSelection(),r.setSingleRange(n),n.detach(),e&&e.clipboardData&&e.clipboardData.getData?(e.clipboardData.types==="text/html"?t.innerHTML=e.clipboardData.getData("text/html"):e.clipboardData.types==="text/plain"?t.innerHTML=e.clipboardData.getData("text/plain"):t.innerHTML="",this._waitForPasteData(t,this._processPaste),e.preventDefault&&(e.stopPropagation(),e.preventDefault()),!1):(t.innerHTML="",this._waitForPasteData(t,this._processPaste),!0)},e.prototype._initClipBoard=function(){var e,t,n;return t=$(document.createElement("div")),n={left:-300},t.offset(n),t.prependTo(this.editorBody$),e=t[0],e.style.setProperty("width","280px"),e.style.setProperty("position","fixed"),e.style.setProperty("overflow","hidden"),this.clipboard=e,e},e.prototype._waitForPasteData=function(e,t){var n;return(n=function(e){var r;return e.childNodes&&e.childNodes.length>0?t():(r={e:e},r.callself=function(){return n(r.e)},setTimeout(r.callself,10))})(e)},e.prototype._processPaste=function(){var e,t,n,r,i,s,o,u,a,f,l,c,h,p,d,v,m,g,y,b,w,E,S,x,T,N,C,k,L,A;x=this.clipboard,r=this.currentSel,E=x.innerHTML,E=sanitize(E).xss(),x.innerHTML=E,h=document.createDocumentFragment(),o={lineNext:null,linePrev:null,line$:$("<div id='dummy' class='Tu-1'></div>")},h.appendChild(o.line$[0]),i=document.createDocumentFragment(),e=r.startLine.lineDepthAbs,r.startLine.lineType==="Th"&&(e+=1),s={absDepth:e,prevHxLevel:null,frag:h,prevCNLineAbsDepth:null,lastAddedLine:o,currentLineFrag:i,currentLineEl:i,isCurrentLineBeingPopulated:!1},p=this._domWalk(x,s),x.innerHTML="",h.removeChild(h.firstChild),d=0;while(d<h.childNodes.length)v=h.childNodes[d],A=v.textContent,v.innerHTML="<span></span><br>",v.firstChild.appendChild(document.createTextNode(A)),d+=1;N=r.startLine,a=r.endLine,r.range.collapsed||(a===N?r.range.deleteContents():(this._deleteMultiLinesSelections(),r=this._findLinesAndIsStartIsEnd(),N=r.startLine)),k=r.range.startContainer,C=r.range.startOffset,k.length?f=k.length-C:f=k.childNodes.length-C,d=0,m=h.firstChild.childNodes,y=m.length;while(d<y-1)u=m[d],d+=1,u.tagName==="SPAN"&&(k.tagName==="SPAN"||k.nodeType===Node.TEXT_NODE)&&(L=k.textContent,b=L.substr(0,C),b+=u.textContent,b+=L.substr(C),k.textContent=b,C+=u.textContent.length);if(h.childNodes.length>1){S=document.createRange(),S.setStart(k,C),w=k;while(w.tagName!=="DIV")w=w.parentElement;S.setEnd(w,w.children.length-1),l=S.extractContents(),S.detach(),this._insertFrag(h.lastChild,h.lastChild.children.length-1,l),w=k;while(w.tagName!=="DIV")w=w.parentElement}return c=o.lineNext,T=c.lineNext,h.removeChild(h.firstChild),delete this._lines[c.lineID],T!==null&&(g=r.startLine.lineNext,r.startLine.lineNext=T,T.linePrev=r.startLine,g===null?this.editorBody$[0].appendChild(h):(s.lastAddedLine.lineNext=g,g.linePrev=s.lastAddedLine,this.editorBody$[0].insertBefore(h,g.line$[0]))),T!==null?(n=g.linePrev.line$[0].childNodes[0].firstChild,t=n.length-f,r.sel.collapse(n,t)):r.sel.collapse(k,C)},e.prototype._insertFrag=function(e,t,n){var r,i;if(t===0)return r=document.createRange(),r.setStart(startContainer,startOffset),r.setEnd(startContainer,startOffset),r.insertNode(n),r.detach();if(n.childNodes.length>0)return i=e.childNodes[t-1],i.textContent+=n.firstChild.textContent},e.prototype._domWalk=function(e,t){var n;this.__domWalk(e,t);if(t.currentLineFrag.childNodes.length>0)return n={sourceLine:t.lastAddedLine,fragment:t.currentLineFrag,targetLineType:"Tu",targetLineDepthAbs:t.absDepth,targetLineDepthRel:t.absDepth},t.lastAddedLine=this._insertLineAfter(n)},e.prototype.__domWalk=function(e,t){var n,r,i,s,o,u,a,f,l,c,h,p;n=t.absDepth,o=t.prevHxLevel,h=e.childNodes;for(l=0,c=h.length;l<c;l++){r=h[l];switch(r.nodeName){case"#text":f=document.createTextNode(r.textContent),(p=t.currentLineEl.nodeName)==="SPAN"||p==="A"?t.currentLineEl.appendChild(f):(a=document.createElement("span"),a.appendChild(f),t.currentLineEl.appendChild(a)),t.isCurrentLineBeingPopulated=!0;break;case"P":case"UL":case"OL":t.absDepth=n,this.__domWalk(r,t),t.isCurrentLineBeingPopulated&&this._appendCurrentLineFrag(t,n,n);break;case"H1":case"H2":case"H3":case"H4":case"H5":case"H6":i=0,this.__domWalk(r,t),t.isCurrentLineBeingPopulated&&this._appendCurrentLineFrag(t,Math.min(0,i)+n,Math.min(0,i)+n);break;case"LI":t.isCurrentLineBeingPopulated&&this._appendCurrentLineFrag(t,n,n),this.__domWalk(r,t),t.isCurrentLineBeingPopulated&&this._appendCurrentLineFrag(t,n,n);break;case"BR":this._appendCurrentLineFrag(t,n,n);break;case"A":s=t.currentLineEl.lastChild,s!==null&&s.nodeName==="SPAN"?s.textContent+="[["+r.textContent+"|"+r.href+"]]":(u=document.createElement("span"),u.textContent=r.textContent+" [["+r.href+"]] ",t.currentLineEl.appendChild(u)),t.isCurrentLineBeingPopulated=!0;break;case"DIV":r.id.substr(0,5)==="CNID_"?this._clipBoard_Insert_InternalLine(r,t):this.__domWalk(r,t);break;default:s=t.currentLineEl.lastChild,s!==null&&s.nodeName==="SPAN"?s.textContent+=r.textContent:(u=document.createElement("span"),u.textContent=r.textContent,t.currentLineEl.appendChild(u)),t.isCurrentLineBeingPopulated=!0}}return!0},e.prototype._appendCurrentLineFrag=function(e,t,n){var r,i;return e.currentLineFrag.childNodes.length===0&&(i=document.createElement("span"),e.currentLineFrag.appendChild(i)),r={sourceLine:e.lastAddedLine,fragment:e.currentLineFrag,targetLineType:"Tu",targetLineDepthAbs:t,targetLineDepthRel:t},e.lastAddedLine=this._insertLineAfter(r),e.currentLineFrag=document.createDocumentFragment(),e.currentLineEl=e.currentLineFrag,e.isCurrentLineBeingPopulated=!1},e.prototype._clipBoard_Insert_InternalLine=function(e,t){var n,r,i,s;return r=e.className.split("-"),i=+r[1],r=r[0],t.prevCNLineAbsDepth||(t.prevCNLineAbsDepth=i),n=i-t.prevCNLineAbsDepth,n>0,s={sourceLine:t.lastAddedLine,innerHTML:e.innerHTML,targetLineType:"Tu",targetLineDepthAbs:t.absDepth,targetLineDepthRel:t.absDepth},t.lastAddedLine=this._insertLineAfter(s)},e.prototype._cozy2md=function(e){var t,n,r,i,s,o,u,a,f,l,c,h,p,d,v;s=$(document.createElement("div")).html(e),c="",i=0,r={A:function(e){var t,n;return n=e.attr("title")!=null?e.attr("title"):"",t=e.attr("href")!=null?e.attr("href"):"","["+e.html()+"]("+t+' "'+n+'")'},IMG:function(e){var t,n,r;return r=e.attr("title")!=null?e.attr("title"):"",t=e.attr("alt")!=null?e.attr("alt"):"",n=e.attr("src")!=null?e.attr("src"):"","!["+t+"]("+n+' "'+r+'")'},SPAN:function(e){return e.text()}},h={Th:function(e,t){var n,r;i=t,n="",r=0;while(r<t)n+="#",r++;return"\n"+n+" "},Lh:function(e,t){return"\n"},Tu:function(e,t){return"\n"+e+"+   "},Lu:function(e,t){return"\n"+e+"    "},To:function(e,t){return"\n"+e+"1.   "},Lo:function(e,t){return"\n"+e+"    "}},n=function(e){var t,n,r,s,o;s=e.split("-"),o=s[0],n=parseInt(s[1],10),t="",r=1;while(r<n-i)t+="    ",r++;return h[o](t,n)},t=s.children();for(o=d=0,v=t.length-1;0<=v?d<=v:d>=v;o=0<=v?++d:--d){f=$(t.get(o)),f.attr("class")!=null&&(c+=n(f.attr("class"))),a=f.children().length,u=0,p=" ";while(u<a)l=f.children().get(u),u+2===a&&(p=""),l.nodeType===1&&r[l.nodeName]!=null?c+=r[l.nodeName]($(l))+p:c+=$(l).text()+p,u++;c+="\n"}return c},e.prototype._md2cozy=function(e){var t,n,r,i,s,o,u,a;return t=new Showdown.converter,e=t.makeHtml(e),s=$(document.createElement("ul")).html(e),n="",o=0,r=function(e,t,n){var r;return o++,r="",n.contents().each(function(){var e;e=this.nodeName;if(e==="#text")return r+="<span>"+$(this).text()+"</span>";if(this.tagName!=null)return $(this).wrap("<div></div>"),r+=""+$(this).parent().html(),$(this).unwrap()}),"<div id=CNID_"+o+" class="+e+"-"+t+">"+r+"<br></div>"},i=0,u=function(e){var t;return t=e[0].tagName,t[0]==="H"?(i=parseInt(t[1],10),n+=r("Th",i,e)):t==="P"?n+=r("Lh",i,e):a(e,"u")},a=function(e,t){var s,o,u,f,l,c;u=e[0].tagName;if(u==="UL")return i++,e.children().each(function(){return a($(this),"u")}),i--;if(u==="OL")return i++,e.children().each(function(){return a($(this),"o")}),i--;if(u==="LI"&&e.contents().get(0)!=null){e.contents().get(0).nodeName==="#text"&&(e=e.clone().wrap("<p></p>").parent()),c=[];for(o=f=0,l=e.children().length-1;0<=l?f<=l:f>=l;o=0<=l?++f:--f)s=$(e.children().get(o)),o===0?c.push(n+=r("T"+t,i,s)):c.push(a(s,t));return c}if(u==="P")return n+=r("L"+t,i,e)},s.children().each(function(){return u($(this))}),n},e}()
+/* ------------------------------------------------------------------------
+# CLASS FOR THE COZY NOTE EDITOR
+#
+# usage : 
+#
+# newEditor = new CNEditor( iframeTarget,callBack )
+#   iframeTarget = iframe where the editor will be nested
+#   callBack     = launched when editor ready, the context 
+#                  is set to the editorCtrl (callBack.call(this))
+# properties & methods :
+#   replaceContent    : (htmlContent) ->  # TODO: replace with markdown
+#   _keyPressListener : (e) =>
+#   _insertLineAfter  : (param) ->
+#   _insertLineBefore : (param) ->
+#   
+#   editorIframe      : the iframe element where is nested the editor
+#   editorBody$       : the jquery pointer on the body of the iframe
+#   _lines            : {} an objet, each property refers a line
+#   _highestId        : 
+#   _firstLine        : pointes the first line : TODO : not taken into account
+*/
+
+var __bind = function(fn, me){ return function(){ return fn.apply(me, arguments); }; };
+
+CNeditor = (function() {
+  /*
+      #   Constructor : newEditor = new CNEditor( iframeTarget,callBack )
+      #       iframeTarget = iframe where the editor will be nested
+      #       callBack     = launched when editor ready, the context 
+      #                      is set to the editorCtrl (callBack.call(this))
+  */
+
+  function CNeditor(elementTarget, callBack) {
+    this._processPaste = __bind(this._processPaste, this);
+
+    this._waitForPasteData = __bind(this._waitForPasteData, this);
+
+    this._keyPressListener = __bind(this._keyPressListener, this);
+
+    var allSetter, iframe$, node$,
+      _this = this;
+    if (elementTarget.nodeName === "IFRAME") {
+      console.log("et hop !");
+      this.getEditorSelection = function() {
+        return rangy.getIframeSelection(elementTarget);
+      };
+      this.saveEditorSelection = function() {
+        return rangy.saveSelection(rangy.dom.getIframeWindow(elementTarget));
+      };
+      iframe$ = $(elementTarget);
+      iframe$.on('load', function() {
+        var editorBody$, editor_head$, editor_html$;
+        editor_html$ = iframe$.contents().find("html");
+        editorBody$ = editor_html$.find("body");
+        editorBody$.parent().attr('id', '__ed-iframe-html');
+        editorBody$.attr("contenteditable", "true");
+        editorBody$.attr("id", "__ed-iframe-body");
+        _this.document = editorBody$[0].ownerDocument;
+        editor_head$ = editor_html$.find("head");
+        editor_head$.html('<link id="editorCSS" href="stylesheets/CNeditor.css" rel="stylesheet">');
+        _this.editorBody$ = editorBody$;
+        _this.editorTarget = elementTarget;
+        _this._lines = {};
+        _this.newPosition = true;
+        _this._highestId = 0;
+        _this._deepest = 1;
+        _this._firstLine = null;
+        _this._history = {
+          index: 0,
+          history: [null],
+          historySelect: [null],
+          historyScroll: [null],
+          historyPos: [null]
+        };
+        _this._lastKey = null;
+        editorBody$.prop('__editorCtl', _this);
+        editorBody$.on('mouseup', function() {
+          return _this.newPosition = true;
+        });
+        editorBody$.on('keydown', _this._keyPressListener);
+        editorBody$.on('keyup', function() {
+          return iframe$.trigger(jQuery.Event("onKeyUp"));
+        });
+        editorBody$.on('click', function(e) {
+          return _this._lastKey = null;
+        });
+        editorBody$.on('paste', function(e) {
+          console.log("pasting...");
+          console.log(e);
+          return _this.paste(e);
+        });
+        _this._initClipBoard();
+        callBack.call(_this);
+        return _this;
+      });
+      elementTarget.src = '';
+    } else {
+      console.log("target is not an iframe...");
+      this.getEditorSelection = function() {
+        return rangy.getSelection();
+      };
+      this.saveEditorSelection = function() {
+        return rangy.saveSelection();
+      };
+      node$ = $(elementTarget);
+      allSetter = function() {
+        var editorBody$;
+        editorBody$ = node$;
+        editorBody$.attr("contenteditable", "true");
+        editorBody$.attr("id", "__ed-iframe-body");
+        _this.editorBody$ = editorBody$;
+        _this.editorTarget = elementTarget;
+        _this._lines = {};
+        _this.newPosition = true;
+        _this._highestId = 0;
+        _this._deepest = 1;
+        _this._firstLine = null;
+        _this._history = {
+          index: 0,
+          history: [null],
+          historySelect: [null],
+          historyScroll: [null],
+          historyPos: [null]
+        };
+        _this._lastKey = null;
+        editorBody$.prop('__editorCtl', _this);
+        editorBody$.on('keydown', _this._keyPressListener);
+        editorBody$.on('mouseup', function() {
+          return _this.newPosition = true;
+        });
+        editorBody$.on('keyup', function() {
+          return node$.trigger(jQuery.Event("onKeyUp"));
+        });
+        editorBody$.on('click', function(e) {
+          return _this._lastKey = null;
+        });
+        editorBody$.on('paste', function(e) {
+          console.log("pasting...");
+          return _this.paste(e);
+        });
+        callBack.call(_this);
+        return _this;
+      };
+      allSetter();
+      this._initClipBoard();
+    }
+  }
+
+  /* ------------------------------------------------------------------------
+  # EXTENSION : _updateDeepest
+  # 
+  # Find the maximal deep (thus the deepest line) of the text
+  # TODO: improve it so it only calculates the new depth from the modified
+  #       lines (not all of them)
+  # TODO: set a class system rather than multiple CSS files. Thus titles
+  #       classes look like "Th-n depth3" for instance if max depth is 3
+  # note: These todos arent our priority for now
+  */
+
+
+  CNeditor.prototype._updateDeepest = function() {
+    var c, lines, max;
+    max = 1;
+    lines = this._lines;
+    for (c in lines) {
+      if (this.editorBody$.children("#" + ("" + lines[c].lineID)).length > 0 && lines[c].lineType === "Th" && lines[c].lineDepthAbs > max) {
+        max = this._lines[c].lineDepthAbs;
+      }
+    }
+    if (max !== this._deepest) {
+      this._deepest = max;
+      if (max < 4) {
+        return this.replaceCSS("stylesheets/app-deep-" + max + ".css");
+      } else {
+        return this.replaceCSS("stylesheets/app-deep-4.css");
+      }
+    }
+  };
+
+  /* ------------------------------------------------------------------------
+  # Initialize the editor content from a html string
+  */
+
+
+  CNeditor.prototype.replaceContent = function(htmlContent) {
+    this.editorBody$.html(htmlContent);
+    this._readHtml();
+    return this._initClipBoard();
+  };
+
+  /* ------------------------------------------------------------------------
+  # Clear editor content
+  */
+
+
+  CNeditor.prototype.deleteContent = function() {
+    this.editorBody$.html('<div id="CNID_1" class="Tu-1"><span></span><br></div>');
+    this._readHtml();
+    return this._initClipBoard();
+  };
+
+  /* ------------------------------------------------------------------------
+  # Returns a markdown string representing the editor content
+  */
+
+
+  CNeditor.prototype.getEditorContent = function() {
+    var cozyContent;
+    cozyContent = this.editorBody$.html();
+    return this._cozy2md(cozyContent);
+  };
+
+  /* ------------------------------------------------------------------------
+  # Sets the editor content from a markdown string
+  */
+
+
+  CNeditor.prototype.setEditorContent = function(mdContent) {
+    var cozyContent;
+    cozyContent = this._md2cozy(mdContent);
+    this.editorBody$.html(cozyContent);
+    this._readHtml();
+    return this._initClipBoard();
+  };
+
+  /*
+      # Change the path of the css applied to the editor iframe
+  */
+
+
+  CNeditor.prototype.replaceCSS = function(path) {
+    var document, linkElm;
+    document = this.document;
+    linkElm = document.querySelector('#editorCSS');
+    linkElm.setAttribute('href', path);
+    return document.head.appendChild(linkElm);
+  };
+
+  /* ------------------------------------------------------------------------
+  # UTILITY FUNCTIONS
+  # used to set ranges and help normalize selection
+  # 
+  # parameters: elt  :  a dom object with only textNode children
+  #
+  # note: with google chrome, it seems that non visible elements
+  #       cannot be selected with rangy (that's where 'blank' comes in)
+  */
+
+
+  CNeditor.prototype._putEndOnEnd = function(range, elt) {
+    var blank, offset;
+    if (elt.lastChild != null) {
+      offset = elt.lastChild.textContent.length;
+      if (offset === 0) {
+        elt.lastChild.data = " ";
+        offset = 1;
+      }
+      return range.setEnd(elt.lastChild, offset);
+    } else {
+      blank = document.createTextNode(" ");
+      elt.appendChild(blank);
+      return range.setEnd(blank, 1);
+    }
+  };
+
+  CNeditor.prototype._putStartOnEnd = function(range, elt) {
+    var blank, offset;
+    if (elt.lastChild != null) {
+      offset = elt.lastChild.textContent.length;
+      if (offset === 0) {
+        elt.lastChild.data = " ";
+        offset = 1;
+      }
+      return range.setStart(elt.lastChild, offset);
+    } else {
+      blank = document.createTextNode(" ");
+      elt.appendChild(blank);
+      return range.setStart(blank, 0);
+    }
+  };
+
+  CNeditor.prototype._putEndOnStart = function(range, elt) {
+    var blank, offset;
+    if (elt.firstChild != null) {
+      offset = elt.firstChild.textContent.length;
+      if (offset === 0) {
+        elt.firstChild.data = " ";
+      }
+      return range.setEnd(elt.firstChild, 0);
+    } else {
+      blank = document.createTextNode(" ");
+      elt.appendChild(blank);
+      return range.setEnd(blank, 0);
+    }
+  };
+
+  CNeditor.prototype._putStartOnStart = function(range, elt) {
+    var blank, offset;
+    if (elt.firstChild != null) {
+      offset = elt.firstChild.textContent.length;
+      if (offset === 0) {
+        elt.firstChild.data = " ";
+      }
+      return range.setStart(elt.firstChild, 0);
+    } else {
+      blank = document.createTextNode(" ");
+      elt.appendChild(blank);
+      return range.setStart(blank, 0);
+    }
+  };
+
+  /* ------------------------------------------------------------------------
+  #  _normalize(range)
+  # 
+  #  Modify 'range' containers and offsets so it represent a clean selection
+  #  that it starts inside a textNode and ends inside a textNode.
+  #
+  #  Set the flag isEmptyLine to true if an empty line is being normalized
+  #  so further suppr ~ backspace work properly.
+  #
+  #
+  */
+
+
+  CNeditor.prototype._normalize = function(range) {
+    var elt, endContainer, endDiv, offset, startContainer, startDiv, targetChild, _ref, _ref1;
+    if (range.startContainer.nodeName === 'BODY') {
+      startDiv = range.startContainer.children[range.startOffset];
+    } else {
+      startDiv = range.startContainer;
+    }
+    if (range.endContainer.nodeName === "BODY") {
+      endDiv = range.endContainer.children[range.endOffset - 1];
+    } else {
+      endDiv = range.endContainer;
+    }
+    if (startDiv.nodeName !== "DIV") {
+      startDiv = $(startDiv).parents("div")[0];
+    }
+    if (endDiv.nodeName !== "DIV") {
+      endDiv = $(endDiv).parents("div")[0];
+    }
+    if (startDiv === endDiv && startDiv.innerHTML === '<span></span><br>') {
+      this.isEmptyLine = true;
+    }
+    startContainer = range.startContainer;
+    if (startContainer.nodeName === "BODY") {
+      elt = startContainer.children[range.startOffset].firstChild;
+      this._putStartOnStart(range, elt);
+    } else if (startContainer.nodeName === "DIV") {
+      if (this.isEmptyLine) {
+        elt = startContainer.childNodes[0];
+        this._putStartOnStart(range, elt);
+      } else if (range.startOffset < startContainer.childNodes.length - 1) {
+        elt = startContainer.childNodes[range.startOffset];
+        this._putStartOnStart(range, elt);
+      } else {
+        elt = startContainer.lastChild.previousElementSibling;
+        this._putStartOnEnd(range, elt);
+      }
+    } else if ((_ref = startContainer.nodeName) === "SPAN" || _ref === "IMG" || _ref === "A") {
+      if (startContainer.firstChild === null || startContainer.textContent.length === 0) {
+        this._putStartOnEnd(range, startContainer);
+      } else if (range.startOffset < startContainer.childNodes.length) {
+        targetChild = startContainer.childNodes[range.startOffset];
+        range.setStart(targetChild, 0);
+      } else {
+        targetChild = startContainer.lastChild;
+        offset = targetChild.data.length;
+        range.setStart(targetChild, offset);
+      }
+    }
+    endContainer = range.endContainer;
+    if (endContainer.nodeName === "BODY") {
+      elt = endContainer.children[range.endOffset - 1].lastChild;
+      this._putEndOnEnd(range, elt.previousElementSibling);
+    }
+    if (endContainer.nodeName === "DIV") {
+      if (range.endOffset < endContainer.childNodes.length - 1) {
+        elt = endContainer.childNodes[range.endOffset];
+        this._putEndOnStart(range, elt);
+      } else {
+        elt = endContainer.lastChild.previousElementSibling;
+        this._putEndOnEnd(range, elt);
+      }
+    } else if ((_ref1 = endContainer.nodeName) === "SPAN" || _ref1 === "IMG" || _ref1 === "A") {
+      if (endContainer.firstChild === null || endContainer.textContent.length === 0) {
+        this._putEndOnEnd(range, endContainer);
+      }
+      if (range.endOffset < endContainer.childNodes.length) {
+        targetChild = startContainer.childNodes[range.endOffset];
+        range.setEnd(targetChild, 0);
+      } else {
+        targetChild = endContainer.lastChild;
+        offset = targetChild.data.length;
+        range.setEnd(targetChild, offset);
+      }
+    }
+    return range;
+  };
+
+  /* ------------------------------------------------------------------------
+  #   _keyPressListener
+  # 
+  # The listener of keyPress event on the editor's iframe... the king !
+  */
+
+
+  /*
+      # SHORTCUT
+      #
+      # Definition of a shortcut : 
+      #   a combination alt,ctrl,shift,meta
+      #   + one caracter(.which) 
+      #   or 
+      #     arrow (.keyCode=dghb:) or 
+      #     return(keyCode:13) or 
+      #     bckspace (which:8) or 
+      #     tab(keyCode:9)
+      #   ex : shortcut = 'CtrlShift-up', 'Ctrl-115' (ctrl+s), '-115' (s),
+      #                   'Ctrl-'
+  */
+
+
+  CNeditor.prototype._keyPressListener = function(e) {
+    var keyStrokesCode, metaKeyStrokesCode, normalizedRange, normalizedSel, range, sel, shortcut;
+    metaKeyStrokesCode = (e.altKey ? "Alt" : "") + 
+                              (e.ctrlKey ? "Ctrl" : "") + 
+                              (e.shiftKey ? "Shift" : "");
+    switch (e.keyCode) {
+      case 13:
+        keyStrokesCode = "return";
+        break;
+      case 35:
+        keyStrokesCode = "end";
+        break;
+      case 36:
+        keyStrokesCode = "home";
+        break;
+      case 33:
+        keyStrokesCode = "pgUp";
+        break;
+      case 34:
+        keyStrokesCode = "pgDwn";
+        break;
+      case 37:
+        keyStrokesCode = "left";
+        break;
+      case 38:
+        keyStrokesCode = "up";
+        break;
+      case 39:
+        keyStrokesCode = "right";
+        break;
+      case 40:
+        keyStrokesCode = "down";
+        break;
+      case 9:
+        keyStrokesCode = "tab";
+        break;
+      case 8:
+        keyStrokesCode = "backspace";
+        break;
+      case 32:
+        keyStrokesCode = "space";
+        break;
+      case 27:
+        keyStrokesCode = "esc";
+        break;
+      case 46:
+        keyStrokesCode = "suppr";
+        break;
+      case 16:
+        e.preventDefault();
+        return;
+      case 17:
+        e.preventDefault();
+        return;
+      case 18:
+        e.preventDefault();
+        return;
+      default:
+        switch (e.which) {
+          case 32:
+            keyStrokesCode = "space";
+            break;
+          case 8:
+            keyStrokesCode = "backspace";
+            break;
+          case 65:
+            keyStrokesCode = "A";
+            break;
+          case 83:
+            keyStrokesCode = "S";
+            break;
+          case 86:
+            keyStrokesCode = "V";
+            break;
+          case 89:
+            keyStrokesCode = "Y";
+            break;
+          case 90:
+            keyStrokesCode = "Z";
+            break;
+          default:
+            keyStrokesCode = "other";
+        }
+    }
+    shortcut = metaKeyStrokesCode + '-' + keyStrokesCode;
+    if (shortcut === "-A" || shortcut === "-S" || shortcut === "-V" || shortcut === "-Y" || shortcut === "-Z") {
+      shortcut = "-other";
+    }
+    if (this._lastKey !== shortcut && (shortcut === "-tab" || shortcut === "-return" || shortcut === "-backspace" || shortcut === "-suppr" || shortcut === "CtrlShift-down" || shortcut === "CtrlShift-up" || shortcut === "CtrlShift-left" || shortcut === "CtrlShift-right" || shortcut === "Ctrl-V" || shortcut === "Shift-tab" || shortcut === "-space" || shortcut === "-other")) {
+      this._addHistory();
+    }
+    this._lastKey = shortcut;
+    if (this.newPosition && (shortcut === '-other' || shortcut === '-space' || shortcut === '-suppr' || shortcut === '-backspace' || shortcut === '-return')) {
+      this.newPosition = false;
+      sel = this.getEditorSelection();
+      range = sel.getRangeAt(0);
+      normalizedRange = rangy.createRange();
+      normalizedRange = this._normalize(range);
+      normalizedSel = this.getEditorSelection();
+      normalizedSel.setSingleRange(normalizedRange);
+    }
+    if ((keyStrokesCode === "left" || keyStrokesCode === "up" || keyStrokesCode === "right" || keyStrokesCode === "down" || keyStrokesCode === "pgUp" || keyStrokesCode === "pgDwn" || keyStrokesCode === "end" || keyStrokesCode === "home" || keyStrokesCode === "return" || keyStrokesCode === "suppr" || keyStrokesCode === "backspace") && (shortcut !== "CtrlShift-down" && shortcut !== "CtrlShift-up" && shortcut !== "CtrlShift-right" && shortcut !== "CtrlShift-left")) {
+      this.newPosition = true;
+    }
+    this.currentSel = null;
+    switch (shortcut) {
+      case "-return":
+        this._return();
+        return e.preventDefault();
+      case "-tab":
+        this.tab();
+        return e.preventDefault();
+      case "CtrlShift-right":
+        this.tab();
+        return e.preventDefault();
+      case "-backspace":
+        return this._backspace(e);
+      case "-suppr":
+        return this._suppr(e);
+      case "CtrlShift-down":
+        this._moveLinesDown();
+        return e.preventDefault();
+      case "CtrlShift-up":
+        this._moveLinesUp();
+        return e.preventDefault();
+      case "Shift-tab":
+        this.shiftTab();
+        return e.preventDefault();
+      case "CtrlShift-left":
+        this.shiftTab();
+        return e.preventDefault();
+      case "Alt-A":
+        this._toggleLineType();
+        return e.preventDefault();
+      case "Ctrl-V":
+        return true;
+      case "Ctrl-S":
+        $(this.editorTarget).trigger(jQuery.Event("saveRequest"));
+        return e.preventDefault();
+      case "Ctrl-Z":
+        e.preventDefault();
+        return this.unDo();
+      case "Ctrl-Y":
+        e.preventDefault();
+        return this.reDo();
+    }
+  };
+
+  /* ------------------------------------------------------------------------
+  #  _suppr :
+  # 
+  # Manage deletions when suppr key is pressed
+  */
+
+
+  CNeditor.prototype._suppr = function(e) {
+    var sel, startLine;
+    this._findLinesAndIsStartIsEnd();
+    sel = this.currentSel;
+    if (this.isEmptyLine) {
+      this.isEmptyLine = false;
+      sel.range.deleteContents();
+    }
+    startLine = sel.startLine;
+    if (sel.range.collapsed) {
+      if (sel.rangeIsEndLine) {
+        if (startLine.lineNext !== null) {
+          sel.range.setEndBefore(startLine.lineNext.line$[0].firstChild);
+          sel.endLine = startLine.lineNext;
+          this._deleteMultiLinesSelections();
+          return e.preventDefault();
+        } else {
+          return e.preventDefault();
+        }
+      }
+    } else if (sel.endLine === startLine) {
+      sel.range.deleteContents();
+      return e.preventDefault();
+    } else {
+      this._deleteMultiLinesSelections();
+      return e.preventDefault();
+    }
+  };
+
+  /* ------------------------------------------------------------------------
+  #  _backspace
+  # 
+  # Manage deletions when backspace key is pressed
+  */
+
+
+  CNeditor.prototype._backspace = function(e) {
+    var sel, startLine;
+    this._findLinesAndIsStartIsEnd();
+    sel = this.currentSel;
+    if (this.isEmptyLine) {
+      this.isEmptyLine = false;
+      sel.range.deleteContents();
+    }
+    startLine = sel.startLine;
+    if (sel.range.collapsed) {
+      if (sel.rangeIsStartLine) {
+        if (startLine.linePrev !== null) {
+          sel.range.setStartBefore(startLine.linePrev.line$[0].lastChild);
+          sel.startLine = startLine.linePrev;
+          this._deleteMultiLinesSelections();
+          return e.preventDefault();
+        } else {
+          return e.preventDefault();
+        }
+      }
+    } else if (sel.endLine === startLine) {
+      sel.range.deleteContents();
+      return e.preventDefault();
+    } else {
+      this._deleteMultiLinesSelections();
+      return e.preventDefault();
+    }
+  };
+
+  /* ------------------------------------------------------------------------
+  #  titleList
+  # 
+  # Turn selected lines in a title List (Th)
+  */
+
+
+  CNeditor.prototype.titleList = function() {
+    var endDiv, endDivID, endLineID, line, range, sel, startDiv, _results;
+    sel = this.getEditorSelection();
+    range = sel.getRangeAt(0);
+    if (range.startContainer.nodeName === 'BODY') {
+      startDiv = range.startContainer.children[range.startOffset];
+    } else {
+      startDiv = range.startContainer;
+    }
+    if (range.endContainer.nodeName === "BODY") {
+      endDiv = range.endContainer.children[range.endOffset - 1];
+    } else {
+      endDiv = range.endContainer;
+    }
+    if (startDiv.nodeName !== "DIV") {
+      startDiv = $(startDiv).parents("div")[0];
+    }
+    if (endDiv.nodeName !== "DIV") {
+      endDiv = $(endDiv).parents("div")[0];
+    }
+    endLineID = endDiv.id;
+    line = this._lines[startDiv.id];
+    endDivID = endDiv.id;
+    _results = [];
+    while (true) {
+      this._line2titleList(line);
+      if (line.lineID === endDivID) {
+        break;
+      } else {
+        _results.push(line = line.lineNext);
+      }
+    }
+    return _results;
+  };
+
+  /* ------------------------------------------------------------------------
+  #  _line2titleList
+  # 
+  #  Turn a given line in a title List Line (Th)
+  */
+
+
+  CNeditor.prototype._line2titleList = function(line) {
+    var parent1stSibling, _results;
+    if (line.lineType !== 'Th') {
+      if (line.lineType[0] === 'L') {
+        line.lineType = 'Tu';
+        line.lineDepthAbs += 1;
+      }
+      this._titilizeSiblings(line);
+      parent1stSibling = this._findParent1stSibling(line);
+      _results = [];
+      while (parent1stSibling !== null && parent1stSibling.lineType !== 'Th') {
+        this._titilizeSiblings(parent1stSibling);
+        _results.push(parent1stSibling = this._findParent1stSibling(parent1stSibling));
+      }
+      return _results;
+    }
+  };
+
+  /* ------------------------------------------------------------------------
+  # turn in Th or Lh of the siblings of line (and line itself of course)
+  # the children are note modified
+  */
+
+
+  CNeditor.prototype._titilizeSiblings = function(line) {
+    var l, lineDepthAbs;
+    lineDepthAbs = line.lineDepthAbs;
+    l = line;
+    while (l !== null && l.lineDepthAbs >= lineDepthAbs) {
+      if (l.lineDepthAbs === lineDepthAbs) {
+        switch (l.lineType) {
+          case 'Tu':
+          case 'To':
+            l.line$.prop("class", "Th-" + lineDepthAbs);
+            l.lineType = 'Th';
+            l.lineDepthRel = 0;
+            break;
+          case 'Lu':
+          case 'Lo':
+            l.line$.prop("class", "Lh-" + lineDepthAbs);
+            l.lineType = 'Lh';
+            l.lineDepthRel = 0;
+        }
+      }
+      l = l.lineNext;
+    }
+    l = line.linePrev;
+    while (l !== null && l.lineDepthAbs >= lineDepthAbs) {
+      if (l.lineDepthAbs === lineDepthAbs) {
+        switch (l.lineType) {
+          case 'Tu':
+          case 'To':
+            l.line$.prop("class", "Th-" + lineDepthAbs);
+            l.lineType = 'Th';
+            l.lineDepthRel = 0;
+            break;
+          case 'Lu':
+          case 'Lo':
+            l.line$.prop("class", "Lh-" + lineDepthAbs);
+            l.lineType = 'Lh';
+            l.lineDepthRel = 0;
+        }
+      }
+      l = l.linePrev;
+    }
+    return true;
+  };
+
+  /* ------------------------------------------------------------------------
+  #  markerList
+  # 
+  #  Turn selected lines in a Marker List
+  */
+
+
+  CNeditor.prototype.markerList = function(l) {
+    var endDiv, endLineID, line, lineTypeTarget, range, startDiv, startDivID, _results;
+    if (l != null) {
+      startDivID = l.lineID;
+      endLineID = startDivID;
+    } else {
+      range = this.getEditorSelection().getRangeAt(0);
+      if (range.startContainer.nodeName === 'BODY') {
+        startDiv = range.startContainer.children[range.startOffset];
+      } else {
+        startDiv = range.startContainer;
+      }
+      if (range.endContainer.nodeName === "BODY") {
+        endDiv = range.endContainer.children[range.endOffset - 1];
+      } else {
+        endDiv = range.endContainer;
+      }
+      if (startDiv.nodeName !== "DIV") {
+        startDiv = $(startDiv).parents("div")[0];
+      }
+      startDivID = startDiv.id;
+      if (endDiv.nodeName !== "DIV") {
+        endDiv = $(endDiv).parents("div")[0];
+      }
+      endLineID = endDiv.id;
+    }
+    line = this._lines[startDivID];
+    _results = [];
+    while (true) {
+      switch (line.lineType) {
+        case 'Th':
+          lineTypeTarget = 'Tu';
+          l = line.lineNext;
+          while (l !== null && l.lineDepthAbs >= line.lineDepthAbs) {
+            switch (l.lineType) {
+              case 'Th':
+                l.line$.prop("class", "Tu-" + l.lineDepthAbs);
+                l.lineType = 'Tu';
+                l.lineDepthRel = this._findDepthRel(l);
+                break;
+              case 'Lh':
+                l.line$.prop("class", "Lu-" + l.lineDepthAbs);
+                l.lineType = 'Lu';
+                l.lineDepthRel = this._findDepthRel(l);
+            }
+            l = l.lineNext;
+          }
+          l = line.linePrev;
+          while (l !== null && l.lineDepthAbs >= line.lineDepthAbs) {
+            switch (l.lineType) {
+              case 'Th':
+                l.line$.prop("class", "Tu-" + l.lineDepthAbs);
+                l.lineType = 'Tu';
+                l.lineDepthRel = this._findDepthRel(l);
+                break;
+              case 'Lh':
+                l.line$.prop("class", "Lu-" + l.lineDepthAbs);
+                l.lineType = 'Lu';
+                l.lineDepthRel = this._findDepthRel(l);
+            }
+            l = l.linePrev;
+          }
+          break;
+        case 'Lh':
+        case 'Lu':
+          this.tab(line);
+          break;
+        default:
+          lineTypeTarget = false;
+      }
+      if (lineTypeTarget) {
+        line.line$.prop("class", "" + lineTypeTarget + "-" + line.lineDepthAbs);
+        line.lineType = lineTypeTarget;
+      }
+      if (line.lineID === endLineID) {
+        break;
+      } else {
+        _results.push(line = line.lineNext);
+      }
+    }
+    return _results;
+  };
+
+  /* ------------------------------------------------------------------------
+  #  _findDepthRel
+  # 
+  # Calculates the relative depth of the line
+  #   usage   : cycle : Tu => To => Lx => Th
+  #   param   : line : the line we want to find the relative depth
+  #   returns : a number
+  #
+  */
+
+
+  CNeditor.prototype._findDepthRel = function(line) {
+    var linePrev;
+    if (line.lineDepthAbs === 1) {
+      if (line.lineType[1] === "h") {
+        return 0;
+      } else {
+        return 1;
+      }
+    } else {
+      linePrev = line.linePrev;
+      while (linePrev !== null && linePrev.lineDepthAbs >= line.lineDepthAbs) {
+        linePrev = linePrev.linePrev;
+      }
+      if (linePrev !== null) {
+        return linePrev.lineDepthRel + 1;
+      } else {
+        return 0;
+      }
+    }
+  };
+
+  /* ------------------------------------------------------------------------
+  #  _toggleLineType
+  # 
+  # Toggle line type
+  #   usage : cycle : Tu => To => Lx => Th
+  #   param :
+  #       e = event
+  */
+
+
+  CNeditor.prototype._toggleLineType = function() {
+    var endDiv, endLineID, l, line, lineTypeTarget, range, sel, startDiv, _results;
+    sel = this.getEditorSelection();
+    range = sel.getRangeAt(0);
+    if (range.startContainer.nodeName === 'BODY') {
+      startDiv = range.startContainer.children[range.startOffset];
+    } else {
+      startDiv = range.startContainer;
+    }
+    if (range.endContainer.nodeName === "BODY") {
+      endDiv = range.endContainer.children[range.endOffset - 1];
+    } else {
+      endDiv = range.endContainer;
+    }
+    if (startDiv.nodeName !== "DIV") {
+      startDiv = $(startDiv).parents("div")[0];
+    }
+    if (endDiv.nodeName !== "DIV") {
+      endDiv = $(endDiv).parents("div")[0];
+    }
+    endLineID = endDiv.id;
+    line = this._lines[startDiv.id];
+    _results = [];
+    while (true) {
+      switch (line.lineType) {
+        case 'Tu':
+          lineTypeTarget = 'Th';
+          l = line.lineNext;
+          while (l !== null && l.lineDepthAbs >= line.lineDepthAbs) {
+            if (l.lineDepthAbs === line.lineDepthAbs) {
+              if (l.lineType === 'Tu') {
+                l.line$.prop("class", "Th-" + line.lineDepthAbs);
+                l.lineType = 'Th';
+              } else {
+                l.line$.prop("class", "Lh-" + line.lineDepthAbs);
+                l.lineType = 'Lh';
+              }
+            }
+            l = l.lineNext;
+          }
+          l = line.linePrev;
+          while (l !== null && l.lineDepthAbs >= line.lineDepthAbs) {
+            if (l.lineDepthAbs === line.lineDepthAbs) {
+              if (l.lineType === 'Tu') {
+                l.line$.prop("class", "Th-" + line.lineDepthAbs);
+                l.lineType = 'Th';
+              } else {
+                l.line$.prop("class", "Lh-" + line.lineDepthAbs);
+                l.lineType = 'Lh';
+              }
+            }
+            l = l.linePrev;
+          }
+          break;
+        case 'Th':
+          lineTypeTarget = 'Tu';
+          l = line.lineNext;
+          while (l !== null && l.lineDepthAbs >= line.lineDepthAbs) {
+            if (l.lineDepthAbs === line.lineDepthAbs) {
+              if (l.lineType === 'Th') {
+                l.line$.prop("class", "Tu-" + line.lineDepthAbs);
+                l.lineType = 'Tu';
+              } else {
+                l.line$.prop("class", "Lu-" + line.lineDepthAbs);
+                l.lineType = 'Lu';
+              }
+            }
+            l = l.lineNext;
+          }
+          l = line.linePrev;
+          while (l !== null && l.lineDepthAbs >= line.lineDepthAbs) {
+            if (l.lineDepthAbs === line.lineDepthAbs) {
+              if (l.lineType === 'Th') {
+                l.line$.prop("class", "Tu-" + line.lineDepthAbs);
+                l.lineType = 'Tu';
+              } else {
+                l.line$.prop("class", "Lu-" + line.lineDepthAbs);
+                l.lineType = 'Lu';
+              }
+            }
+            l = l.linePrev;
+          }
+          break;
+        default:
+          lineTypeTarget = false;
+      }
+      if (lineTypeTarget) {
+        line.line$.prop("class", "" + lineTypeTarget + "-" + line.lineDepthAbs);
+        line.lineType = lineTypeTarget;
+      }
+      if (line.lineID === endDiv.id) {
+        break;
+      } else {
+        _results.push(line = line.lineNext);
+      }
+    }
+    return _results;
+  };
+
+  /* ------------------------------------------------------------------------
+  #  tab
+  # 
+  # tab keypress
+  #   l = optional : a line to indent. If none, the selection will be indented
+  */
+
+
+  CNeditor.prototype.tab = function(l) {
+    var endDiv, endLineID, isTabAllowed, line, lineNext, linePrev, linePrevSibling, lineTypeTarget, nextLineType, range, sel, startDiv, _results;
+    if (l != null) {
+      startDiv = l.line$[0];
+      endDiv = startDiv;
+    } else {
+      sel = this.getEditorSelection();
+      range = sel.getRangeAt(0);
+      if (range.startContainer.nodeName === 'BODY') {
+        startDiv = range.startContainer.children[range.startOffset];
+      } else {
+        startDiv = range.startContainer;
+      }
+      if (range.endContainer.nodeName === "BODY") {
+        endDiv = range.endContainer.children[range.endOffset - 1];
+      } else {
+        endDiv = range.endContainer;
+      }
+    }
+    if (startDiv.nodeName !== "DIV") {
+      startDiv = $(startDiv).parents("div")[0];
+    }
+    if (endDiv.nodeName !== "DIV") {
+      endDiv = $(endDiv).parents("div")[0];
+    }
+    endLineID = endDiv.id;
+    line = this._lines[startDiv.id];
+    _results = [];
+    while (true) {
+      switch (line.lineType) {
+        case 'Tu':
+        case 'Th':
+          linePrevSibling = this._findPrevSibling(line);
+          if (linePrevSibling === null) {
+            isTabAllowed = false;
+          } else {
+            isTabAllowed = true;
+            if (linePrevSibling.lineType === 'Th') {
+              lineTypeTarget = 'Lh';
+            } else {
+              if (linePrevSibling.lineType === 'Tu') {
+                lineTypeTarget = 'Lu';
+              } else {
+                lineTypeTarget = 'Lo';
+              }
+              if (line.lineType === 'Th') {
+                lineNext = line.lineNext;
+                while (lineNext !== null && lineNext.lineDepthAbs > line.lineDepthAbs) {
+                  switch (lineNext.lineType) {
+                    case 'Th':
+                      lineNext.lineType = 'Tu';
+                      line.line$.prop("class", "Tu-" + lineNext.lineDepthAbs);
+                      nextLineType = prevTxType;
+                      break;
+                    case 'Tu':
+                      nextLineType = 'Lu';
+                      break;
+                    case 'To':
+                      nextLineType = 'Lo';
+                      break;
+                    case 'Lh':
+                      lineNext.lineType = nextLineType;
+                      line.line$.prop("class", "" + nextLineType + "-" + lineNext.lineDepthAbs);
+                  }
+                }
+              }
+            }
+          }
+          break;
+        case 'Lh':
+        case 'Lu':
+        case 'Lo':
+          lineNext = line.lineNext;
+          lineTypeTarget = null;
+          while (lineNext !== null && lineNext.lineDepthAbs >= line.lineDepthAbs) {
+            if (lineNext.lineDepthAbs !== line.lineDepthAbs + 1) {
+              lineNext = lineNext.lineNext;
+            } else {
+              lineTypeTarget = lineNext.lineType;
+              lineNext = null;
+            }
+          }
+          if (lineTypeTarget === null) {
+            linePrev = line.linePrev;
+            while (linePrev !== null && linePrev.lineDepthAbs >= line.lineDepthAbs) {
+              if (linePrev.lineDepthAbs === line.lineDepthAbs + 1) {
+                lineTypeTarget = linePrev.lineType;
+                linePrev = null;
+              } else {
+                linePrev = linePrev.linePrev;
+              }
+            }
+          }
+          if (lineTypeTarget === null) {
+            isTabAllowed = true;
+            lineTypeTarget = 'Tu';
+            line.lineDepthAbs += 1;
+            line.lineDepthRel += 1;
+          } else {
+            if (lineTypeTarget === 'Th') {
+              isTabAllowed = true;
+              line.lineDepthAbs += 1;
+              line.lineDepthRel = 0;
+            }
+            if (lineTypeTarget === 'Tu' || lineTypeTarget === 'To') {
+              isTabAllowed = true;
+              line.lineDepthAbs += 1;
+              line.lineDepthRel += 1;
+            }
+          }
+      }
+      if (isTabAllowed) {
+        line.line$.prop("class", "" + lineTypeTarget + "-" + line.lineDepthAbs);
+        line.lineType = lineTypeTarget;
+      }
+      if (line.lineID === endLineID) {
+        break;
+      } else {
+        _results.push(line = line.lineNext);
+      }
+    }
+    return _results;
+  };
+
+  /* ------------------------------------------------------------------------
+  #  shiftTab
+  #   param : myRange : if defined, refers to a specific region to untab
+  */
+
+
+  CNeditor.prototype.shiftTab = function(myRange) {
+    var endDiv, endLineID, isTabAllowed, line, lineTypeTarget, nextL, parent, range, sel, startDiv, _results;
+    if (myRange != null) {
+      range = myRange;
+    } else {
+      sel = this.getEditorSelection();
+      range = sel.getRangeAt(0);
+    }
+    if (range.startContainer.nodeName === 'BODY') {
+      startDiv = range.startContainer.children[range.startOffset];
+    } else {
+      startDiv = range.startContainer;
+    }
+    if (range.endContainer.nodeName === "BODY") {
+      endDiv = range.endContainer.children[range.endOffset - 1];
+    } else {
+      endDiv = range.endContainer;
+    }
+    if (startDiv.nodeName !== "DIV") {
+      startDiv = $(startDiv).parents("div")[0];
+    }
+    if (endDiv.nodeName !== "DIV") {
+      endDiv = $(endDiv).parents("div")[0];
+    }
+    endLineID = endDiv.id;
+    line = this._lines[startDiv.id];
+    _results = [];
+    while (true) {
+      switch (line.lineType) {
+        case 'Tu':
+        case 'Th':
+        case 'To':
+          parent = line.linePrev;
+          while (parent !== null && parent.lineDepthAbs >= line.lineDepthAbs) {
+            parent = parent.linePrev;
+          }
+          if (parent !== null) {
+            isTabAllowed = true;
+            lineTypeTarget = parent.lineType;
+            lineTypeTarget = "L" + lineTypeTarget.charAt(1);
+            line.lineDepthAbs -= 1;
+            line.lineDepthRel -= parent.lineDepthRel;
+            if ((line.lineNext != null) && line.lineNext.lineType[0] === 'L') {
+              nextL = line.lineNext;
+              nextL.lineType = 'T' + nextL.lineType[1];
+              nextL.line$.prop('class', "" + nextL.lineType + "-" + nextL.lineDepthAbs);
+            }
+          } else {
+            isTabAllowed = false;
+          }
+          break;
+        case 'Lh':
+          isTabAllowed = true;
+          lineTypeTarget = 'Th';
+          break;
+        case 'Lu':
+          isTabAllowed = true;
+          lineTypeTarget = 'Tu';
+          break;
+        case 'Lo':
+          isTabAllowed = true;
+          lineTypeTarget = 'To';
+      }
+      if (isTabAllowed) {
+        line.line$.prop("class", "" + lineTypeTarget + "-" + line.lineDepthAbs);
+        line.lineType = lineTypeTarget;
+      }
+      if (line.lineID === endDiv.id) {
+        break;
+      } else {
+        _results.push(line = line.lineNext);
+      }
+    }
+    return _results;
+  };
+
+  /* ------------------------------------------------------------------------
+  #  _return
+  # return keypress
+  #   e = event
+  */
+
+
+  CNeditor.prototype._return = function() {
+    var currSel, endLine, endOfLineFragment, newLine, range4sel, startLine;
+    this._findLinesAndIsStartIsEnd();
+    currSel = this.currentSel;
+    startLine = currSel.startLine;
+    endLine = currSel.endLine;
+    if (currSel.range.collapsed) {
+
+    } else if (endLine === startLine) {
+      currSel.range.deleteContents();
+    } else {
+      this._deleteMultiLinesSelections();
+      this._findLinesAndIsStartIsEnd();
+      currSel = this.currentSel;
+      startLine = currSel.startLine;
+    }
+    if (currSel.rangeIsEndLine) {
+      newLine = this._insertLineAfter({
+        sourceLine: startLine,
+        targetLineType: startLine.lineType,
+        targetLineDepthAbs: startLine.lineDepthAbs,
+        targetLineDepthRel: startLine.lineDepthRel
+      });
+      range4sel = rangy.createRange();
+      range4sel.collapseToPoint(newLine.line$[0].firstChild, 0);
+      return currSel.sel.setSingleRange(range4sel);
+    } else if (currSel.rangeIsStartLine) {
+      newLine = this._insertLineBefore({
+        sourceLine: startLine,
+        targetLineType: startLine.lineType,
+        targetLineDepthAbs: startLine.lineDepthAbs,
+        targetLineDepthRel: startLine.lineDepthRel
+      });
+      range4sel = rangy.createRange();
+      range4sel.collapseToPoint(startLine.line$[0].firstChild, 0);
+      return currSel.sel.setSingleRange(range4sel);
+    } else {
+      currSel.range.setEndBefore(startLine.line$[0].lastChild);
+      endOfLineFragment = currSel.range.extractContents();
+      currSel.range.deleteContents();
+      newLine = this._insertLineAfter({
+        sourceLine: startLine,
+        targetLineType: startLine.lineType,
+        targetLineDepthAbs: startLine.lineDepthAbs,
+        targetLineDepthRel: startLine.lineDepthRel,
+        fragment: endOfLineFragment
+      });
+      range4sel = rangy.createRange();
+      range4sel.collapseToPoint(newLine.line$[0].firstChild, 0);
+      currSel.sel.setSingleRange(range4sel);
+      return this.currentSel = null;
+    }
+  };
+
+  /* ------------------------------------------------------------------------
+  #  _findParent1stSibling
+  # 
+  # find the sibling line of the parent of line that is the first of the list
+  # ex :
+  #   . Sibling1 <= _findParent1stSibling(line)
+  #   . Sibling2
+  #   . Parent
+  #      . child1
+  #      . line     : the line in argument
+  # returns null if no previous sibling, the line otherwise
+  # the sibling is a title (Th, Tu or To), not a line (Lh nor Lu nor Lo)
+  */
+
+
+  CNeditor.prototype._findParent1stSibling = function(line) {
+    var lineDepthAbs, linePrev;
+    lineDepthAbs = line.lineDepthAbs;
+    linePrev = line.linePrev;
+    if (linePrev === null) {
+      return line;
+    }
+    if (lineDepthAbs <= 2) {
+      while (linePrev.linePrev !== null) {
+        linePrev = linePrev.linePrev;
+      }
+      return linePrev;
+    } else {
+      while (linePrev !== null && linePrev.lineDepthAbs > (lineDepthAbs - 2)) {
+        linePrev = linePrev.linePrev;
+      }
+      return linePrev.lineNext;
+    }
+  };
+
+  /* ------------------------------------------------------------------------
+  #  _findPrevSibling
+  # 
+  # find the previous sibling line.
+  # returns null if no previous sibling, the line otherwise
+  # the sibling is a title (Th, Tu or To), not a line (Lh nor Lu nor Lo)
+  */
+
+
+  CNeditor.prototype._findPrevSibling = function(line) {
+    var lineDepthAbs, linePrevSibling;
+    lineDepthAbs = line.lineDepthAbs;
+    linePrevSibling = line.linePrev;
+    if (linePrevSibling === null) {
+      return null;
+    } else if (linePrevSibling.lineDepthAbs < lineDepthAbs) {
+      return null;
+    } else {
+      while (linePrevSibling.lineDepthAbs > lineDepthAbs) {
+        linePrevSibling = linePrevSibling.linePrev;
+      }
+      while (linePrevSibling.lineType[0] === 'L') {
+        linePrevSibling = linePrevSibling.linePrev;
+      }
+      return linePrevSibling;
+    }
+  };
+
+  /* ------------------------------------------------------------------------
+  #  _deleteMultiLinesSelections
+  # 
+  # Delete the user multi line selection
+  #
+  # prerequisite : at least 2 different lines must be selected
+  # parameters   : startLine = first line to be deleted
+  #                endLine   = last line to be deleted
+  */
+
+
+  CNeditor.prototype._deleteMultiLinesSelections = function(startLine, endLine) {
+    var deltaDepth, deltaDepth1stLine, depthSibling, endLineDepthAbs, endNode, endOfLineFragment, firstLineAfterSiblingsOfDeleted, l, line, myEndLine, newDepth, newText, prevSiblingType, range, range4caret, range4fragment, replaceCaret, startContainer, startFrag, startLineDepthAbs, startNode, startOffset, _ref;
+    replaceCaret = true;
+    if (startLine !== void 0) {
+      replaceCaret = false;
+      range = rangy.createRange();
+      if (startLine === null) {
+        startLine = endLine;
+        endLine = endLine.lineNext;
+        this._putStartOnStart(range, startLine.line$[0].firstElementChild);
+        endLine.line$.prepend('<span></span>');
+        this._putEndOnStart(range, endLine.line$[0].firstElementChild);
+      } else {
+        startNode = startLine.line$[0].lastElementChild.previousElementSibling;
+        endNode = endLine.line$[0].lastElementChild.previousElementSibling;
+        range.setStartAfter(startNode, 0);
+        range.setEndAfter(endNode, 0);
+      }
+    } else {
+      this._findLines();
+      range = this.currentSel.range;
+      startContainer = range.startContainer;
+      startOffset = range.startOffset;
+      startLine = this.currentSel.startLine;
+      endLine = this.currentSel.endLine;
+    }
+    endLineDepthAbs = endLine.lineDepthAbs;
+    startLineDepthAbs = startLine.lineDepthAbs;
+    deltaDepth = endLineDepthAbs - startLineDepthAbs;
+    range4fragment = rangy.createRangyRange();
+    range4fragment.setStart(range.endContainer, range.endOffset);
+    range4fragment.setEndAfter(endLine.line$[0].lastChild);
+    endOfLineFragment = range4fragment.cloneContents();
+    if (endLine.lineType[1] === 'h' && startLine.lineType[1] !== 'h') {
+      if (endLine.lineType[0] === 'L') {
+        endLine.lineType = 'T' + endLine.lineType[1];
+        endLine.line$.prop("class", "" + endLine.lineType + "-" + endLine.lineDepthAbs);
+      }
+      this.markerList(endLine);
+    }
+    range.deleteContents();
+    if (startLine.line$[0].lastChild.nodeName === 'BR') {
+      startLine.line$[0].removeChild(startLine.line$[0].lastChild);
+    }
+    startFrag = endOfLineFragment.childNodes[0];
+    myEndLine = startLine.line$[0].lastElementChild;
+    if ((startFrag.tagName === (_ref = myEndLine.tagName) && _ref === 'SPAN') && startFrag.className === myEndLine.className) {
+      startOffset = myEndLine.textContent.length;
+      newText = myEndLine.textContent + startFrag.textContent;
+      myEndLine.innerHTML = newText;
+      startContainer = myEndLine.firstChild;
+      l = 1;
+      while (l < endOfLineFragment.childNodes.length) {
+        $(endOfLineFragment.childNodes[l]).appendTo(startLine.line$);
+        l++;
+      }
+    } else {
+      startLine.line$.append(endOfLineFragment);
+    }
+    startLine.lineNext = endLine.lineNext;
+    if (endLine.lineNext !== null) {
+      endLine.lineNext.linePrev = startLine;
+    }
+    endLine.line$.remove();
+    delete this._lines[endLine.lineID];
+    line = startLine.lineNext;
+    if (line !== null) {
+      deltaDepth1stLine = line.lineDepthAbs - startLineDepthAbs;
+      if (deltaDepth1stLine >= 1) {
+        while (line !== null && line.lineDepthAbs >= endLineDepthAbs) {
+          newDepth = line.lineDepthAbs - deltaDepth;
+          line.lineDepthAbs = newDepth;
+          line.line$.prop("class", "" + line.lineType + "-" + newDepth);
+          line = line.lineNext;
+        }
+      }
+    }
+    if (line !== null) {
+      if (line.lineType[0] === 'L') {
+        line.lineType = 'T' + line.lineType[1];
+        line.line$.prop("class", "" + line.lineType + "-" + line.lineDepthAbs);
+      }
+      firstLineAfterSiblingsOfDeleted = line;
+      depthSibling = line.lineDepthAbs;
+      line = line.linePrev;
+      while (line !== null && line.lineDepthAbs > depthSibling) {
+        line = line.linePrev;
+      }
+      if (line !== null) {
+        prevSiblingType = line.lineType;
+        if (firstLineAfterSiblingsOfDeleted.lineType !== prevSiblingType) {
+          if (prevSiblingType[1] === 'h') {
+            this._line2titleList(firstLineAfterSiblingsOfDeleted);
+          } else {
+            this.markerList(firstLineAfterSiblingsOfDeleted);
+          }
+        }
+      }
+    }
+    if (replaceCaret) {
+      range4caret = rangy.createRange();
+      range4caret.collapseToPoint(startContainer, startOffset);
+      this.currentSel.sel.setSingleRange(range4caret);
+      return this.currentSel = null;
+    }
+  };
+
+  /* ------------------------------------------------------------------------
+  #  _insertLineAfter
+  # 
+  # Insert a line after a source line
+  # The line will be inserted in the parent of the source line (which can be 
+  # the editor or a fragment in the case of the paste for instance)
+  # p = 
+  #     sourceLine         : line after which the line will be added
+  #     fragment           : [optionnal] - an html fragment that will be added
+  #                          in the div of the line.
+  #     innerHTML          : [optionnal] - an html string that will be added
+  #     targetLineType     : type of the line to add
+  #     targetLineDepthAbs : absolute depth of the line to add
+  #     targetLineDepthRel : relative depth of the line to add
+  */
+
+
+  CNeditor.prototype._insertLineAfter = function(p) {
+    var lineID, newLine, newLine$, sourceLine;
+    this._highestId += 1;
+    lineID = 'CNID_' + this._highestId;
+    if (p.fragment != null) {
+      newLine$ = $("<div id='" + lineID + "' class='" + p.targetLineType + "-" + p.targetLineDepthAbs + "'></div>");
+      newLine$.append(p.fragment);
+      if (newLine$[0].childNodes.length === 0 || newLine$[0].lastChild.nodeName !== 'BR') {
+        newLine$.append('<br>');
+      }
+    } else if (p.innerHTML != null) {
+      newLine$ = $("<div id='" + lineID + "' class='" + p.targetLineType + "-" + p.targetLineDepthAbs + "'>                " + p.innerHTML + "</div>");
+      if (newLine$[0].lastChild.nodeName !== 'BR') {
+        newLine$.append('<br>');
+      }
+    } else {
+      newLine$ = $("<div id='" + lineID + "' class='" + p.targetLineType + "-" + p.targetLineDepthAbs + "'></div>");
+      newLine$.append($('<span></span><br>'));
+    }
+    sourceLine = p.sourceLine;
+    newLine$ = newLine$.insertAfter(sourceLine.line$);
+    newLine = {
+      line$: newLine$,
+      lineID: lineID,
+      lineType: p.targetLineType,
+      lineDepthAbs: p.targetLineDepthAbs,
+      lineDepthRel: p.targetLineDepthRel,
+      lineNext: sourceLine.lineNext,
+      linePrev: sourceLine
+    };
+    this._lines[lineID] = newLine;
+    if (sourceLine.lineNext !== null) {
+      sourceLine.lineNext.linePrev = newLine;
+    }
+    sourceLine.lineNext = newLine;
+    return newLine;
+  };
+
+  /* ------------------------------------------------------------------------
+  #  _insertLineBefore
+  # 
+  # Insert a line before a source line
+  # p = 
+  #     sourceLine         : ID of the line before which a line will be added
+  #     fragment           : [optionnal] - an html fragment that will be added
+  #     targetLineType     : type of the line to add
+  #     targetLineDepthAbs : absolute depth of the line to add
+  #     targetLineDepthRel : relative depth of the line to add
+  */
+
+
+  CNeditor.prototype._insertLineBefore = function(p) {
+    var lineID, newLine, newLine$, sourceLine;
+    this._highestId += 1;
+    lineID = 'CNID_' + this._highestId;
+    newLine$ = $("<div id='" + lineID + "' class='" + p.targetLineType + "-" + p.targetLineDepthAbs + "'></div>");
+    if (p.fragment != null) {
+      newLine$.append(p.fragment);
+      newLine$.append($('<br>'));
+    } else {
+      newLine$.append($('<span></span><br>'));
+    }
+    sourceLine = p.sourceLine;
+    newLine$ = newLine$.insertBefore(sourceLine.line$);
+    newLine = {
+      line$: newLine$,
+      lineID: lineID,
+      lineType: p.targetLineType,
+      lineDepthAbs: p.targetLineDepthAbs,
+      lineDepthRel: p.targetLineDepthRel,
+      lineNext: sourceLine,
+      linePrev: sourceLine.linePrev
+    };
+    this._lines[lineID] = newLine;
+    if (sourceLine.linePrev !== null) {
+      sourceLine.linePrev.lineNext = newLine;
+    }
+    sourceLine.linePrev = newLine;
+    return newLine;
+  };
+
+  /* ------------------------------------------------------------------------
+  #  _findLines
+  #  
+  # Finds :
+  #   First and last line of selection. 
+  # Remark :
+  #   Only the first range of the selections is taken into account.
+  # Returns : 
+  #   sel : the selection
+  #   range : the 1st range of the selections
+  #   startLine : the 1st line of the range
+  #   endLine : the last line of the range
+  */
+
+
+  CNeditor.prototype._findLines = function() {
+    var endContainer, endLine, initialEndOffset, initialStartOffset, range, sel, startContainer, startLine;
+    if (this.currentSel === null) {
+      sel = this.getEditorSelection();
+      range = sel.getRangeAt(0);
+      startContainer = range.startContainer;
+      endContainer = range.endContainer;
+      initialStartOffset = range.startOffset;
+      initialEndOffset = range.endOffset;
+      if ((endContainer.id != null) && endContainer.id.substr(0, 5) === 'CNID_') {
+        endLine = this._lines[endContainer.id];
+      } else {
+        endLine = this._lines[$(endContainer).parents("div")[0].id];
+      }
+      if (startContainer.nodeName === 'DIV') {
+        startLine = this._lines[startContainer.id];
+      } else {
+        startLine = this._lines[$(startContainer).parents("div")[0].id];
+      }
+      return this.currentSel = {
+        sel: sel,
+        range: range,
+        startLine: startLine,
+        endLine: endLine,
+        rangeIsStartLine: null,
+        rangeIsEndLine: null
+      };
+    }
+  };
+
+  /* ------------------------------------------------------------------------
+  #  _findLinesAndIsStartIsEnd
+  # 
+  # Finds :
+  #   first and last line of selection 
+  #   wheter the selection starts at the beginning of startLine or not
+  #   wheter the selection ends at the end of endLine or not
+  # 
+  # Remark :
+  #   Only the first range of the selections is taken into account.
+  #
+  # Returns : 
+  #   sel   : the selection
+  #   range : the 1st range of the selections
+  #   startLine : the 1st line of the range
+  #   endLine   : the last line of the range
+  #   rangeIsEndLine   : true if the range ends at the end of the last line
+  #   rangeIsStartLine : true if the range starts at the start of 1st line
+  */
+
+
+  CNeditor.prototype._findLinesAndIsStartIsEnd = function() {
+    var endContainer, endLine, initialEndOffset, initialStartOffset, nextSibling, parentEndContainer, parentStartContainer, range, rangeIsEndLine, rangeIsStartLine, sel, startContainer, startLine;
+    if (this.currentSel === null) {
+      sel = this.getEditorSelection();
+      range = sel.getRangeAt(0);
+      startContainer = range.startContainer;
+      endContainer = range.endContainer;
+      initialStartOffset = range.startOffset;
+      initialEndOffset = range.endOffset;
+      if ((endContainer.id != null) && endContainer.id.substr(0, 5) === 'CNID_') {
+        endLine = this._lines[endContainer.id];
+        rangeIsEndLine = endContainer.children.length < initialEndOffset || endContainer.children[initialEndOffset].nodeName === "BR";
+      } else {
+        endLine = this._lines[$(endContainer).parents("div")[0].id];
+        rangeIsEndLine = false;
+        if (endContainer.nodeType === Node.TEXT_NODE) {
+          rangeIsEndLine = endContainer.nextSibling === null && initialEndOffset === endContainer.textContent.length;
+        } else {
+          rangeIsEndLine = endContainer.nodeName === 'BR' || (endContainer.nextSibling.nodeName === 'BR' && endContainer.childNodes.length === initialEndOffset);
+        }
+        parentEndContainer = endContainer.parentNode;
+        while (rangeIsEndLine && parentEndContainer.nodeName !== "DIV") {
+          nextSibling = parentEndContainer.nextSibling;
+          rangeIsEndLine = nextSibling === null || nextSibling.nodeName === 'BR';
+          parentEndContainer = parentEndContainer.parentNode;
+        }
+      }
+      if (startContainer.nodeName === 'DIV') {
+        startLine = this._lines[startContainer.id];
+        rangeIsStartLine = initialStartOffset === 0;
+      } else {
+        startLine = this._lines[$(startContainer).parents("div")[0].id];
+        if (startContainer.nodeType === Node.TEXT_NODE) {
+          rangeIsStartLine = endContainer.previousSibling === null && initialStartOffset === 0;
+        } else {
+          rangeIsStartLine = initialStartOffset === 0;
+        }
+        parentStartContainer = startContainer.parentNode;
+        while (rangeIsStartLine && parentStartContainer.nodeName !== "DIV") {
+          rangeIsStartLine = parentStartContainer.previousSibling === null;
+          parentStartContainer = parentStartContainer.parentNode;
+        }
+      }
+      if (endLine.line$[0].innerHTML === "<span></span><br>") {
+        rangeIsEndLine = true;
+      }
+      if (startLine.line$[0].innerHTML === "<span></span><br>") {
+        rangeIsStartLine = true;
+      }
+      return this.currentSel = {
+        sel: sel,
+        range: range,
+        startLine: startLine,
+        endLine: endLine,
+        rangeIsStartLine: rangeIsStartLine,
+        rangeIsEndLine: rangeIsEndLine
+      };
+    }
+  };
+
+  /*  -----------------------------------------------------------------------
+  #   _readHtml
+  # 
+  # Parse a raw html inserted in the iframe in order to update the controler
+  */
+
+
+  CNeditor.prototype._readHtml = function() {
+    var DeltaDepthAbs, htmlLine, htmlLine$, lineClass, lineDepthAbs, lineDepthAbs_old, lineDepthRel, lineDepthRel_old, lineID, lineID_st, lineNew, lineNext, linePrev, lineType, linesDiv$, _i, _len, _ref;
+    linesDiv$ = this.editorBody$.children();
+    lineDepthAbs = 0;
+    lineDepthRel = 0;
+    lineID = 0;
+    this._lines = {};
+    linePrev = null;
+    lineNext = null;
+    for (_i = 0, _len = linesDiv$.length; _i < _len; _i++) {
+      htmlLine = linesDiv$[_i];
+      htmlLine$ = $(htmlLine);
+      lineClass = (_ref = htmlLine$.attr('class')) != null ? _ref : "";
+      lineClass = lineClass.split('-');
+      lineType = lineClass[0];
+      if (lineType !== "") {
+        lineDepthAbs_old = lineDepthAbs;
+        lineDepthAbs = +lineClass[1];
+        DeltaDepthAbs = lineDepthAbs - lineDepthAbs_old;
+        lineDepthRel_old = lineDepthRel;
+        if (lineType === "Th") {
+          lineDepthRel = 0;
+        } else {
+          lineDepthRel = lineDepthRel_old + DeltaDepthAbs;
+        }
+        lineID = parseInt(lineID, 10) + 1;
+        lineID_st = "CNID_" + lineID;
+        htmlLine$.prop("id", lineID_st);
+        lineNew = {
+          line$: htmlLine$,
+          lineID: lineID_st,
+          lineType: lineType,
+          lineDepthAbs: lineDepthAbs,
+          lineDepthRel: lineDepthRel,
+          lineNext: null,
+          linePrev: linePrev
+        };
+        if (linePrev !== null) {
+          linePrev.lineNext = lineNew;
+        }
+        linePrev = lineNew;
+        this._lines[lineID_st] = lineNew;
+      }
+    }
+    return this._highestId = lineID;
+  };
+
+  /* ------------------------------------------------------------------------
+  # LINES MOTION MANAGEMENT
+  # 
+  # Functions to perform the motion of an entire block of lines
+  # BUG : when doubleclicking on an end of line then moving this line
+  #       down, selection does not behaves as expected :-)
+  # TODO: correct behavior when moving the second line up
+  # TODO: correct behavior when moving the first line down
+  # TODO: improve re-insertion of the line swapped with the block
+  */
+
+
+  /* ------------------------------------------------------------------------
+  # _moveLinesDown:
+  #
+  # -variables:
+  #    linePrev                                       linePrev
+  #    lineStart__________                            lineNext
+  #    |.                 | The block                 lineStart_______
+  #    |.                 | to move down      ==>     |.              |
+  #    lineEnd____________|                           |.              |
+  #    lineNext                                       lineEnd_________|
+  #
+  # -algorithm:
+  #    1.delete lineNext with _deleteMultilinesSelections()
+  #    2.insert lineNext between linePrev and lineStart
+  #    3.if lineNext is more indented than linePrev, untab lineNext
+  #      until it is ok
+  #    4.else (lineNext less indented than linePrev), select the block
+  #      (lineStart and some lines below) that is more indented than lineNext
+  #      and untab it until it is ok
+  */
+
+
+  CNeditor.prototype._moveLinesDown = function() {
+    var cloneLine, endDiv, endLineID, line, lineEnd, lineNext, linePrev, lineStart, myRange, numOfUntab, range, sel, startDiv, startLineID, _results, _results1;
+    sel = this.getEditorSelection();
+    range = sel.getRangeAt(0);
+    if (range.startContainer.nodeName === 'BODY') {
+      startDiv = range.startContainer.children[range.startOffset];
+    } else {
+      startDiv = range.startContainer;
+    }
+    if (range.endContainer.nodeName === "BODY") {
+      endDiv = range.endContainer.children[range.endOffset - 1];
+    } else {
+      endDiv = range.endContainer;
+    }
+    if (startDiv.nodeName !== "DIV") {
+      startDiv = $(startDiv).parents("div")[0];
+    }
+    startLineID = startDiv.id;
+    if (endDiv.nodeName !== "DIV") {
+      endDiv = $(endDiv).parents("div")[0];
+    }
+    endLineID = endDiv.id;
+    lineStart = this._lines[startLineID];
+    lineEnd = this._lines[endLineID];
+    linePrev = lineStart.linePrev;
+    lineNext = lineEnd.lineNext;
+    if (lineNext !== null) {
+      cloneLine = {
+        line$: lineNext.line$.clone(),
+        lineID: lineNext.lineID,
+        lineType: lineNext.lineType,
+        lineDepthAbs: lineNext.lineDepthAbs,
+        lineDepthRel: lineNext.lineDepthRel,
+        linePrev: lineNext.linePrev,
+        lineNext: lineNext.lineNext
+      };
+      this._deleteMultiLinesSelections(lineEnd, lineNext);
+      lineNext = cloneLine;
+      this._lines[lineNext.lineID] = lineNext;
+      lineNext.linePrev = linePrev;
+      lineStart.linePrev = lineNext;
+      if (lineNext.lineNext !== null) {
+        lineNext.lineNext.linePrev = lineEnd;
+      }
+      lineEnd.lineNext = lineNext.lineNext;
+      lineNext.lineNext = lineStart;
+      if (linePrev !== null) {
+        linePrev.lineNext = lineNext;
+      }
+      lineStart.line$.before(lineNext.line$);
+      if (linePrev === null) {
+        return;
+      }
+      if (lineNext.lineDepthAbs <= linePrev.lineDepthAbs) {
+        line = lineNext;
+        while (line.lineNext !== null && line.lineNext.lineDepthAbs > lineNext.lineDepthAbs) {
+          line = line.lineNext;
+        }
+        if (line.lineNext !== null) {
+          line = line.lineNext;
+        }
+        myRange = rangy.createRange();
+        myRange.setStart(lineStart.line$[0], 0);
+        myRange.setEnd(line.line$[0], 0);
+        numOfUntab = lineStart.lineDepthAbs - lineNext.lineDepthAbs;
+        if (lineNext.lineNext.lineType[0] === 'T') {
+          if (lineStart.lineType[0] === 'T') {
+            numOfUntab -= 1;
+          } else {
+            numOfUntab += 1;
+          }
+        }
+        _results = [];
+        while (numOfUntab >= 0) {
+          this.shiftTab(myRange);
+          _results.push(numOfUntab -= 1);
+        }
+        return _results;
+      } else {
+        myRange = rangy.createRange();
+        myRange.setStart(lineNext.line$[0], 0);
+        myRange.setEnd(lineNext.line$[0], 0);
+        numOfUntab = lineNext.lineDepthAbs - linePrev.lineDepthAbs;
+        if (lineStart.lineType[0] === 'T') {
+          if (linePrev.lineType[0] === 'T') {
+            numOfUntab -= 1;
+          } else {
+            numOfUntab += 1;
+          }
+        }
+        _results1 = [];
+        while (numOfUntab >= 0) {
+          this.shiftTab(myRange);
+          _results1.push(numOfUntab -= 1);
+        }
+        return _results1;
+      }
+    }
+  };
+
+  /* ------------------------------------------------------------------------
+  # _moveLinesUp:
+  #
+  # -variables:
+  #    linePrev                                   lineStart_________
+  #    lineStart__________                        |.                |
+  #    |.                 | The block             |.                |
+  #    |.                 | to move up     ==>    lineEnd___________|
+  #    lineEnd____________|                       linePrev
+  #    lineNext                                   lineNext
+  #
+  # -algorithm:
+  #    1.delete linePrev with _deleteMultilinesSelections()
+  #    2.insert linePrev between lineEnd and lineNext
+  #    3.if linePrev is more indented than lineNext, untab linePrev
+  #      until it is ok
+  #    4.else (linePrev less indented than lineNext), select the block
+  #      (lineNext and some lines below) that is more indented than linePrev
+  #      and untab it until it is ok
+  */
+
+
+  CNeditor.prototype._moveLinesUp = function() {
+    var cloneLine, endDiv, endLineID, isSecondLine, line, lineEnd, lineNext, linePrev, lineStart, myRange, numOfUntab, range, sel, startDiv, startLineID, _results, _results1;
+    sel = this.getEditorSelection();
+    range = sel.getRangeAt(0);
+    if (range.startContainer.nodeName === 'BODY') {
+      startDiv = range.startContainer.children[range.startOffset];
+    } else {
+      startDiv = range.startContainer;
+    }
+    if (range.endContainer.nodeName === "BODY") {
+      endDiv = range.endContainer.children[range.endOffset - 1];
+    } else {
+      endDiv = range.endContainer;
+    }
+    if (startDiv.nodeName !== "DIV") {
+      startDiv = $(startDiv).parents("div")[0];
+    }
+    startLineID = startDiv.id;
+    if (endDiv.nodeName !== "DIV") {
+      endDiv = $(endDiv).parents("div")[0];
+    }
+    endLineID = endDiv.id;
+    lineStart = this._lines[startLineID];
+    lineEnd = this._lines[endLineID];
+    linePrev = lineStart.linePrev;
+    lineNext = lineEnd.lineNext;
+    if (linePrev !== null) {
+      isSecondLine = linePrev.linePrev === null;
+      cloneLine = {
+        line$: linePrev.line$.clone(),
+        lineID: linePrev.lineID,
+        lineType: linePrev.lineType,
+        lineDepthAbs: linePrev.lineDepthAbs,
+        lineDepthRel: linePrev.lineDepthRel,
+        linePrev: linePrev.linePrev,
+        lineNext: linePrev.lineNext
+      };
+      this._deleteMultiLinesSelections(linePrev.linePrev, linePrev);
+      if (isSecondLine) {
+        $(linePrev.line$[0].firstElementChild).remove();
+        linePrev.line$.append('<br>');
+        lineStart.line$ = linePrev.line$;
+        lineStart.line$.attr('id', lineStart.lineID);
+        this._lines[lineStart.lineID] = lineStart;
+      }
+      linePrev = cloneLine;
+      this._lines[linePrev.lineID] = linePrev;
+      linePrev.lineNext = lineNext;
+      lineEnd.lineNext = linePrev;
+      if (linePrev.linePrev !== null) {
+        linePrev.linePrev.lineNext = lineStart;
+      }
+      lineStart.linePrev = linePrev.linePrev;
+      linePrev.linePrev = lineEnd;
+      if (lineNext !== null) {
+        lineNext.linePrev = linePrev;
+      }
+      lineEnd.line$.after(linePrev.line$);
+      if (linePrev.lineDepthAbs <= lineEnd.lineDepthAbs && lineNext !== null) {
+        line = linePrev;
+        while (line.lineNext !== null && line.lineNext.lineDepthAbs > linePrev.lineDepthAbs) {
+          line = line.lineNext;
+        }
+        if (line.lineNext !== null) {
+          line = line.lineNext;
+        }
+        myRange = rangy.createRange();
+        myRange.setStart(lineNext.line$[0], 0);
+        myRange.setEnd(line.line$[0], 0);
+        numOfUntab = lineNext.lineDepthAbs - linePrev.lineDepthAbs;
+        if (linePrev.lineNext.lineType[0] === 'T') {
+          if (linePrev.lineType[0] === 'T') {
+            numOfUntab -= 1;
+          } else {
+            numOfUntab += 1;
+          }
+        }
+        _results = [];
+        while (numOfUntab >= 0) {
+          this.shiftTab(myRange);
+          _results.push(numOfUntab -= 1);
+        }
+        return _results;
+      } else {
+        myRange = rangy.createRange();
+        myRange.setStart(linePrev.line$[0], 0);
+        myRange.setEnd(linePrev.line$[0], 0);
+        numOfUntab = linePrev.lineDepthAbs - lineEnd.lineDepthAbs;
+        if (linePrev.lineType[0] === 'T') {
+          if (lineEnd.lineType[0] === 'T') {
+            numOfUntab -= 1;
+          } else {
+            numOfUntab += 1;
+          }
+        }
+        _results1 = [];
+        while (numOfUntab >= 0) {
+          this.shiftTab(myRange);
+          _results1.push(numOfUntab -= 1);
+        }
+        return _results1;
+      }
+    }
+  };
+
+  /* ------------------------------------------------------------------------
+  #  HISTORY MANAGEMENT:
+  # 1. _addHistory (Save html code, selection markers, positions...)
+  # 2. undoPossible (Return true only if unDo can be called)
+  # 3. redoPossible (Return true only if reDo can be called)
+  # 4. unDo (Undo the previous action)
+  # 5. reDo ( Redo a undo-ed action)
+  #
+  # What is saved in the history:
+  #  - current html content
+  #  - current selection
+  #  - current scrollbar position
+  #  - the boolean newPosition
+  */
+
+
+  /* -------------------------------------------------------------------------
+  #  _addHistory
+  # 
+  # Add html code and selection markers and scrollbar positions to the history
+  */
+
+
+  CNeditor.prototype._addHistory = function() {
+    var savedScroll, savedSel;
+    savedSel = this.saveEditorSelection();
+    this._history.historySelect.push(savedSel);
+    savedScroll = {
+      xcoord: this.editorBody$.scrollTop(),
+      ycoord: this.editorBody$.scrollLeft()
+    };
+    this._history.historyScroll.push(savedScroll);
+    this._history.historyPos.push(this.newPosition);
+    this._history.history.push(this.editorBody$.html());
+    rangy.removeMarkers(savedSel);
+    return this._history.index = this._history.history.length - 1;
+  };
+
+  /* -------------------------------------------------------------------------
+  #  undoPossible
+  # Return true only if unDo can be called
+  */
+
+
+  CNeditor.prototype.undoPossible = function() {
+    return this._history.index > 0;
+  };
+
+  /* -------------------------------------------------------------------------
+  #  redoPossible
+  # Return true only if reDo can be called
+  */
+
+
+  CNeditor.prototype.redoPossible = function() {
+    return this._history.index < this._history.history.length - 2;
+  };
+
+  /* -------------------------------------------------------------------------
+  #  unDo :
+  # Undo the previous action
+  */
+
+
+  CNeditor.prototype.unDo = function() {
+    var savedSel, xcoord, ycoord;
+    if (this.undoPossible()) {
+      if (this._history.index === this._history.history.length - 1) {
+        this._addHistory();
+        this._history.index -= 1;
+      }
+      this.newPosition = this._history.historyPos[this._history.index];
+      this.editorBody$.html(this._history.history[this._history.index]);
+      savedSel = this._history.historySelect[this._history.index];
+      savedSel.restored = false;
+      rangy.restoreSelection(savedSel);
+      xcoord = this._history.historyScroll[this._history.index].xcoord;
+      ycoord = this._history.historyScroll[this._history.index].ycoord;
+      this.editorBody$.scrollTop(xcoord);
+      this.editorBody$.scrollLeft(ycoord);
+      this._readHtml();
+      return this._history.index -= 1;
+    }
+  };
+
+  /* -------------------------------------------------------------------------
+  #  reDo :
+  # Redo a undo-ed action
+  */
+
+
+  CNeditor.prototype.reDo = function() {
+    var savedSel, xcoord, ycoord;
+    if (this.redoPossible()) {
+      this.newPosition = this._history.historyPos[this._history.index + 1];
+      this._history.index += 1;
+      this.editorBody$.html(this._history.history[this._history.index + 1]);
+      savedSel = this._history.historySelect[this._history.index + 1];
+      savedSel.restored = false;
+      rangy.restoreSelection(savedSel);
+      xcoord = this._history.historyScroll[this._history.index + 1].xcoord;
+      ycoord = this._history.historyScroll[this._history.index + 1].ycoord;
+      this.editorBody$.scrollTop(xcoord);
+      this.editorBody$.scrollLeft(ycoord);
+      return this._readHtml();
+    }
+  };
+
+  /* ------------------------------------------------------------------------
+  # EXTENSION  :  auto-summary management and upkeep
+  # 
+  # initialization
+  # TODO: avoid updating the summary too often
+  #       it would be best to make the update faster (rather than reading
+  #       every line)
+  */
+
+
+  CNeditor.prototype._initSummary = function() {
+    var summary;
+    summary = this.editorBody$.children("#navi");
+    if (summary.length === 0) {
+      summary = $(document.createElement('div'));
+      summary.attr('id', 'navi');
+      summary.prependTo(this.editorBody$);
+    }
+    return summary;
+  };
+
+  CNeditor.prototype._buildSummary = function() {
+    var c, lines, summary, _results;
+    summary = this.initSummary();
+    this.editorBody$.children("#navi").children().remove();
+    lines = this._lines;
+    _results = [];
+    for (c in lines) {
+      if (this.editorBody$.children("#" + ("" + lines[c].lineID)).length > 0 && lines[c].lineType === "Th") {
+        _results.push(lines[c].line$.clone().appendTo(summary));
+      } else {
+        _results.push(void 0);
+      }
+    }
+    return _results;
+  };
+
+  /* ------------------------------------------------------------------------
+  #  EXTENSION  :  DECORATION FUNCTIONS (bold/italic/underlined/quote)
+  #  TODO
+  */
+
+
+  /* ------------------------------------------------------------------------
+  #  PASTE MANAGEMENT
+  # 0 - save selection
+  # 1 - move the cursor into an invisible sandbox
+  # 2 - redirect pasted content in this sandox
+  # 3 - sanitize and adapt pasted content to the editor's format
+  # 4 - restore selection
+  # 5 - insert cleaned content is behind the cursor position
+  */
+
+
+  CNeditor.prototype.paste = function(event) {
+    var mySandBox, range, sel;
+    mySandBox = this.clipboard;
+    this._findLinesAndIsStartIsEnd();
+    range = rangy.createRange();
+    range.selectNodeContents(mySandBox);
+    sel = this.getEditorSelection();
+    sel.setSingleRange(range);
+    range.detach();
+    console.log("event :");
+    console.log(event);
+    if (event && event.clipboardData && event.clipboardData.getData) {
+      if (event.clipboardData.types === "text/html") {
+        mySandBox.innerHTML = event.clipboardData.getData('text/html');
+      } else if (event.clipboardData.types === "text/plain") {
+        mySandBox.innerHTML = event.clipboardData.getData('text/plain');
+      } else {
+        mySandBox.innerHTML = "";
+      }
+      this._waitForPasteData(mySandBox);
+      if (event.preventDefault) {
+        event.stopPropagation();
+        event.preventDefault();
+      }
+      return false;
+    } else {
+      mySandBox.innerHTML = "";
+      this._waitForPasteData(mySandBox);
+      return true;
+    }
+  };
+
+  /**
+   * init the div where the browser will actualy paste.
+   * this method is called after each refresh of the content of the editor (
+   * replaceContent, deleteContent, setEditorContent)
+   * TODO : should be called just once at editor init : for this the editable
+   * content shouldn't be directly in the body of the iframe but in a div.
+   * @return {obj} a ref to the clipboard div
+  */
+
+
+  CNeditor.prototype._initClipBoard = function() {
+    var clipboard$, getOffTheScreen;
+    clipboard$ = $(document.createElement('div'));
+    getOffTheScreen = {
+      left: -300
+    };
+    clipboard$.offset(getOffTheScreen);
+    clipboard$.prependTo(this.editorBody$);
+    this.clipboard = clipboard$[0];
+    this.clipboard.style.setProperty('width', '280px');
+    this.clipboard.style.setProperty('position', 'fixed');
+    this.clipboard.style.setProperty('overflow', 'hidden');
+    return this.clipboard;
+  };
+
+  /**
+   * Function that will call itself until the browser has pasted data in the
+   * clipboar div
+   * @param  {element} sandbox      the div where the browser will paste data
+   * @param  {function} processpaste the function to call back whan paste 
+   * is ok
+  */
+
+
+  CNeditor.prototype._waitForPasteData = function() {
+    if (this.clipboard.childNodes && this.clipboard.childNodes.length > 0) {
+      return this._processPaste();
+    } else {
+      return setTimeout(this._waitForPasteData, 10);
+    }
+  };
+
+  /*
+       * Called when the browser has pasted data in the clipboard div. Its role is to
+       * insert the content of the clipboard into the editor.
+       * @param  {element} sandbox
+  */
+
+
+  CNeditor.prototype._processPaste = function() {
+    var absDepth, caretOffset, caretTextNodeTarget, currSel, currentLineFrag, domWalkContext, dummyLine, elToInsert, endLine, endOffset, endTargetLineFrag, firstAddedLine, frag, htmlStr, i, line, lineElements, lineNextStartLine, nbElements, newText, parendDiv, range, sandbox, secondAddedLine, startLine, startOffset, targetNode, targetText, txt;
+    console.log("process paste");
+    sandbox = this.clipboard;
+    currSel = this.currentSel;
+    sandbox.innerHTML = sanitize(sandbox.innerHTML).xss();
+    frag = document.createDocumentFragment();
+    dummyLine = {
+      lineNext: null,
+      linePrev: null,
+      line$: $("<div id='dummy' class='Tu-1'></div>")
+    };
+    frag.appendChild(dummyLine.line$[0]);
+    currentLineFrag = document.createDocumentFragment();
+    absDepth = currSel.startLine.lineDepthAbs;
+    if (currSel.startLine.lineType === 'Th') {
+      absDepth += 1;
+    }
+    domWalkContext = {
+      absDepth: absDepth,
+      prevHxLevel: null,
+      frag: frag,
+      prevCNLineAbsDepth: null,
+      lastAddedLine: dummyLine,
+      currentLineFrag: currentLineFrag,
+      currentLineEl: currentLineFrag,
+      isCurrentLineBeingPopulated: false
+    };
+    htmlStr = this._domWalk(sandbox, domWalkContext);
+    sandbox.innerHTML = "";
+    frag.removeChild(frag.firstChild);
+    console.log(frag);
+    /*
+            # TODO : the following steps removes all the styles of the lines in frag
+            # Later this will be removed in order to take into account styles.
+    */
+
+    i = 0;
+    while (i < frag.childNodes.length) {
+      line = frag.childNodes[i];
+      txt = line.textContent;
+      line.innerHTML = '<span></span><br>';
+      line.firstChild.appendChild(document.createTextNode(txt));
+      i += 1;
+    }
+    /*
+            # END TODO
+    */
+
+    startLine = currSel.startLine;
+    endLine = currSel.endLine;
+    if (currSel.range.collapsed) {
+
+    } else if (endLine === startLine) {
+      currSel.range.deleteContents();
+    } else {
+      this._deleteMultiLinesSelections();
+      currSel = this._findLinesAndIsStartIsEnd();
+      startLine = currSel.startLine;
+    }
+    targetNode = currSel.range.startContainer;
+    startOffset = currSel.range.startOffset;
+    if (targetNode.length) {
+      endOffset = targetNode.length - startOffset;
+    } else {
+      endOffset = targetNode.childNodes.length - startOffset;
+    }
+    i = 0;
+    lineElements = frag.firstChild.childNodes;
+    nbElements = lineElements.length;
+    while (i < nbElements - 1) {
+      elToInsert = lineElements[i];
+      i += 1;
+      if ((elToInsert.tagName === 'SPAN') && (targetNode.tagName === 'SPAN' || targetNode.nodeType === Node.TEXT_NODE)) {
+        targetText = targetNode.textContent;
+        newText = targetText.substr(0, startOffset);
+        newText += elToInsert.textContent;
+        newText += targetText.substr(startOffset);
+        targetNode.textContent = newText;
+        startOffset += elToInsert.textContent.length;
+      }
+    }
+    if (frag.childNodes.length > 1) {
+      range = document.createRange();
+      range.setStart(targetNode, startOffset);
+      parendDiv = targetNode;
+      while (parendDiv.tagName !== 'DIV') {
+        parendDiv = parendDiv.parentElement;
+      }
+      range.setEnd(parendDiv, parendDiv.children.length - 1);
+      endTargetLineFrag = range.extractContents();
+      range.detach();
+      this._insertFrag(frag.lastChild, frag.lastChild.children.length - 1, endTargetLineFrag);
+      parendDiv = targetNode;
+      while (parendDiv.tagName !== 'DIV') {
+        parendDiv = parendDiv.parentElement;
+      }
+    }
+    firstAddedLine = dummyLine.lineNext;
+    secondAddedLine = firstAddedLine.lineNext;
+    frag.removeChild(frag.firstChild);
+    delete this._lines[firstAddedLine.lineID];
+    if (secondAddedLine !== null) {
+      lineNextStartLine = currSel.startLine.lineNext;
+      currSel.startLine.lineNext = secondAddedLine;
+      secondAddedLine.linePrev = currSel.startLine;
+      if (lineNextStartLine === null) {
+        this.editorBody$[0].appendChild(frag);
+      } else {
+        domWalkContext.lastAddedLine.lineNext = lineNextStartLine;
+        lineNextStartLine.linePrev = domWalkContext.lastAddedLine;
+        this.editorBody$[0].insertBefore(frag, lineNextStartLine.line$[0]);
+      }
+    }
+    if (secondAddedLine !== null) {
+      caretTextNodeTarget = lineNextStartLine.linePrev.line$[0].childNodes[0].firstChild;
+      caretOffset = caretTextNodeTarget.length - endOffset;
+      return currSel.sel.collapse(caretTextNodeTarget, caretOffset);
+    } else {
+      return currSel.sel.collapse(targetNode, startOffset);
+    }
+  };
+
+  /**
+   * Insert a frag in a node container at startOffset
+   * ASSERTION : 
+   * TODO : this method could be also used in _deleteMultiLinesSelections 
+   * especialy if _insertFrag optimizes the insertion by fusionning cleverly
+   * the elements
+   * @param  {Node} targetContainer the node where to make the insert
+   * @param  {Integer} targetOffset    the offset of insertion in targetContainer
+   * @param  {fragment} frag           the fragment to insert
+   * @return {nothing}                nothing
+  */
+
+
+  CNeditor.prototype._insertFrag = function(targetContainer, targetOffset, frag) {
+    var range, targetNode;
+    if (targetOffset === 0) {
+      range = document.createRange();
+      range.setStart(startContainer, startOffset);
+      range.setEnd(startContainer, startOffset);
+      range.insertNode(frag);
+      return range.detach();
+    } else {
+      if (frag.childNodes.length > 0) {
+        targetNode = targetContainer.childNodes[targetOffset - 1];
+        return targetNode.textContent += frag.firstChild.textContent;
+      }
+    }
+  };
+
+  /**
+   * Walks thoug an html tree in order to convert it in a strutured content
+   * that fit to a note structure.
+   * @param  {html element} elemt   Reference to an html element to be parsed
+   * @param  {object} context _domWalk is recursive and its context of execution
+   *                  is kept in this param instead of using the editor context
+   *                  (quicker and better) isolation
+  */
+
+
+  CNeditor.prototype._domWalk = function(elemt, context) {
+    var p;
+    this.__domWalk(elemt, context);
+    if (context.currentLineFrag.childNodes.length > 0) {
+      p = {
+        sourceLine: context.lastAddedLine,
+        fragment: context.currentLineFrag,
+        targetLineType: "Tu",
+        targetLineDepthAbs: context.absDepth,
+        targetLineDepthRel: context.absDepth
+      };
+      return context.lastAddedLine = this._insertLineAfter(p);
+    }
+  };
+
+  /**
+   * Walks thoug an html tree in order to convert it in a strutured content
+   * that fit to a note structure.
+   * @param  {html element} nodeToParse   Reference to an html element to 
+   *                        be parsed
+   * @param  {object} context __domWalk is recursive and its context of 
+   *                          execution is kept in this param instead of 
+   *                          using the editor context (quicker and better) 
+   *                          isolation
+  */
+
+
+  CNeditor.prototype.__domWalk = function(nodeToParse, context) {
+    var absDepth, child, deltaHxLevel, lastInsertedEl, prevHxLevel, spanNode, spaneEl, txtNode, _i, _len, _ref, _ref1;
+    absDepth = context.absDepth;
+    prevHxLevel = context.prevHxLevel;
+    console.log("node to parse");
+    _ref = nodeToParse.childNodes;
+    for (_i = 0, _len = _ref.length; _i < _len; _i++) {
+      child = _ref[_i];
+      switch (child.nodeName) {
+        case '#text':
+          txtNode = document.createTextNode(child.textContent);
+          if ((_ref1 = context.currentLineEl.nodeName) === 'SPAN' || _ref1 === 'A') {
+            context.currentLineEl.appendChild(txtNode);
+          } else {
+            spaneEl = document.createElement('span');
+            spaneEl.appendChild(txtNode);
+            context.currentLineEl.appendChild(spaneEl);
+          }
+          console.log("lineEl");
+          console.log(context.currentLineEl);
+          console.log(txtNode);
+          this._appendCurrentLineFrag(context, absDepth, absDepth);
+          context.isCurrentLineBeingPopulated = true;
+          break;
+        case 'P':
+        case 'UL':
+        case 'OL':
+          context.absDepth = absDepth;
+          this.__domWalk(child, context);
+          if (context.isCurrentLineBeingPopulated) {
+            this._appendCurrentLineFrag(context, absDepth, absDepth);
+          }
+          break;
+        case 'H1':
+        case 'H2':
+        case 'H3':
+        case 'H4':
+        case 'H5':
+        case 'H6':
+          deltaHxLevel = 0;
+          this.__domWalk(child, context);
+          if (context.isCurrentLineBeingPopulated) {
+            this._appendCurrentLineFrag(context, Math.min(0, deltaHxLevel) + absDepth, Math.min(0, deltaHxLevel) + absDepth);
+          }
+          break;
+        case 'LI':
+          if (context.isCurrentLineBeingPopulated) {
+            this._appendCurrentLineFrag(context, absDepth, absDepth);
+          }
+          this.__domWalk(child, context);
+          if (context.isCurrentLineBeingPopulated) {
+            this._appendCurrentLineFrag(context, absDepth, absDepth);
+          }
+          break;
+        case 'BR':
+          this._appendCurrentLineFrag(context, absDepth, absDepth);
+          break;
+        case 'A':
+          lastInsertedEl = context.currentLineEl.lastChild;
+          if (lastInsertedEl !== null && lastInsertedEl.nodeName === 'SPAN') {
+            lastInsertedEl.textContent += '[[' + child.textContent + '|' + child.href + ']]';
+          } else {
+            spanNode = document.createElement('span');
+            spanNode.textContent = child.textContent + ' [[' + child.href + ']] ';
+            context.currentLineEl.appendChild(spanNode);
+          }
+          context.isCurrentLineBeingPopulated = true;
+          break;
+        case 'DIV':
+          if (child.id.substr(0, 5) === 'CNID_') {
+            this._clipBoard_Insert_InternalLine(child, context);
+          } else {
+            this.__domWalk(child, context);
+          }
+          break;
+        default:
+          lastInsertedEl = context.currentLineEl.lastChild;
+          if (lastInsertedEl !== null && lastInsertedEl.nodeName === 'SPAN') {
+            lastInsertedEl.textContent += child.textContent;
+          } else {
+            spanNode = document.createElement('span');
+            spanNode.textContent = child.textContent;
+            context.currentLineEl.appendChild(spanNode);
+          }
+          context.isCurrentLineBeingPopulated = true;
+      }
+    }
+    return true;
+  };
+
+  /**
+   * Append to frag the currentLineFrag and prepare a new empty one.
+   * @param  {Object} context  [description]
+   * @param  {Number} absDepth absolute depth of the line to insert
+   * @param  {Number} relDepth relative depth of the line to insert
+  */
+
+
+  CNeditor.prototype._appendCurrentLineFrag = function(context, absDepth, relDepth) {
+    var p, spanNode;
+    if (context.currentLineFrag.childNodes.length === 0) {
+      spanNode = document.createElement('span');
+      context.currentLineFrag.appendChild(spanNode);
+    }
+    p = {
+      sourceLine: context.lastAddedLine,
+      fragment: context.currentLineFrag,
+      targetLineType: "Tu",
+      targetLineDepthAbs: absDepth,
+      targetLineDepthRel: absDepth
+    };
+    context.lastAddedLine = this._insertLineAfter(p);
+    console.log(context.currentLineEl);
+    console.log(context.frag);
+    context.frag.appendChild(context.currentLineEl);
+    context.currentLineFrag = document.createDocumentFragment();
+    context.currentLineEl = context.currentLineFrag;
+    return context.isCurrentLineBeingPopulated = false;
+  };
+
+  /**
+   * Insert in the editor a line that was copied in a cozy note editor
+   * @param  {html element} elemt a div ex : <div id="CNID_7" class="Lu-3"> ... </div>
+   * @return {line}        a ref to the line object
+  */
+
+
+  CNeditor.prototype._clipBoard_Insert_InternalLine = function(elemt, context) {
+    var deltaDepth, lineClass, lineDepthAbs, p;
+    lineClass = elemt.className.split('-');
+    lineDepthAbs = +lineClass[1];
+    lineClass = lineClass[0];
+    if (!context.prevCNLineAbsDepth) {
+      context.prevCNLineAbsDepth = lineDepthAbs;
+    }
+    deltaDepth = lineDepthAbs - context.prevCNLineAbsDepth;
+    if (deltaDepth > 0) {
+
+    } else {
+
+    }
+    p = {
+      sourceLine: context.lastAddedLine,
+      innerHTML: elemt.innerHTML,
+      targetLineType: "Tu",
+      targetLineDepthAbs: context.absDepth,
+      targetLineDepthRel: context.absDepth
+    };
+    return context.lastAddedLine = this._insertLineAfter(p);
+  };
+
+  /* ------------------------------------------------------------------------
+  #  MARKUP LANGUAGE CONVERTERS
+  # _cozy2md (Read a string of editor html code format and turns it into a
+  #           string in markdown format)
+  # _md2cozy (Read a string of html code given by showdown and turns it into
+  #           a string of editor html code)
+  */
+
+
+  /* ------------------------------------------------------------------------
+  #  _cozy2md
+  # Read a string of editor html code format and turns it into a string in
+  #  markdown format
+  */
+
+
+  CNeditor.prototype._cozy2md = function(text) {
+    var children, classType, converter, currDepth, htmlCode, i, j, l, lineCode, lineElt, markCode, markup, space, _i, _ref;
+    htmlCode = $(document.createElement('div')).html(text);
+    markCode = '';
+    currDepth = 0;
+    converter = {
+      'A': function(obj) {
+        var href, title;
+        title = obj.attr('title') != null ? obj.attr('title') : "";
+        href = obj.attr('href') != null ? obj.attr('href') : "";
+        return '[' + obj.html() + '](' + href + ' "' + title + '")';
+      },
+      'IMG': function(obj) {
+        var alt, src, title;
+        title = obj.attr('title') != null ? obj.attr('title') : "";
+        alt = obj.attr('alt') != null ? obj.attr('alt') : "";
+        src = obj.attr('src') != null ? obj.attr('src') : "";
+        return '![' + alt + '](' + src + ' "' + title + '")';
+      },
+      'SPAN': function(obj) {
+        return obj.text();
+      }
+    };
+    markup = {
+      'Th': function(blanks, depth) {
+        var dieses, i;
+        currDepth = depth;
+        dieses = '';
+        i = 0;
+        while (i < depth) {
+          dieses += '#';
+          i++;
+        }
+        return "\n" + dieses + ' ';
+      },
+      'Lh': function(blanks, depth) {
+        return "\n";
+      },
+      'Tu': function(blanks, depth) {
+        return "\n" + blanks + "+   ";
+      },
+      'Lu': function(blanks, depth) {
+        return "\n" + blanks + "    ";
+      },
+      'To': function(blanks, depth) {
+        return "\n" + blanks + "1.   ";
+      },
+      'Lo': function(blanks, depth) {
+        return "\n" + blanks + "    ";
+      }
+    };
+    classType = function(className) {
+      var blanks, depth, i, tab, type;
+      tab = className.split("-");
+      type = tab[0];
+      depth = parseInt(tab[1], 10);
+      blanks = '';
+      i = 1;
+      while (i < depth - currDepth) {
+        blanks += '    ';
+        i++;
+      }
+      return markup[type](blanks, depth);
+    };
+    children = htmlCode.children();
+    for (i = _i = 0, _ref = children.length - 1; 0 <= _ref ? _i <= _ref : _i >= _ref; i = 0 <= _ref ? ++_i : --_i) {
+      lineCode = $(children.get(i));
+      if (lineCode.attr('class') != null) {
+        markCode += classType(lineCode.attr('class'));
+      }
+      l = lineCode.children().length;
+      j = 0;
+      space = ' ';
+      while (j < l) {
+        lineElt = lineCode.children().get(j);
+        if (j + 2 === l) {
+          space = '';
+        }
+        if (lineElt.nodeType === 1 && (converter[lineElt.nodeName] != null)) {
+          markCode += converter[lineElt.nodeName]($(lineElt)) + space;
+        } else {
+          markCode += $(lineElt).text() + space;
+        }
+        j++;
+      }
+      markCode += "\n";
+    }
+    return markCode;
+  };
+
+  /* ------------------------------------------------------------------------
+  # Read a string of html code given by showdown and turns it into a string
+  # of editor html code
+  */
+
+
+  CNeditor.prototype._md2cozy = function(text) {
+    var conv, cozyCode, cozyTurn, depth, htmlCode, id, readHtml, recRead;
+    conv = new Showdown.converter();
+    text = conv.makeHtml(text);
+    htmlCode = $(document.createElement('ul')).html(text);
+    cozyCode = '';
+    id = 0;
+    cozyTurn = function(type, depth, p) {
+      var code;
+      id++;
+      code = '';
+      p.contents().each(function() {
+        var name;
+        name = this.nodeName;
+        if (name === "#text") {
+          return code += "<span>" + ($(this).text()) + "</span>";
+        } else if (this.tagName != null) {
+          $(this).wrap('<div></div>');
+          code += "" + ($(this).parent().html());
+          return $(this).unwrap();
+        }
+      });
+      return ("<div id=CNID_" + id + " class=" + type + "-" + depth + ">") + code + "<br></div>";
+    };
+    depth = 0;
+    readHtml = function(obj) {
+      var tag;
+      tag = obj[0].tagName;
+      if (tag[0] === "H") {
+        depth = parseInt(tag[1], 10);
+        return cozyCode += cozyTurn("Th", depth, obj);
+      } else if (tag === "P") {
+        return cozyCode += cozyTurn("Lh", depth, obj);
+      } else {
+        return recRead(obj, "u");
+      }
+    };
+    recRead = function(obj, status) {
+      var child, i, tag, _i, _ref, _results;
+      tag = obj[0].tagName;
+      if (tag === "UL") {
+        depth++;
+        obj.children().each(function() {
+          return recRead($(this), "u");
+        });
+        return depth--;
+      } else if (tag === "OL") {
+        depth++;
+        obj.children().each(function() {
+          return recRead($(this), "o");
+        });
+        return depth--;
+      } else if (tag === "LI" && (obj.contents().get(0) != null)) {
+        if (obj.contents().get(0).nodeName === "#text") {
+          obj = obj.clone().wrap('<p></p>').parent();
+        }
+        _results = [];
+        for (i = _i = 0, _ref = obj.children().length - 1; 0 <= _ref ? _i <= _ref : _i >= _ref; i = 0 <= _ref ? ++_i : --_i) {
+          child = $(obj.children().get(i));
+          if (i === 0) {
+            _results.push(cozyCode += cozyTurn("T" + status, depth, child));
+          } else {
+            _results.push(recRead(child, status));
+          }
+        }
+        return _results;
+      } else if (tag === "P") {
+        return cozyCode += cozyTurn("L" + status, depth, obj);
+      }
+    };
+    htmlCode.children().each(function() {
+      return readHtml($(this));
+    });
+    return cozyCode;
+  };
+
+  /* ------------------------------------------------------------------------
+  # EXTENSION  :  cleaned up HTML parsing
+  #
+  #  (TODO)
+  # 
+  # We suppose the html treated here has already been sanitized so the DOM
+  #  structure is coherent and not twisted
+  # 
+  # _parseHtml:
+  #  Parse an html string and return the matching html in the editor's format
+  # We try to restitute the very structure the initial fragment :
+  #   > indentation
+  #   > lists
+  #   > images, links, tables... and their specific attributes
+  #   > text
+  #   > textuals enhancements (bold, underlined, italic)
+  #   > titles
+  #   > line return
+  # 
+  # Ideas to do that :
+  #  0- textContent is always kept
+  #  1- A, IMG keep their specific attributes
+  #  2- UL, OL become divs whose class is Tu/To. LI become Lu/Lo
+  #  3- H[1-6] become divs whose class is Th. Depth is determined depending on
+  #     where the element was pasted.
+  #  4- U, B have the effect of adding to each elt they contain a class (bold
+  #     and underlined class)
+  #  5- BR delimit the different DIV that will be added
+  #  6- relative indentation preserved with imbrication of paragraphs P
+  #  7- any other elt is turned into a simple SPAN with a textContent
+  #  8- IFRAME, FRAME, SCRIPT are ignored
+  */
+
+
+  return CNeditor;
+
+})();
+/* ------------------------------------------------------------------------
+# CLASS FOR THE COZY NOTE EDITOR
+#
+# usage : 
+#
+# newEditor = new CNEditor( iframeTarget,callBack )
+#   iframeTarget = iframe where the editor will be nested
+#   callBack     = launched when editor ready, the context 
+#                  is set to the editorCtrl (callBack.call(this))
+# properties & methods :
+#   replaceContent    : (htmlContent) ->  # TODO: replace with markdown
+#   _keyPressListener : (e) =>
+#   _insertLineAfter  : (param) ->
+#   _insertLineBefore : (param) ->
+#   
+#   editorIframe      : the iframe element where is nested the editor
+#   editorBody$       : the jquery pointer on the body of the iframe
+#   _lines            : {} an objet, each property refers a line
+#   _highestId        : 
+#   _firstLine        : pointes the first line : TODO : not taken into account
+*/
+
+var __bind = function(fn, me){ return function(){ return fn.apply(me, arguments); }; };
+
+exports.CNeditor = (function() {
+  /*
+      #   Constructor : newEditor = new CNEditor( iframeTarget,callBack )
+      #       iframeTarget = iframe where the editor will be nested
+      #       callBack     = launched when editor ready, the context 
+      #                      is set to the editorCtrl (callBack.call(this))
+  */
+
+  function CNeditor(elementTarget, callBack) {
+    this._processPaste = __bind(this._processPaste, this);
+
+    this._waitForPasteData = __bind(this._waitForPasteData, this);
+
+    this._keyPressListener = __bind(this._keyPressListener, this);
+
+    var allSetter, iframe$, node$,
+      _this = this;
+    if (elementTarget.nodeName === "IFRAME") {
+      console.log("et hop !");
+      this.getEditorSelection = function() {
+        return rangy.getIframeSelection(elementTarget);
+      };
+      this.saveEditorSelection = function() {
+        return rangy.saveSelection(rangy.dom.getIframeWindow(elementTarget));
+      };
+      iframe$ = $(elementTarget);
+      iframe$.on('load', function() {
+        var editorBody$, editor_head$, editor_html$;
+        editor_html$ = iframe$.contents().find("html");
+        editorBody$ = editor_html$.find("body");
+        editorBody$.parent().attr('id', '__ed-iframe-html');
+        editorBody$.attr("contenteditable", "true");
+        editorBody$.attr("id", "__ed-iframe-body");
+        _this.document = editorBody$[0].ownerDocument;
+        editor_head$ = editor_html$.find("head");
+        editor_head$.html('<link id="editorCSS" href="stylesheets/CNeditor.css" rel="stylesheet">');
+        _this.editorBody$ = editorBody$;
+        _this.editorTarget = elementTarget;
+        _this._lines = {};
+        _this.newPosition = true;
+        _this._highestId = 0;
+        _this._deepest = 1;
+        _this._firstLine = null;
+        _this._history = {
+          index: 0,
+          history: [null],
+          historySelect: [null],
+          historyScroll: [null],
+          historyPos: [null]
+        };
+        _this._lastKey = null;
+        editorBody$.prop('__editorCtl', _this);
+        editorBody$.on('mouseup', function() {
+          return _this.newPosition = true;
+        });
+        editorBody$.on('keydown', _this._keyPressListener);
+        editorBody$.on('keyup', function() {
+          return iframe$.trigger(jQuery.Event("onKeyUp"));
+        });
+        editorBody$.on('click', function(e) {
+          return _this._lastKey = null;
+        });
+        editorBody$.on('paste', function(e) {
+          console.log("pasting...");
+          console.log(e);
+          return _this.paste(e);
+        });
+        _this._initClipBoard();
+        callBack.call(_this);
+        return _this;
+      });
+      elementTarget.src = '';
+    } else {
+      console.log("target is not an iframe...");
+      this.getEditorSelection = function() {
+        return rangy.getSelection();
+      };
+      this.saveEditorSelection = function() {
+        return rangy.saveSelection();
+      };
+      node$ = $(elementTarget);
+      allSetter = function() {
+        var editorBody$;
+        editorBody$ = node$;
+        editorBody$.attr("contenteditable", "true");
+        editorBody$.attr("id", "__ed-iframe-body");
+        _this.editorBody$ = editorBody$;
+        _this.editorTarget = elementTarget;
+        _this._lines = {};
+        _this.newPosition = true;
+        _this._highestId = 0;
+        _this._deepest = 1;
+        _this._firstLine = null;
+        _this._history = {
+          index: 0,
+          history: [null],
+          historySelect: [null],
+          historyScroll: [null],
+          historyPos: [null]
+        };
+        _this._lastKey = null;
+        editorBody$.prop('__editorCtl', _this);
+        editorBody$.on('keydown', _this._keyPressListener);
+        editorBody$.on('mouseup', function() {
+          return _this.newPosition = true;
+        });
+        editorBody$.on('keyup', function() {
+          return node$.trigger(jQuery.Event("onKeyUp"));
+        });
+        editorBody$.on('click', function(e) {
+          return _this._lastKey = null;
+        });
+        editorBody$.on('paste', function(e) {
+          console.log("pasting...");
+          return _this.paste(e);
+        });
+        callBack.call(_this);
+        return _this;
+      };
+      allSetter();
+      this._initClipBoard();
+    }
+  }
+
+  /* ------------------------------------------------------------------------
+  # EXTENSION : _updateDeepest
+  # 
+  # Find the maximal deep (thus the deepest line) of the text
+  # TODO: improve it so it only calculates the new depth from the modified
+  #       lines (not all of them)
+  # TODO: set a class system rather than multiple CSS files. Thus titles
+  #       classes look like "Th-n depth3" for instance if max depth is 3
+  # note: These todos arent our priority for now
+  */
+
+
+  CNeditor.prototype._updateDeepest = function() {
+    var c, lines, max;
+    max = 1;
+    lines = this._lines;
+    for (c in lines) {
+      if (this.editorBody$.children("#" + ("" + lines[c].lineID)).length > 0 && lines[c].lineType === "Th" && lines[c].lineDepthAbs > max) {
+        max = this._lines[c].lineDepthAbs;
+      }
+    }
+    if (max !== this._deepest) {
+      this._deepest = max;
+      if (max < 4) {
+        return this.replaceCSS("stylesheets/app-deep-" + max + ".css");
+      } else {
+        return this.replaceCSS("stylesheets/app-deep-4.css");
+      }
+    }
+  };
+
+  /* ------------------------------------------------------------------------
+  # Initialize the editor content from a html string
+  */
+
+
+  CNeditor.prototype.replaceContent = function(htmlContent) {
+    this.editorBody$.html(htmlContent);
+    this._readHtml();
+    return this._initClipBoard();
+  };
+
+  /* ------------------------------------------------------------------------
+  # Clear editor content
+  */
+
+
+  CNeditor.prototype.deleteContent = function() {
+    this.editorBody$.html('<div id="CNID_1" class="Tu-1"><span></span><br></div>');
+    this._readHtml();
+    return this._initClipBoard();
+  };
+
+  /* ------------------------------------------------------------------------
+  # Returns a markdown string representing the editor content
+  */
+
+
+  CNeditor.prototype.getEditorContent = function() {
+    var cozyContent;
+    cozyContent = this.editorBody$.html();
+    return this._cozy2md(cozyContent);
+  };
+
+  /* ------------------------------------------------------------------------
+  # Sets the editor content from a markdown string
+  */
+
+
+  CNeditor.prototype.setEditorContent = function(mdContent) {
+    var cozyContent;
+    cozyContent = this._md2cozy(mdContent);
+    this.editorBody$.html(cozyContent);
+    this._readHtml();
+    return this._initClipBoard();
+  };
+
+  /*
+      # Change the path of the css applied to the editor iframe
+  */
+
+
+  CNeditor.prototype.replaceCSS = function(path) {
+    var document, linkElm;
+    document = this.document;
+    linkElm = document.querySelector('#editorCSS');
+    linkElm.setAttribute('href', path);
+    return document.head.appendChild(linkElm);
+  };
+
+  /* ------------------------------------------------------------------------
+  # UTILITY FUNCTIONS
+  # used to set ranges and help normalize selection
+  # 
+  # parameters: elt  :  a dom object with only textNode children
+  #
+  # note: with google chrome, it seems that non visible elements
+  #       cannot be selected with rangy (that's where 'blank' comes in)
+  */
+
+
+  CNeditor.prototype._putEndOnEnd = function(range, elt) {
+    var blank, offset;
+    if (elt.lastChild != null) {
+      offset = elt.lastChild.textContent.length;
+      if (offset === 0) {
+        elt.lastChild.data = " ";
+        offset = 1;
+      }
+      return range.setEnd(elt.lastChild, offset);
+    } else {
+      blank = document.createTextNode(" ");
+      elt.appendChild(blank);
+      return range.setEnd(blank, 1);
+    }
+  };
+
+  CNeditor.prototype._putStartOnEnd = function(range, elt) {
+    var blank, offset;
+    if (elt.lastChild != null) {
+      offset = elt.lastChild.textContent.length;
+      if (offset === 0) {
+        elt.lastChild.data = " ";
+        offset = 1;
+      }
+      return range.setStart(elt.lastChild, offset);
+    } else {
+      blank = document.createTextNode(" ");
+      elt.appendChild(blank);
+      return range.setStart(blank, 0);
+    }
+  };
+
+  CNeditor.prototype._putEndOnStart = function(range, elt) {
+    var blank, offset;
+    if (elt.firstChild != null) {
+      offset = elt.firstChild.textContent.length;
+      if (offset === 0) {
+        elt.firstChild.data = " ";
+      }
+      return range.setEnd(elt.firstChild, 0);
+    } else {
+      blank = document.createTextNode(" ");
+      elt.appendChild(blank);
+      return range.setEnd(blank, 0);
+    }
+  };
+
+  CNeditor.prototype._putStartOnStart = function(range, elt) {
+    var blank, offset;
+    if (elt.firstChild != null) {
+      offset = elt.firstChild.textContent.length;
+      if (offset === 0) {
+        elt.firstChild.data = " ";
+      }
+      return range.setStart(elt.firstChild, 0);
+    } else {
+      blank = document.createTextNode(" ");
+      elt.appendChild(blank);
+      return range.setStart(blank, 0);
+    }
+  };
+
+  /* ------------------------------------------------------------------------
+  #  _normalize(range)
+  # 
+  #  Modify 'range' containers and offsets so it represent a clean selection
+  #  that it starts inside a textNode and ends inside a textNode.
+  #
+  #  Set the flag isEmptyLine to true if an empty line is being normalized
+  #  so further suppr ~ backspace work properly.
+  #
+  #
+  */
+
+
+  CNeditor.prototype._normalize = function(range) {
+    var elt, endContainer, endDiv, offset, startContainer, startDiv, targetChild, _ref, _ref1;
+    if (range.startContainer.nodeName === 'BODY') {
+      startDiv = range.startContainer.children[range.startOffset];
+    } else {
+      startDiv = range.startContainer;
+    }
+    if (range.endContainer.nodeName === "BODY") {
+      endDiv = range.endContainer.children[range.endOffset - 1];
+    } else {
+      endDiv = range.endContainer;
+    }
+    if (startDiv.nodeName !== "DIV") {
+      startDiv = $(startDiv).parents("div")[0];
+    }
+    if (endDiv.nodeName !== "DIV") {
+      endDiv = $(endDiv).parents("div")[0];
+    }
+    if (startDiv === endDiv && startDiv.innerHTML === '<span></span><br>') {
+      this.isEmptyLine = true;
+    }
+    startContainer = range.startContainer;
+    if (startContainer.nodeName === "BODY") {
+      elt = startContainer.children[range.startOffset].firstChild;
+      this._putStartOnStart(range, elt);
+    } else if (startContainer.nodeName === "DIV") {
+      if (this.isEmptyLine) {
+        elt = startContainer.childNodes[0];
+        this._putStartOnStart(range, elt);
+      } else if (range.startOffset < startContainer.childNodes.length - 1) {
+        elt = startContainer.childNodes[range.startOffset];
+        this._putStartOnStart(range, elt);
+      } else {
+        elt = startContainer.lastChild.previousElementSibling;
+        this._putStartOnEnd(range, elt);
+      }
+    } else if ((_ref = startContainer.nodeName) === "SPAN" || _ref === "IMG" || _ref === "A") {
+      if (startContainer.firstChild === null || startContainer.textContent.length === 0) {
+        this._putStartOnEnd(range, startContainer);
+      } else if (range.startOffset < startContainer.childNodes.length) {
+        targetChild = startContainer.childNodes[range.startOffset];
+        range.setStart(targetChild, 0);
+      } else {
+        targetChild = startContainer.lastChild;
+        offset = targetChild.data.length;
+        range.setStart(targetChild, offset);
+      }
+    }
+    endContainer = range.endContainer;
+    if (endContainer.nodeName === "BODY") {
+      elt = endContainer.children[range.endOffset - 1].lastChild;
+      this._putEndOnEnd(range, elt.previousElementSibling);
+    }
+    if (endContainer.nodeName === "DIV") {
+      if (range.endOffset < endContainer.childNodes.length - 1) {
+        elt = endContainer.childNodes[range.endOffset];
+        this._putEndOnStart(range, elt);
+      } else {
+        elt = endContainer.lastChild.previousElementSibling;
+        this._putEndOnEnd(range, elt);
+      }
+    } else if ((_ref1 = endContainer.nodeName) === "SPAN" || _ref1 === "IMG" || _ref1 === "A") {
+      if (endContainer.firstChild === null || endContainer.textContent.length === 0) {
+        this._putEndOnEnd(range, endContainer);
+      }
+      if (range.endOffset < endContainer.childNodes.length) {
+        targetChild = startContainer.childNodes[range.endOffset];
+        range.setEnd(targetChild, 0);
+      } else {
+        targetChild = endContainer.lastChild;
+        offset = targetChild.data.length;
+        range.setEnd(targetChild, offset);
+      }
+    }
+    return range;
+  };
+
+  /* ------------------------------------------------------------------------
+  #   _keyPressListener
+  # 
+  # The listener of keyPress event on the editor's iframe... the king !
+  */
+
+
+  /*
+      # SHORTCUT
+      #
+      # Definition of a shortcut : 
+      #   a combination alt,ctrl,shift,meta
+      #   + one caracter(.which) 
+      #   or 
+      #     arrow (.keyCode=dghb:) or 
+      #     return(keyCode:13) or 
+      #     bckspace (which:8) or 
+      #     tab(keyCode:9)
+      #   ex : shortcut = 'CtrlShift-up', 'Ctrl-115' (ctrl+s), '-115' (s),
+      #                   'Ctrl-'
+  */
+
+
+  CNeditor.prototype._keyPressListener = function(e) {
+    var keyStrokesCode, metaKeyStrokesCode, normalizedRange, normalizedSel, range, sel, shortcut;
+    metaKeyStrokesCode = (e.altKey ? "Alt" : "") + 
+                              (e.ctrlKey ? "Ctrl" : "") + 
+                              (e.shiftKey ? "Shift" : "");
+    switch (e.keyCode) {
+      case 13:
+        keyStrokesCode = "return";
+        break;
+      case 35:
+        keyStrokesCode = "end";
+        break;
+      case 36:
+        keyStrokesCode = "home";
+        break;
+      case 33:
+        keyStrokesCode = "pgUp";
+        break;
+      case 34:
+        keyStrokesCode = "pgDwn";
+        break;
+      case 37:
+        keyStrokesCode = "left";
+        break;
+      case 38:
+        keyStrokesCode = "up";
+        break;
+      case 39:
+        keyStrokesCode = "right";
+        break;
+      case 40:
+        keyStrokesCode = "down";
+        break;
+      case 9:
+        keyStrokesCode = "tab";
+        break;
+      case 8:
+        keyStrokesCode = "backspace";
+        break;
+      case 32:
+        keyStrokesCode = "space";
+        break;
+      case 27:
+        keyStrokesCode = "esc";
+        break;
+      case 46:
+        keyStrokesCode = "suppr";
+        break;
+      case 16:
+        e.preventDefault();
+        return;
+      case 17:
+        e.preventDefault();
+        return;
+      case 18:
+        e.preventDefault();
+        return;
+      default:
+        switch (e.which) {
+          case 32:
+            keyStrokesCode = "space";
+            break;
+          case 8:
+            keyStrokesCode = "backspace";
+            break;
+          case 65:
+            keyStrokesCode = "A";
+            break;
+          case 83:
+            keyStrokesCode = "S";
+            break;
+          case 86:
+            keyStrokesCode = "V";
+            break;
+          case 89:
+            keyStrokesCode = "Y";
+            break;
+          case 90:
+            keyStrokesCode = "Z";
+            break;
+          default:
+            keyStrokesCode = "other";
+        }
+    }
+    shortcut = metaKeyStrokesCode + '-' + keyStrokesCode;
+    if (shortcut === "-A" || shortcut === "-S" || shortcut === "-V" || shortcut === "-Y" || shortcut === "-Z") {
+      shortcut = "-other";
+    }
+    if (this._lastKey !== shortcut && (shortcut === "-tab" || shortcut === "-return" || shortcut === "-backspace" || shortcut === "-suppr" || shortcut === "CtrlShift-down" || shortcut === "CtrlShift-up" || shortcut === "CtrlShift-left" || shortcut === "CtrlShift-right" || shortcut === "Ctrl-V" || shortcut === "Shift-tab" || shortcut === "-space" || shortcut === "-other")) {
+      this._addHistory();
+    }
+    this._lastKey = shortcut;
+    if (this.newPosition && (shortcut === '-other' || shortcut === '-space' || shortcut === '-suppr' || shortcut === '-backspace' || shortcut === '-return')) {
+      this.newPosition = false;
+      sel = this.getEditorSelection();
+      range = sel.getRangeAt(0);
+      normalizedRange = rangy.createRange();
+      normalizedRange = this._normalize(range);
+      normalizedSel = this.getEditorSelection();
+      normalizedSel.setSingleRange(normalizedRange);
+    }
+    if ((keyStrokesCode === "left" || keyStrokesCode === "up" || keyStrokesCode === "right" || keyStrokesCode === "down" || keyStrokesCode === "pgUp" || keyStrokesCode === "pgDwn" || keyStrokesCode === "end" || keyStrokesCode === "home" || keyStrokesCode === "return" || keyStrokesCode === "suppr" || keyStrokesCode === "backspace") && (shortcut !== "CtrlShift-down" && shortcut !== "CtrlShift-up" && shortcut !== "CtrlShift-right" && shortcut !== "CtrlShift-left")) {
+      this.newPosition = true;
+    }
+    this.currentSel = null;
+    switch (shortcut) {
+      case "-return":
+        this._return();
+        return e.preventDefault();
+      case "-tab":
+        this.tab();
+        return e.preventDefault();
+      case "CtrlShift-right":
+        this.tab();
+        return e.preventDefault();
+      case "-backspace":
+        return this._backspace(e);
+      case "-suppr":
+        return this._suppr(e);
+      case "CtrlShift-down":
+        this._moveLinesDown();
+        return e.preventDefault();
+      case "CtrlShift-up":
+        this._moveLinesUp();
+        return e.preventDefault();
+      case "Shift-tab":
+        this.shiftTab();
+        return e.preventDefault();
+      case "CtrlShift-left":
+        this.shiftTab();
+        return e.preventDefault();
+      case "Alt-A":
+        this._toggleLineType();
+        return e.preventDefault();
+      case "Ctrl-V":
+        return true;
+      case "Ctrl-S":
+        $(this.editorTarget).trigger(jQuery.Event("saveRequest"));
+        return e.preventDefault();
+      case "Ctrl-Z":
+        e.preventDefault();
+        return this.unDo();
+      case "Ctrl-Y":
+        e.preventDefault();
+        return this.reDo();
+    }
+  };
+
+  /* ------------------------------------------------------------------------
+  #  _suppr :
+  # 
+  # Manage deletions when suppr key is pressed
+  */
+
+
+  CNeditor.prototype._suppr = function(e) {
+    var sel, startLine;
+    this._findLinesAndIsStartIsEnd();
+    sel = this.currentSel;
+    if (this.isEmptyLine) {
+      this.isEmptyLine = false;
+      sel.range.deleteContents();
+    }
+    startLine = sel.startLine;
+    if (sel.range.collapsed) {
+      if (sel.rangeIsEndLine) {
+        if (startLine.lineNext !== null) {
+          sel.range.setEndBefore(startLine.lineNext.line$[0].firstChild);
+          sel.endLine = startLine.lineNext;
+          this._deleteMultiLinesSelections();
+          return e.preventDefault();
+        } else {
+          return e.preventDefault();
+        }
+      }
+    } else if (sel.endLine === startLine) {
+      sel.range.deleteContents();
+      return e.preventDefault();
+    } else {
+      this._deleteMultiLinesSelections();
+      return e.preventDefault();
+    }
+  };
+
+  /* ------------------------------------------------------------------------
+  #  _backspace
+  # 
+  # Manage deletions when backspace key is pressed
+  */
+
+
+  CNeditor.prototype._backspace = function(e) {
+    var sel, startLine;
+    this._findLinesAndIsStartIsEnd();
+    sel = this.currentSel;
+    if (this.isEmptyLine) {
+      this.isEmptyLine = false;
+      sel.range.deleteContents();
+    }
+    startLine = sel.startLine;
+    if (sel.range.collapsed) {
+      if (sel.rangeIsStartLine) {
+        if (startLine.linePrev !== null) {
+          sel.range.setStartBefore(startLine.linePrev.line$[0].lastChild);
+          sel.startLine = startLine.linePrev;
+          this._deleteMultiLinesSelections();
+          return e.preventDefault();
+        } else {
+          return e.preventDefault();
+        }
+      }
+    } else if (sel.endLine === startLine) {
+      sel.range.deleteContents();
+      return e.preventDefault();
+    } else {
+      this._deleteMultiLinesSelections();
+      return e.preventDefault();
+    }
+  };
+
+  /* ------------------------------------------------------------------------
+  #  titleList
+  # 
+  # Turn selected lines in a title List (Th)
+  */
+
+
+  CNeditor.prototype.titleList = function() {
+    var endDiv, endDivID, endLineID, line, range, sel, startDiv, _results;
+    sel = this.getEditorSelection();
+    range = sel.getRangeAt(0);
+    if (range.startContainer.nodeName === 'BODY') {
+      startDiv = range.startContainer.children[range.startOffset];
+    } else {
+      startDiv = range.startContainer;
+    }
+    if (range.endContainer.nodeName === "BODY") {
+      endDiv = range.endContainer.children[range.endOffset - 1];
+    } else {
+      endDiv = range.endContainer;
+    }
+    if (startDiv.nodeName !== "DIV") {
+      startDiv = $(startDiv).parents("div")[0];
+    }
+    if (endDiv.nodeName !== "DIV") {
+      endDiv = $(endDiv).parents("div")[0];
+    }
+    endLineID = endDiv.id;
+    line = this._lines[startDiv.id];
+    endDivID = endDiv.id;
+    _results = [];
+    while (true) {
+      this._line2titleList(line);
+      if (line.lineID === endDivID) {
+        break;
+      } else {
+        _results.push(line = line.lineNext);
+      }
+    }
+    return _results;
+  };
+
+  /* ------------------------------------------------------------------------
+  #  _line2titleList
+  # 
+  #  Turn a given line in a title List Line (Th)
+  */
+
+
+  CNeditor.prototype._line2titleList = function(line) {
+    var parent1stSibling, _results;
+    if (line.lineType !== 'Th') {
+      if (line.lineType[0] === 'L') {
+        line.lineType = 'Tu';
+        line.lineDepthAbs += 1;
+      }
+      this._titilizeSiblings(line);
+      parent1stSibling = this._findParent1stSibling(line);
+      _results = [];
+      while (parent1stSibling !== null && parent1stSibling.lineType !== 'Th') {
+        this._titilizeSiblings(parent1stSibling);
+        _results.push(parent1stSibling = this._findParent1stSibling(parent1stSibling));
+      }
+      return _results;
+    }
+  };
+
+  /* ------------------------------------------------------------------------
+  # turn in Th or Lh of the siblings of line (and line itself of course)
+  # the children are note modified
+  */
+
+
+  CNeditor.prototype._titilizeSiblings = function(line) {
+    var l, lineDepthAbs;
+    lineDepthAbs = line.lineDepthAbs;
+    l = line;
+    while (l !== null && l.lineDepthAbs >= lineDepthAbs) {
+      if (l.lineDepthAbs === lineDepthAbs) {
+        switch (l.lineType) {
+          case 'Tu':
+          case 'To':
+            l.line$.prop("class", "Th-" + lineDepthAbs);
+            l.lineType = 'Th';
+            l.lineDepthRel = 0;
+            break;
+          case 'Lu':
+          case 'Lo':
+            l.line$.prop("class", "Lh-" + lineDepthAbs);
+            l.lineType = 'Lh';
+            l.lineDepthRel = 0;
+        }
+      }
+      l = l.lineNext;
+    }
+    l = line.linePrev;
+    while (l !== null && l.lineDepthAbs >= lineDepthAbs) {
+      if (l.lineDepthAbs === lineDepthAbs) {
+        switch (l.lineType) {
+          case 'Tu':
+          case 'To':
+            l.line$.prop("class", "Th-" + lineDepthAbs);
+            l.lineType = 'Th';
+            l.lineDepthRel = 0;
+            break;
+          case 'Lu':
+          case 'Lo':
+            l.line$.prop("class", "Lh-" + lineDepthAbs);
+            l.lineType = 'Lh';
+            l.lineDepthRel = 0;
+        }
+      }
+      l = l.linePrev;
+    }
+    return true;
+  };
+
+  /* ------------------------------------------------------------------------
+  #  markerList
+  # 
+  #  Turn selected lines in a Marker List
+  */
+
+
+  CNeditor.prototype.markerList = function(l) {
+    var endDiv, endLineID, line, lineTypeTarget, range, startDiv, startDivID, _results;
+    if (l != null) {
+      startDivID = l.lineID;
+      endLineID = startDivID;
+    } else {
+      range = this.getEditorSelection().getRangeAt(0);
+      if (range.startContainer.nodeName === 'BODY') {
+        startDiv = range.startContainer.children[range.startOffset];
+      } else {
+        startDiv = range.startContainer;
+      }
+      if (range.endContainer.nodeName === "BODY") {
+        endDiv = range.endContainer.children[range.endOffset - 1];
+      } else {
+        endDiv = range.endContainer;
+      }
+      if (startDiv.nodeName !== "DIV") {
+        startDiv = $(startDiv).parents("div")[0];
+      }
+      startDivID = startDiv.id;
+      if (endDiv.nodeName !== "DIV") {
+        endDiv = $(endDiv).parents("div")[0];
+      }
+      endLineID = endDiv.id;
+    }
+    line = this._lines[startDivID];
+    _results = [];
+    while (true) {
+      switch (line.lineType) {
+        case 'Th':
+          lineTypeTarget = 'Tu';
+          l = line.lineNext;
+          while (l !== null && l.lineDepthAbs >= line.lineDepthAbs) {
+            switch (l.lineType) {
+              case 'Th':
+                l.line$.prop("class", "Tu-" + l.lineDepthAbs);
+                l.lineType = 'Tu';
+                l.lineDepthRel = this._findDepthRel(l);
+                break;
+              case 'Lh':
+                l.line$.prop("class", "Lu-" + l.lineDepthAbs);
+                l.lineType = 'Lu';
+                l.lineDepthRel = this._findDepthRel(l);
+            }
+            l = l.lineNext;
+          }
+          l = line.linePrev;
+          while (l !== null && l.lineDepthAbs >= line.lineDepthAbs) {
+            switch (l.lineType) {
+              case 'Th':
+                l.line$.prop("class", "Tu-" + l.lineDepthAbs);
+                l.lineType = 'Tu';
+                l.lineDepthRel = this._findDepthRel(l);
+                break;
+              case 'Lh':
+                l.line$.prop("class", "Lu-" + l.lineDepthAbs);
+                l.lineType = 'Lu';
+                l.lineDepthRel = this._findDepthRel(l);
+            }
+            l = l.linePrev;
+          }
+          break;
+        case 'Lh':
+        case 'Lu':
+          this.tab(line);
+          break;
+        default:
+          lineTypeTarget = false;
+      }
+      if (lineTypeTarget) {
+        line.line$.prop("class", "" + lineTypeTarget + "-" + line.lineDepthAbs);
+        line.lineType = lineTypeTarget;
+      }
+      if (line.lineID === endLineID) {
+        break;
+      } else {
+        _results.push(line = line.lineNext);
+      }
+    }
+    return _results;
+  };
+
+  /* ------------------------------------------------------------------------
+  #  _findDepthRel
+  # 
+  # Calculates the relative depth of the line
+  #   usage   : cycle : Tu => To => Lx => Th
+  #   param   : line : the line we want to find the relative depth
+  #   returns : a number
+  #
+  */
+
+
+  CNeditor.prototype._findDepthRel = function(line) {
+    var linePrev;
+    if (line.lineDepthAbs === 1) {
+      if (line.lineType[1] === "h") {
+        return 0;
+      } else {
+        return 1;
+      }
+    } else {
+      linePrev = line.linePrev;
+      while (linePrev !== null && linePrev.lineDepthAbs >= line.lineDepthAbs) {
+        linePrev = linePrev.linePrev;
+      }
+      if (linePrev !== null) {
+        return linePrev.lineDepthRel + 1;
+      } else {
+        return 0;
+      }
+    }
+  };
+
+  /* ------------------------------------------------------------------------
+  #  _toggleLineType
+  # 
+  # Toggle line type
+  #   usage : cycle : Tu => To => Lx => Th
+  #   param :
+  #       e = event
+  */
+
+
+  CNeditor.prototype._toggleLineType = function() {
+    var endDiv, endLineID, l, line, lineTypeTarget, range, sel, startDiv, _results;
+    sel = this.getEditorSelection();
+    range = sel.getRangeAt(0);
+    if (range.startContainer.nodeName === 'BODY') {
+      startDiv = range.startContainer.children[range.startOffset];
+    } else {
+      startDiv = range.startContainer;
+    }
+    if (range.endContainer.nodeName === "BODY") {
+      endDiv = range.endContainer.children[range.endOffset - 1];
+    } else {
+      endDiv = range.endContainer;
+    }
+    if (startDiv.nodeName !== "DIV") {
+      startDiv = $(startDiv).parents("div")[0];
+    }
+    if (endDiv.nodeName !== "DIV") {
+      endDiv = $(endDiv).parents("div")[0];
+    }
+    endLineID = endDiv.id;
+    line = this._lines[startDiv.id];
+    _results = [];
+    while (true) {
+      switch (line.lineType) {
+        case 'Tu':
+          lineTypeTarget = 'Th';
+          l = line.lineNext;
+          while (l !== null && l.lineDepthAbs >= line.lineDepthAbs) {
+            if (l.lineDepthAbs === line.lineDepthAbs) {
+              if (l.lineType === 'Tu') {
+                l.line$.prop("class", "Th-" + line.lineDepthAbs);
+                l.lineType = 'Th';
+              } else {
+                l.line$.prop("class", "Lh-" + line.lineDepthAbs);
+                l.lineType = 'Lh';
+              }
+            }
+            l = l.lineNext;
+          }
+          l = line.linePrev;
+          while (l !== null && l.lineDepthAbs >= line.lineDepthAbs) {
+            if (l.lineDepthAbs === line.lineDepthAbs) {
+              if (l.lineType === 'Tu') {
+                l.line$.prop("class", "Th-" + line.lineDepthAbs);
+                l.lineType = 'Th';
+              } else {
+                l.line$.prop("class", "Lh-" + line.lineDepthAbs);
+                l.lineType = 'Lh';
+              }
+            }
+            l = l.linePrev;
+          }
+          break;
+        case 'Th':
+          lineTypeTarget = 'Tu';
+          l = line.lineNext;
+          while (l !== null && l.lineDepthAbs >= line.lineDepthAbs) {
+            if (l.lineDepthAbs === line.lineDepthAbs) {
+              if (l.lineType === 'Th') {
+                l.line$.prop("class", "Tu-" + line.lineDepthAbs);
+                l.lineType = 'Tu';
+              } else {
+                l.line$.prop("class", "Lu-" + line.lineDepthAbs);
+                l.lineType = 'Lu';
+              }
+            }
+            l = l.lineNext;
+          }
+          l = line.linePrev;
+          while (l !== null && l.lineDepthAbs >= line.lineDepthAbs) {
+            if (l.lineDepthAbs === line.lineDepthAbs) {
+              if (l.lineType === 'Th') {
+                l.line$.prop("class", "Tu-" + line.lineDepthAbs);
+                l.lineType = 'Tu';
+              } else {
+                l.line$.prop("class", "Lu-" + line.lineDepthAbs);
+                l.lineType = 'Lu';
+              }
+            }
+            l = l.linePrev;
+          }
+          break;
+        default:
+          lineTypeTarget = false;
+      }
+      if (lineTypeTarget) {
+        line.line$.prop("class", "" + lineTypeTarget + "-" + line.lineDepthAbs);
+        line.lineType = lineTypeTarget;
+      }
+      if (line.lineID === endDiv.id) {
+        break;
+      } else {
+        _results.push(line = line.lineNext);
+      }
+    }
+    return _results;
+  };
+
+  /* ------------------------------------------------------------------------
+  #  tab
+  # 
+  # tab keypress
+  #   l = optional : a line to indent. If none, the selection will be indented
+  */
+
+
+  CNeditor.prototype.tab = function(l) {
+    var endDiv, endLineID, isTabAllowed, line, lineNext, linePrev, linePrevSibling, lineTypeTarget, nextLineType, range, sel, startDiv, _results;
+    if (l != null) {
+      startDiv = l.line$[0];
+      endDiv = startDiv;
+    } else {
+      sel = this.getEditorSelection();
+      range = sel.getRangeAt(0);
+      if (range.startContainer.nodeName === 'BODY') {
+        startDiv = range.startContainer.children[range.startOffset];
+      } else {
+        startDiv = range.startContainer;
+      }
+      if (range.endContainer.nodeName === "BODY") {
+        endDiv = range.endContainer.children[range.endOffset - 1];
+      } else {
+        endDiv = range.endContainer;
+      }
+    }
+    if (startDiv.nodeName !== "DIV") {
+      startDiv = $(startDiv).parents("div")[0];
+    }
+    if (endDiv.nodeName !== "DIV") {
+      endDiv = $(endDiv).parents("div")[0];
+    }
+    endLineID = endDiv.id;
+    line = this._lines[startDiv.id];
+    _results = [];
+    while (true) {
+      switch (line.lineType) {
+        case 'Tu':
+        case 'Th':
+          linePrevSibling = this._findPrevSibling(line);
+          if (linePrevSibling === null) {
+            isTabAllowed = false;
+          } else {
+            isTabAllowed = true;
+            if (linePrevSibling.lineType === 'Th') {
+              lineTypeTarget = 'Lh';
+            } else {
+              if (linePrevSibling.lineType === 'Tu') {
+                lineTypeTarget = 'Lu';
+              } else {
+                lineTypeTarget = 'Lo';
+              }
+              if (line.lineType === 'Th') {
+                lineNext = line.lineNext;
+                while (lineNext !== null && lineNext.lineDepthAbs > line.lineDepthAbs) {
+                  switch (lineNext.lineType) {
+                    case 'Th':
+                      lineNext.lineType = 'Tu';
+                      line.line$.prop("class", "Tu-" + lineNext.lineDepthAbs);
+                      nextLineType = prevTxType;
+                      break;
+                    case 'Tu':
+                      nextLineType = 'Lu';
+                      break;
+                    case 'To':
+                      nextLineType = 'Lo';
+                      break;
+                    case 'Lh':
+                      lineNext.lineType = nextLineType;
+                      line.line$.prop("class", "" + nextLineType + "-" + lineNext.lineDepthAbs);
+                  }
+                }
+              }
+            }
+          }
+          break;
+        case 'Lh':
+        case 'Lu':
+        case 'Lo':
+          lineNext = line.lineNext;
+          lineTypeTarget = null;
+          while (lineNext !== null && lineNext.lineDepthAbs >= line.lineDepthAbs) {
+            if (lineNext.lineDepthAbs !== line.lineDepthAbs + 1) {
+              lineNext = lineNext.lineNext;
+            } else {
+              lineTypeTarget = lineNext.lineType;
+              lineNext = null;
+            }
+          }
+          if (lineTypeTarget === null) {
+            linePrev = line.linePrev;
+            while (linePrev !== null && linePrev.lineDepthAbs >= line.lineDepthAbs) {
+              if (linePrev.lineDepthAbs === line.lineDepthAbs + 1) {
+                lineTypeTarget = linePrev.lineType;
+                linePrev = null;
+              } else {
+                linePrev = linePrev.linePrev;
+              }
+            }
+          }
+          if (lineTypeTarget === null) {
+            isTabAllowed = true;
+            lineTypeTarget = 'Tu';
+            line.lineDepthAbs += 1;
+            line.lineDepthRel += 1;
+          } else {
+            if (lineTypeTarget === 'Th') {
+              isTabAllowed = true;
+              line.lineDepthAbs += 1;
+              line.lineDepthRel = 0;
+            }
+            if (lineTypeTarget === 'Tu' || lineTypeTarget === 'To') {
+              isTabAllowed = true;
+              line.lineDepthAbs += 1;
+              line.lineDepthRel += 1;
+            }
+          }
+      }
+      if (isTabAllowed) {
+        line.line$.prop("class", "" + lineTypeTarget + "-" + line.lineDepthAbs);
+        line.lineType = lineTypeTarget;
+      }
+      if (line.lineID === endLineID) {
+        break;
+      } else {
+        _results.push(line = line.lineNext);
+      }
+    }
+    return _results;
+  };
+
+  /* ------------------------------------------------------------------------
+  #  shiftTab
+  #   param : myRange : if defined, refers to a specific region to untab
+  */
+
+
+  CNeditor.prototype.shiftTab = function(myRange) {
+    var endDiv, endLineID, isTabAllowed, line, lineTypeTarget, nextL, parent, range, sel, startDiv, _results;
+    if (myRange != null) {
+      range = myRange;
+    } else {
+      sel = this.getEditorSelection();
+      range = sel.getRangeAt(0);
+    }
+    if (range.startContainer.nodeName === 'BODY') {
+      startDiv = range.startContainer.children[range.startOffset];
+    } else {
+      startDiv = range.startContainer;
+    }
+    if (range.endContainer.nodeName === "BODY") {
+      endDiv = range.endContainer.children[range.endOffset - 1];
+    } else {
+      endDiv = range.endContainer;
+    }
+    if (startDiv.nodeName !== "DIV") {
+      startDiv = $(startDiv).parents("div")[0];
+    }
+    if (endDiv.nodeName !== "DIV") {
+      endDiv = $(endDiv).parents("div")[0];
+    }
+    endLineID = endDiv.id;
+    line = this._lines[startDiv.id];
+    _results = [];
+    while (true) {
+      switch (line.lineType) {
+        case 'Tu':
+        case 'Th':
+        case 'To':
+          parent = line.linePrev;
+          while (parent !== null && parent.lineDepthAbs >= line.lineDepthAbs) {
+            parent = parent.linePrev;
+          }
+          if (parent !== null) {
+            isTabAllowed = true;
+            lineTypeTarget = parent.lineType;
+            lineTypeTarget = "L" + lineTypeTarget.charAt(1);
+            line.lineDepthAbs -= 1;
+            line.lineDepthRel -= parent.lineDepthRel;
+            if ((line.lineNext != null) && line.lineNext.lineType[0] === 'L') {
+              nextL = line.lineNext;
+              nextL.lineType = 'T' + nextL.lineType[1];
+              nextL.line$.prop('class', "" + nextL.lineType + "-" + nextL.lineDepthAbs);
+            }
+          } else {
+            isTabAllowed = false;
+          }
+          break;
+        case 'Lh':
+          isTabAllowed = true;
+          lineTypeTarget = 'Th';
+          break;
+        case 'Lu':
+          isTabAllowed = true;
+          lineTypeTarget = 'Tu';
+          break;
+        case 'Lo':
+          isTabAllowed = true;
+          lineTypeTarget = 'To';
+      }
+      if (isTabAllowed) {
+        line.line$.prop("class", "" + lineTypeTarget + "-" + line.lineDepthAbs);
+        line.lineType = lineTypeTarget;
+      }
+      if (line.lineID === endDiv.id) {
+        break;
+      } else {
+        _results.push(line = line.lineNext);
+      }
+    }
+    return _results;
+  };
+
+  /* ------------------------------------------------------------------------
+  #  _return
+  # return keypress
+  #   e = event
+  */
+
+
+  CNeditor.prototype._return = function() {
+    var currSel, endLine, endOfLineFragment, newLine, range4sel, startLine;
+    this._findLinesAndIsStartIsEnd();
+    currSel = this.currentSel;
+    startLine = currSel.startLine;
+    endLine = currSel.endLine;
+    if (currSel.range.collapsed) {
+
+    } else if (endLine === startLine) {
+      currSel.range.deleteContents();
+    } else {
+      this._deleteMultiLinesSelections();
+      this._findLinesAndIsStartIsEnd();
+      currSel = this.currentSel;
+      startLine = currSel.startLine;
+    }
+    if (currSel.rangeIsEndLine) {
+      newLine = this._insertLineAfter({
+        sourceLine: startLine,
+        targetLineType: startLine.lineType,
+        targetLineDepthAbs: startLine.lineDepthAbs,
+        targetLineDepthRel: startLine.lineDepthRel
+      });
+      range4sel = rangy.createRange();
+      range4sel.collapseToPoint(newLine.line$[0].firstChild, 0);
+      return currSel.sel.setSingleRange(range4sel);
+    } else if (currSel.rangeIsStartLine) {
+      newLine = this._insertLineBefore({
+        sourceLine: startLine,
+        targetLineType: startLine.lineType,
+        targetLineDepthAbs: startLine.lineDepthAbs,
+        targetLineDepthRel: startLine.lineDepthRel
+      });
+      range4sel = rangy.createRange();
+      range4sel.collapseToPoint(startLine.line$[0].firstChild, 0);
+      return currSel.sel.setSingleRange(range4sel);
+    } else {
+      currSel.range.setEndBefore(startLine.line$[0].lastChild);
+      endOfLineFragment = currSel.range.extractContents();
+      currSel.range.deleteContents();
+      newLine = this._insertLineAfter({
+        sourceLine: startLine,
+        targetLineType: startLine.lineType,
+        targetLineDepthAbs: startLine.lineDepthAbs,
+        targetLineDepthRel: startLine.lineDepthRel,
+        fragment: endOfLineFragment
+      });
+      range4sel = rangy.createRange();
+      range4sel.collapseToPoint(newLine.line$[0].firstChild, 0);
+      currSel.sel.setSingleRange(range4sel);
+      return this.currentSel = null;
+    }
+  };
+
+  /* ------------------------------------------------------------------------
+  #  _findParent1stSibling
+  # 
+  # find the sibling line of the parent of line that is the first of the list
+  # ex :
+  #   . Sibling1 <= _findParent1stSibling(line)
+  #   . Sibling2
+  #   . Parent
+  #      . child1
+  #      . line     : the line in argument
+  # returns null if no previous sibling, the line otherwise
+  # the sibling is a title (Th, Tu or To), not a line (Lh nor Lu nor Lo)
+  */
+
+
+  CNeditor.prototype._findParent1stSibling = function(line) {
+    var lineDepthAbs, linePrev;
+    lineDepthAbs = line.lineDepthAbs;
+    linePrev = line.linePrev;
+    if (linePrev === null) {
+      return line;
+    }
+    if (lineDepthAbs <= 2) {
+      while (linePrev.linePrev !== null) {
+        linePrev = linePrev.linePrev;
+      }
+      return linePrev;
+    } else {
+      while (linePrev !== null && linePrev.lineDepthAbs > (lineDepthAbs - 2)) {
+        linePrev = linePrev.linePrev;
+      }
+      return linePrev.lineNext;
+    }
+  };
+
+  /* ------------------------------------------------------------------------
+  #  _findPrevSibling
+  # 
+  # find the previous sibling line.
+  # returns null if no previous sibling, the line otherwise
+  # the sibling is a title (Th, Tu or To), not a line (Lh nor Lu nor Lo)
+  */
+
+
+  CNeditor.prototype._findPrevSibling = function(line) {
+    var lineDepthAbs, linePrevSibling;
+    lineDepthAbs = line.lineDepthAbs;
+    linePrevSibling = line.linePrev;
+    if (linePrevSibling === null) {
+      return null;
+    } else if (linePrevSibling.lineDepthAbs < lineDepthAbs) {
+      return null;
+    } else {
+      while (linePrevSibling.lineDepthAbs > lineDepthAbs) {
+        linePrevSibling = linePrevSibling.linePrev;
+      }
+      while (linePrevSibling.lineType[0] === 'L') {
+        linePrevSibling = linePrevSibling.linePrev;
+      }
+      return linePrevSibling;
+    }
+  };
+
+  /* ------------------------------------------------------------------------
+  #  _deleteMultiLinesSelections
+  # 
+  # Delete the user multi line selection
+  #
+  # prerequisite : at least 2 different lines must be selected
+  # parameters   : startLine = first line to be deleted
+  #                endLine   = last line to be deleted
+  */
+
+
+  CNeditor.prototype._deleteMultiLinesSelections = function(startLine, endLine) {
+    var deltaDepth, deltaDepth1stLine, depthSibling, endLineDepthAbs, endNode, endOfLineFragment, firstLineAfterSiblingsOfDeleted, l, line, myEndLine, newDepth, newText, prevSiblingType, range, range4caret, range4fragment, replaceCaret, startContainer, startFrag, startLineDepthAbs, startNode, startOffset, _ref;
+    replaceCaret = true;
+    if (startLine !== void 0) {
+      replaceCaret = false;
+      range = rangy.createRange();
+      if (startLine === null) {
+        startLine = endLine;
+        endLine = endLine.lineNext;
+        this._putStartOnStart(range, startLine.line$[0].firstElementChild);
+        endLine.line$.prepend('<span></span>');
+        this._putEndOnStart(range, endLine.line$[0].firstElementChild);
+      } else {
+        startNode = startLine.line$[0].lastElementChild.previousElementSibling;
+        endNode = endLine.line$[0].lastElementChild.previousElementSibling;
+        range.setStartAfter(startNode, 0);
+        range.setEndAfter(endNode, 0);
+      }
+    } else {
+      this._findLines();
+      range = this.currentSel.range;
+      startContainer = range.startContainer;
+      startOffset = range.startOffset;
+      startLine = this.currentSel.startLine;
+      endLine = this.currentSel.endLine;
+    }
+    endLineDepthAbs = endLine.lineDepthAbs;
+    startLineDepthAbs = startLine.lineDepthAbs;
+    deltaDepth = endLineDepthAbs - startLineDepthAbs;
+    range4fragment = rangy.createRangyRange();
+    range4fragment.setStart(range.endContainer, range.endOffset);
+    range4fragment.setEndAfter(endLine.line$[0].lastChild);
+    endOfLineFragment = range4fragment.cloneContents();
+    if (endLine.lineType[1] === 'h' && startLine.lineType[1] !== 'h') {
+      if (endLine.lineType[0] === 'L') {
+        endLine.lineType = 'T' + endLine.lineType[1];
+        endLine.line$.prop("class", "" + endLine.lineType + "-" + endLine.lineDepthAbs);
+      }
+      this.markerList(endLine);
+    }
+    range.deleteContents();
+    if (startLine.line$[0].lastChild.nodeName === 'BR') {
+      startLine.line$[0].removeChild(startLine.line$[0].lastChild);
+    }
+    startFrag = endOfLineFragment.childNodes[0];
+    myEndLine = startLine.line$[0].lastElementChild;
+    if ((startFrag.tagName === (_ref = myEndLine.tagName) && _ref === 'SPAN') && startFrag.className === myEndLine.className) {
+      startOffset = myEndLine.textContent.length;
+      newText = myEndLine.textContent + startFrag.textContent;
+      myEndLine.innerHTML = newText;
+      startContainer = myEndLine.firstChild;
+      l = 1;
+      while (l < endOfLineFragment.childNodes.length) {
+        $(endOfLineFragment.childNodes[l]).appendTo(startLine.line$);
+        l++;
+      }
+    } else {
+      startLine.line$.append(endOfLineFragment);
+    }
+    startLine.lineNext = endLine.lineNext;
+    if (endLine.lineNext !== null) {
+      endLine.lineNext.linePrev = startLine;
+    }
+    endLine.line$.remove();
+    delete this._lines[endLine.lineID];
+    line = startLine.lineNext;
+    if (line !== null) {
+      deltaDepth1stLine = line.lineDepthAbs - startLineDepthAbs;
+      if (deltaDepth1stLine >= 1) {
+        while (line !== null && line.lineDepthAbs >= endLineDepthAbs) {
+          newDepth = line.lineDepthAbs - deltaDepth;
+          line.lineDepthAbs = newDepth;
+          line.line$.prop("class", "" + line.lineType + "-" + newDepth);
+          line = line.lineNext;
+        }
+      }
+    }
+    if (line !== null) {
+      if (line.lineType[0] === 'L') {
+        line.lineType = 'T' + line.lineType[1];
+        line.line$.prop("class", "" + line.lineType + "-" + line.lineDepthAbs);
+      }
+      firstLineAfterSiblingsOfDeleted = line;
+      depthSibling = line.lineDepthAbs;
+      line = line.linePrev;
+      while (line !== null && line.lineDepthAbs > depthSibling) {
+        line = line.linePrev;
+      }
+      if (line !== null) {
+        prevSiblingType = line.lineType;
+        if (firstLineAfterSiblingsOfDeleted.lineType !== prevSiblingType) {
+          if (prevSiblingType[1] === 'h') {
+            this._line2titleList(firstLineAfterSiblingsOfDeleted);
+          } else {
+            this.markerList(firstLineAfterSiblingsOfDeleted);
+          }
+        }
+      }
+    }
+    if (replaceCaret) {
+      range4caret = rangy.createRange();
+      range4caret.collapseToPoint(startContainer, startOffset);
+      this.currentSel.sel.setSingleRange(range4caret);
+      return this.currentSel = null;
+    }
+  };
+
+  /* ------------------------------------------------------------------------
+  #  _insertLineAfter
+  # 
+  # Insert a line after a source line
+  # The line will be inserted in the parent of the source line (which can be 
+  # the editor or a fragment in the case of the paste for instance)
+  # p = 
+  #     sourceLine         : line after which the line will be added
+  #     fragment           : [optionnal] - an html fragment that will be added
+  #                          in the div of the line.
+  #     innerHTML          : [optionnal] - an html string that will be added
+  #     targetLineType     : type of the line to add
+  #     targetLineDepthAbs : absolute depth of the line to add
+  #     targetLineDepthRel : relative depth of the line to add
+  */
+
+
+  CNeditor.prototype._insertLineAfter = function(p) {
+    var lineID, newLine, newLine$, sourceLine;
+    this._highestId += 1;
+    lineID = 'CNID_' + this._highestId;
+    if (p.fragment != null) {
+      newLine$ = $("<div id='" + lineID + "' class='" + p.targetLineType + "-" + p.targetLineDepthAbs + "'></div>");
+      newLine$.append(p.fragment);
+      if (newLine$[0].childNodes.length === 0 || newLine$[0].lastChild.nodeName !== 'BR') {
+        newLine$.append('<br>');
+      }
+    } else if (p.innerHTML != null) {
+      newLine$ = $("<div id='" + lineID + "' class='" + p.targetLineType + "-" + p.targetLineDepthAbs + "'>                " + p.innerHTML + "</div>");
+      if (newLine$[0].lastChild.nodeName !== 'BR') {
+        newLine$.append('<br>');
+      }
+    } else {
+      newLine$ = $("<div id='" + lineID + "' class='" + p.targetLineType + "-" + p.targetLineDepthAbs + "'></div>");
+      newLine$.append($('<span></span><br>'));
+    }
+    sourceLine = p.sourceLine;
+    newLine$ = newLine$.insertAfter(sourceLine.line$);
+    newLine = {
+      line$: newLine$,
+      lineID: lineID,
+      lineType: p.targetLineType,
+      lineDepthAbs: p.targetLineDepthAbs,
+      lineDepthRel: p.targetLineDepthRel,
+      lineNext: sourceLine.lineNext,
+      linePrev: sourceLine
+    };
+    this._lines[lineID] = newLine;
+    if (sourceLine.lineNext !== null) {
+      sourceLine.lineNext.linePrev = newLine;
+    }
+    sourceLine.lineNext = newLine;
+    return newLine;
+  };
+
+  /* ------------------------------------------------------------------------
+  #  _insertLineBefore
+  # 
+  # Insert a line before a source line
+  # p = 
+  #     sourceLine         : ID of the line before which a line will be added
+  #     fragment           : [optionnal] - an html fragment that will be added
+  #     targetLineType     : type of the line to add
+  #     targetLineDepthAbs : absolute depth of the line to add
+  #     targetLineDepthRel : relative depth of the line to add
+  */
+
+
+  CNeditor.prototype._insertLineBefore = function(p) {
+    var lineID, newLine, newLine$, sourceLine;
+    this._highestId += 1;
+    lineID = 'CNID_' + this._highestId;
+    newLine$ = $("<div id='" + lineID + "' class='" + p.targetLineType + "-" + p.targetLineDepthAbs + "'></div>");
+    if (p.fragment != null) {
+      newLine$.append(p.fragment);
+      newLine$.append($('<br>'));
+    } else {
+      newLine$.append($('<span></span><br>'));
+    }
+    sourceLine = p.sourceLine;
+    newLine$ = newLine$.insertBefore(sourceLine.line$);
+    newLine = {
+      line$: newLine$,
+      lineID: lineID,
+      lineType: p.targetLineType,
+      lineDepthAbs: p.targetLineDepthAbs,
+      lineDepthRel: p.targetLineDepthRel,
+      lineNext: sourceLine,
+      linePrev: sourceLine.linePrev
+    };
+    this._lines[lineID] = newLine;
+    if (sourceLine.linePrev !== null) {
+      sourceLine.linePrev.lineNext = newLine;
+    }
+    sourceLine.linePrev = newLine;
+    return newLine;
+  };
+
+  /* ------------------------------------------------------------------------
+  #  _findLines
+  #  
+  # Finds :
+  #   First and last line of selection. 
+  # Remark :
+  #   Only the first range of the selections is taken into account.
+  # Returns : 
+  #   sel : the selection
+  #   range : the 1st range of the selections
+  #   startLine : the 1st line of the range
+  #   endLine : the last line of the range
+  */
+
+
+  CNeditor.prototype._findLines = function() {
+    var endContainer, endLine, initialEndOffset, initialStartOffset, range, sel, startContainer, startLine;
+    if (this.currentSel === null) {
+      sel = this.getEditorSelection();
+      range = sel.getRangeAt(0);
+      startContainer = range.startContainer;
+      endContainer = range.endContainer;
+      initialStartOffset = range.startOffset;
+      initialEndOffset = range.endOffset;
+      if ((endContainer.id != null) && endContainer.id.substr(0, 5) === 'CNID_') {
+        endLine = this._lines[endContainer.id];
+      } else {
+        endLine = this._lines[$(endContainer).parents("div")[0].id];
+      }
+      if (startContainer.nodeName === 'DIV') {
+        startLine = this._lines[startContainer.id];
+      } else {
+        startLine = this._lines[$(startContainer).parents("div")[0].id];
+      }
+      return this.currentSel = {
+        sel: sel,
+        range: range,
+        startLine: startLine,
+        endLine: endLine,
+        rangeIsStartLine: null,
+        rangeIsEndLine: null
+      };
+    }
+  };
+
+  /* ------------------------------------------------------------------------
+  #  _findLinesAndIsStartIsEnd
+  # 
+  # Finds :
+  #   first and last line of selection 
+  #   wheter the selection starts at the beginning of startLine or not
+  #   wheter the selection ends at the end of endLine or not
+  # 
+  # Remark :
+  #   Only the first range of the selections is taken into account.
+  #
+  # Returns : 
+  #   sel   : the selection
+  #   range : the 1st range of the selections
+  #   startLine : the 1st line of the range
+  #   endLine   : the last line of the range
+  #   rangeIsEndLine   : true if the range ends at the end of the last line
+  #   rangeIsStartLine : true if the range starts at the start of 1st line
+  */
+
+
+  CNeditor.prototype._findLinesAndIsStartIsEnd = function() {
+    var endContainer, endLine, initialEndOffset, initialStartOffset, nextSibling, parentEndContainer, parentStartContainer, range, rangeIsEndLine, rangeIsStartLine, sel, startContainer, startLine;
+    if (this.currentSel === null) {
+      sel = this.getEditorSelection();
+      range = sel.getRangeAt(0);
+      startContainer = range.startContainer;
+      endContainer = range.endContainer;
+      initialStartOffset = range.startOffset;
+      initialEndOffset = range.endOffset;
+      if ((endContainer.id != null) && endContainer.id.substr(0, 5) === 'CNID_') {
+        endLine = this._lines[endContainer.id];
+        rangeIsEndLine = endContainer.children.length < initialEndOffset || endContainer.children[initialEndOffset].nodeName === "BR";
+      } else {
+        endLine = this._lines[$(endContainer).parents("div")[0].id];
+        rangeIsEndLine = false;
+        if (endContainer.nodeType === Node.TEXT_NODE) {
+          rangeIsEndLine = endContainer.nextSibling === null && initialEndOffset === endContainer.textContent.length;
+        } else {
+          rangeIsEndLine = endContainer.nodeName === 'BR' || (endContainer.nextSibling.nodeName === 'BR' && endContainer.childNodes.length === initialEndOffset);
+        }
+        parentEndContainer = endContainer.parentNode;
+        while (rangeIsEndLine && parentEndContainer.nodeName !== "DIV") {
+          nextSibling = parentEndContainer.nextSibling;
+          rangeIsEndLine = nextSibling === null || nextSibling.nodeName === 'BR';
+          parentEndContainer = parentEndContainer.parentNode;
+        }
+      }
+      if (startContainer.nodeName === 'DIV') {
+        startLine = this._lines[startContainer.id];
+        rangeIsStartLine = initialStartOffset === 0;
+      } else {
+        startLine = this._lines[$(startContainer).parents("div")[0].id];
+        if (startContainer.nodeType === Node.TEXT_NODE) {
+          rangeIsStartLine = endContainer.previousSibling === null && initialStartOffset === 0;
+        } else {
+          rangeIsStartLine = initialStartOffset === 0;
+        }
+        parentStartContainer = startContainer.parentNode;
+        while (rangeIsStartLine && parentStartContainer.nodeName !== "DIV") {
+          rangeIsStartLine = parentStartContainer.previousSibling === null;
+          parentStartContainer = parentStartContainer.parentNode;
+        }
+      }
+      if (endLine.line$[0].innerHTML === "<span></span><br>") {
+        rangeIsEndLine = true;
+      }
+      if (startLine.line$[0].innerHTML === "<span></span><br>") {
+        rangeIsStartLine = true;
+      }
+      return this.currentSel = {
+        sel: sel,
+        range: range,
+        startLine: startLine,
+        endLine: endLine,
+        rangeIsStartLine: rangeIsStartLine,
+        rangeIsEndLine: rangeIsEndLine
+      };
+    }
+  };
+
+  /*  -----------------------------------------------------------------------
+  #   _readHtml
+  # 
+  # Parse a raw html inserted in the iframe in order to update the controler
+  */
+
+
+  CNeditor.prototype._readHtml = function() {
+    var DeltaDepthAbs, htmlLine, htmlLine$, lineClass, lineDepthAbs, lineDepthAbs_old, lineDepthRel, lineDepthRel_old, lineID, lineID_st, lineNew, lineNext, linePrev, lineType, linesDiv$, _i, _len, _ref;
+    linesDiv$ = this.editorBody$.children();
+    lineDepthAbs = 0;
+    lineDepthRel = 0;
+    lineID = 0;
+    this._lines = {};
+    linePrev = null;
+    lineNext = null;
+    for (_i = 0, _len = linesDiv$.length; _i < _len; _i++) {
+      htmlLine = linesDiv$[_i];
+      htmlLine$ = $(htmlLine);
+      lineClass = (_ref = htmlLine$.attr('class')) != null ? _ref : "";
+      lineClass = lineClass.split('-');
+      lineType = lineClass[0];
+      if (lineType !== "") {
+        lineDepthAbs_old = lineDepthAbs;
+        lineDepthAbs = +lineClass[1];
+        DeltaDepthAbs = lineDepthAbs - lineDepthAbs_old;
+        lineDepthRel_old = lineDepthRel;
+        if (lineType === "Th") {
+          lineDepthRel = 0;
+        } else {
+          lineDepthRel = lineDepthRel_old + DeltaDepthAbs;
+        }
+        lineID = parseInt(lineID, 10) + 1;
+        lineID_st = "CNID_" + lineID;
+        htmlLine$.prop("id", lineID_st);
+        lineNew = {
+          line$: htmlLine$,
+          lineID: lineID_st,
+          lineType: lineType,
+          lineDepthAbs: lineDepthAbs,
+          lineDepthRel: lineDepthRel,
+          lineNext: null,
+          linePrev: linePrev
+        };
+        if (linePrev !== null) {
+          linePrev.lineNext = lineNew;
+        }
+        linePrev = lineNew;
+        this._lines[lineID_st] = lineNew;
+      }
+    }
+    return this._highestId = lineID;
+  };
+
+  /* ------------------------------------------------------------------------
+  # LINES MOTION MANAGEMENT
+  # 
+  # Functions to perform the motion of an entire block of lines
+  # BUG : when doubleclicking on an end of line then moving this line
+  #       down, selection does not behaves as expected :-)
+  # TODO: correct behavior when moving the second line up
+  # TODO: correct behavior when moving the first line down
+  # TODO: improve re-insertion of the line swapped with the block
+  */
+
+
+  /* ------------------------------------------------------------------------
+  # _moveLinesDown:
+  #
+  # -variables:
+  #    linePrev                                       linePrev
+  #    lineStart__________                            lineNext
+  #    |.                 | The block                 lineStart_______
+  #    |.                 | to move down      ==>     |.              |
+  #    lineEnd____________|                           |.              |
+  #    lineNext                                       lineEnd_________|
+  #
+  # -algorithm:
+  #    1.delete lineNext with _deleteMultilinesSelections()
+  #    2.insert lineNext between linePrev and lineStart
+  #    3.if lineNext is more indented than linePrev, untab lineNext
+  #      until it is ok
+  #    4.else (lineNext less indented than linePrev), select the block
+  #      (lineStart and some lines below) that is more indented than lineNext
+  #      and untab it until it is ok
+  */
+
+
+  CNeditor.prototype._moveLinesDown = function() {
+    var cloneLine, endDiv, endLineID, line, lineEnd, lineNext, linePrev, lineStart, myRange, numOfUntab, range, sel, startDiv, startLineID, _results, _results1;
+    sel = this.getEditorSelection();
+    range = sel.getRangeAt(0);
+    if (range.startContainer.nodeName === 'BODY') {
+      startDiv = range.startContainer.children[range.startOffset];
+    } else {
+      startDiv = range.startContainer;
+    }
+    if (range.endContainer.nodeName === "BODY") {
+      endDiv = range.endContainer.children[range.endOffset - 1];
+    } else {
+      endDiv = range.endContainer;
+    }
+    if (startDiv.nodeName !== "DIV") {
+      startDiv = $(startDiv).parents("div")[0];
+    }
+    startLineID = startDiv.id;
+    if (endDiv.nodeName !== "DIV") {
+      endDiv = $(endDiv).parents("div")[0];
+    }
+    endLineID = endDiv.id;
+    lineStart = this._lines[startLineID];
+    lineEnd = this._lines[endLineID];
+    linePrev = lineStart.linePrev;
+    lineNext = lineEnd.lineNext;
+    if (lineNext !== null) {
+      cloneLine = {
+        line$: lineNext.line$.clone(),
+        lineID: lineNext.lineID,
+        lineType: lineNext.lineType,
+        lineDepthAbs: lineNext.lineDepthAbs,
+        lineDepthRel: lineNext.lineDepthRel,
+        linePrev: lineNext.linePrev,
+        lineNext: lineNext.lineNext
+      };
+      this._deleteMultiLinesSelections(lineEnd, lineNext);
+      lineNext = cloneLine;
+      this._lines[lineNext.lineID] = lineNext;
+      lineNext.linePrev = linePrev;
+      lineStart.linePrev = lineNext;
+      if (lineNext.lineNext !== null) {
+        lineNext.lineNext.linePrev = lineEnd;
+      }
+      lineEnd.lineNext = lineNext.lineNext;
+      lineNext.lineNext = lineStart;
+      if (linePrev !== null) {
+        linePrev.lineNext = lineNext;
+      }
+      lineStart.line$.before(lineNext.line$);
+      if (linePrev === null) {
+        return;
+      }
+      if (lineNext.lineDepthAbs <= linePrev.lineDepthAbs) {
+        line = lineNext;
+        while (line.lineNext !== null && line.lineNext.lineDepthAbs > lineNext.lineDepthAbs) {
+          line = line.lineNext;
+        }
+        if (line.lineNext !== null) {
+          line = line.lineNext;
+        }
+        myRange = rangy.createRange();
+        myRange.setStart(lineStart.line$[0], 0);
+        myRange.setEnd(line.line$[0], 0);
+        numOfUntab = lineStart.lineDepthAbs - lineNext.lineDepthAbs;
+        if (lineNext.lineNext.lineType[0] === 'T') {
+          if (lineStart.lineType[0] === 'T') {
+            numOfUntab -= 1;
+          } else {
+            numOfUntab += 1;
+          }
+        }
+        _results = [];
+        while (numOfUntab >= 0) {
+          this.shiftTab(myRange);
+          _results.push(numOfUntab -= 1);
+        }
+        return _results;
+      } else {
+        myRange = rangy.createRange();
+        myRange.setStart(lineNext.line$[0], 0);
+        myRange.setEnd(lineNext.line$[0], 0);
+        numOfUntab = lineNext.lineDepthAbs - linePrev.lineDepthAbs;
+        if (lineStart.lineType[0] === 'T') {
+          if (linePrev.lineType[0] === 'T') {
+            numOfUntab -= 1;
+          } else {
+            numOfUntab += 1;
+          }
+        }
+        _results1 = [];
+        while (numOfUntab >= 0) {
+          this.shiftTab(myRange);
+          _results1.push(numOfUntab -= 1);
+        }
+        return _results1;
+      }
+    }
+  };
+
+  /* ------------------------------------------------------------------------
+  # _moveLinesUp:
+  #
+  # -variables:
+  #    linePrev                                   lineStart_________
+  #    lineStart__________                        |.                |
+  #    |.                 | The block             |.                |
+  #    |.                 | to move up     ==>    lineEnd___________|
+  #    lineEnd____________|                       linePrev
+  #    lineNext                                   lineNext
+  #
+  # -algorithm:
+  #    1.delete linePrev with _deleteMultilinesSelections()
+  #    2.insert linePrev between lineEnd and lineNext
+  #    3.if linePrev is more indented than lineNext, untab linePrev
+  #      until it is ok
+  #    4.else (linePrev less indented than lineNext), select the block
+  #      (lineNext and some lines below) that is more indented than linePrev
+  #      and untab it until it is ok
+  */
+
+
+  CNeditor.prototype._moveLinesUp = function() {
+    var cloneLine, endDiv, endLineID, isSecondLine, line, lineEnd, lineNext, linePrev, lineStart, myRange, numOfUntab, range, sel, startDiv, startLineID, _results, _results1;
+    sel = this.getEditorSelection();
+    range = sel.getRangeAt(0);
+    if (range.startContainer.nodeName === 'BODY') {
+      startDiv = range.startContainer.children[range.startOffset];
+    } else {
+      startDiv = range.startContainer;
+    }
+    if (range.endContainer.nodeName === "BODY") {
+      endDiv = range.endContainer.children[range.endOffset - 1];
+    } else {
+      endDiv = range.endContainer;
+    }
+    if (startDiv.nodeName !== "DIV") {
+      startDiv = $(startDiv).parents("div")[0];
+    }
+    startLineID = startDiv.id;
+    if (endDiv.nodeName !== "DIV") {
+      endDiv = $(endDiv).parents("div")[0];
+    }
+    endLineID = endDiv.id;
+    lineStart = this._lines[startLineID];
+    lineEnd = this._lines[endLineID];
+    linePrev = lineStart.linePrev;
+    lineNext = lineEnd.lineNext;
+    if (linePrev !== null) {
+      isSecondLine = linePrev.linePrev === null;
+      cloneLine = {
+        line$: linePrev.line$.clone(),
+        lineID: linePrev.lineID,
+        lineType: linePrev.lineType,
+        lineDepthAbs: linePrev.lineDepthAbs,
+        lineDepthRel: linePrev.lineDepthRel,
+        linePrev: linePrev.linePrev,
+        lineNext: linePrev.lineNext
+      };
+      this._deleteMultiLinesSelections(linePrev.linePrev, linePrev);
+      if (isSecondLine) {
+        $(linePrev.line$[0].firstElementChild).remove();
+        linePrev.line$.append('<br>');
+        lineStart.line$ = linePrev.line$;
+        lineStart.line$.attr('id', lineStart.lineID);
+        this._lines[lineStart.lineID] = lineStart;
+      }
+      linePrev = cloneLine;
+      this._lines[linePrev.lineID] = linePrev;
+      linePrev.lineNext = lineNext;
+      lineEnd.lineNext = linePrev;
+      if (linePrev.linePrev !== null) {
+        linePrev.linePrev.lineNext = lineStart;
+      }
+      lineStart.linePrev = linePrev.linePrev;
+      linePrev.linePrev = lineEnd;
+      if (lineNext !== null) {
+        lineNext.linePrev = linePrev;
+      }
+      lineEnd.line$.after(linePrev.line$);
+      if (linePrev.lineDepthAbs <= lineEnd.lineDepthAbs && lineNext !== null) {
+        line = linePrev;
+        while (line.lineNext !== null && line.lineNext.lineDepthAbs > linePrev.lineDepthAbs) {
+          line = line.lineNext;
+        }
+        if (line.lineNext !== null) {
+          line = line.lineNext;
+        }
+        myRange = rangy.createRange();
+        myRange.setStart(lineNext.line$[0], 0);
+        myRange.setEnd(line.line$[0], 0);
+        numOfUntab = lineNext.lineDepthAbs - linePrev.lineDepthAbs;
+        if (linePrev.lineNext.lineType[0] === 'T') {
+          if (linePrev.lineType[0] === 'T') {
+            numOfUntab -= 1;
+          } else {
+            numOfUntab += 1;
+          }
+        }
+        _results = [];
+        while (numOfUntab >= 0) {
+          this.shiftTab(myRange);
+          _results.push(numOfUntab -= 1);
+        }
+        return _results;
+      } else {
+        myRange = rangy.createRange();
+        myRange.setStart(linePrev.line$[0], 0);
+        myRange.setEnd(linePrev.line$[0], 0);
+        numOfUntab = linePrev.lineDepthAbs - lineEnd.lineDepthAbs;
+        if (linePrev.lineType[0] === 'T') {
+          if (lineEnd.lineType[0] === 'T') {
+            numOfUntab -= 1;
+          } else {
+            numOfUntab += 1;
+          }
+        }
+        _results1 = [];
+        while (numOfUntab >= 0) {
+          this.shiftTab(myRange);
+          _results1.push(numOfUntab -= 1);
+        }
+        return _results1;
+      }
+    }
+  };
+
+  /* ------------------------------------------------------------------------
+  #  HISTORY MANAGEMENT:
+  # 1. _addHistory (Save html code, selection markers, positions...)
+  # 2. undoPossible (Return true only if unDo can be called)
+  # 3. redoPossible (Return true only if reDo can be called)
+  # 4. unDo (Undo the previous action)
+  # 5. reDo ( Redo a undo-ed action)
+  #
+  # What is saved in the history:
+  #  - current html content
+  #  - current selection
+  #  - current scrollbar position
+  #  - the boolean newPosition
+  */
+
+
+  /* -------------------------------------------------------------------------
+  #  _addHistory
+  # 
+  # Add html code and selection markers and scrollbar positions to the history
+  */
+
+
+  CNeditor.prototype._addHistory = function() {
+    var savedScroll, savedSel;
+    savedSel = this.saveEditorSelection();
+    this._history.historySelect.push(savedSel);
+    savedScroll = {
+      xcoord: this.editorBody$.scrollTop(),
+      ycoord: this.editorBody$.scrollLeft()
+    };
+    this._history.historyScroll.push(savedScroll);
+    this._history.historyPos.push(this.newPosition);
+    this._history.history.push(this.editorBody$.html());
+    rangy.removeMarkers(savedSel);
+    return this._history.index = this._history.history.length - 1;
+  };
+
+  /* -------------------------------------------------------------------------
+  #  undoPossible
+  # Return true only if unDo can be called
+  */
+
+
+  CNeditor.prototype.undoPossible = function() {
+    return this._history.index > 0;
+  };
+
+  /* -------------------------------------------------------------------------
+  #  redoPossible
+  # Return true only if reDo can be called
+  */
+
+
+  CNeditor.prototype.redoPossible = function() {
+    return this._history.index < this._history.history.length - 2;
+  };
+
+  /* -------------------------------------------------------------------------
+  #  unDo :
+  # Undo the previous action
+  */
+
+
+  CNeditor.prototype.unDo = function() {
+    var savedSel, xcoord, ycoord;
+    if (this.undoPossible()) {
+      if (this._history.index === this._history.history.length - 1) {
+        this._addHistory();
+        this._history.index -= 1;
+      }
+      this.newPosition = this._history.historyPos[this._history.index];
+      this.editorBody$.html(this._history.history[this._history.index]);
+      savedSel = this._history.historySelect[this._history.index];
+      savedSel.restored = false;
+      rangy.restoreSelection(savedSel);
+      xcoord = this._history.historyScroll[this._history.index].xcoord;
+      ycoord = this._history.historyScroll[this._history.index].ycoord;
+      this.editorBody$.scrollTop(xcoord);
+      this.editorBody$.scrollLeft(ycoord);
+      this._readHtml();
+      return this._history.index -= 1;
+    }
+  };
+
+  /* -------------------------------------------------------------------------
+  #  reDo :
+  # Redo a undo-ed action
+  */
+
+
+  CNeditor.prototype.reDo = function() {
+    var savedSel, xcoord, ycoord;
+    if (this.redoPossible()) {
+      this.newPosition = this._history.historyPos[this._history.index + 1];
+      this._history.index += 1;
+      this.editorBody$.html(this._history.history[this._history.index + 1]);
+      savedSel = this._history.historySelect[this._history.index + 1];
+      savedSel.restored = false;
+      rangy.restoreSelection(savedSel);
+      xcoord = this._history.historyScroll[this._history.index + 1].xcoord;
+      ycoord = this._history.historyScroll[this._history.index + 1].ycoord;
+      this.editorBody$.scrollTop(xcoord);
+      this.editorBody$.scrollLeft(ycoord);
+      return this._readHtml();
+    }
+  };
+
+  /* ------------------------------------------------------------------------
+  # EXTENSION  :  auto-summary management and upkeep
+  # 
+  # initialization
+  # TODO: avoid updating the summary too often
+  #       it would be best to make the update faster (rather than reading
+  #       every line)
+  */
+
+
+  CNeditor.prototype._initSummary = function() {
+    var summary;
+    summary = this.editorBody$.children("#navi");
+    if (summary.length === 0) {
+      summary = $(document.createElement('div'));
+      summary.attr('id', 'navi');
+      summary.prependTo(this.editorBody$);
+    }
+    return summary;
+  };
+
+  CNeditor.prototype._buildSummary = function() {
+    var c, lines, summary, _results;
+    summary = this.initSummary();
+    this.editorBody$.children("#navi").children().remove();
+    lines = this._lines;
+    _results = [];
+    for (c in lines) {
+      if (this.editorBody$.children("#" + ("" + lines[c].lineID)).length > 0 && lines[c].lineType === "Th") {
+        _results.push(lines[c].line$.clone().appendTo(summary));
+      } else {
+        _results.push(void 0);
+      }
+    }
+    return _results;
+  };
+
+  /* ------------------------------------------------------------------------
+  #  EXTENSION  :  DECORATION FUNCTIONS (bold/italic/underlined/quote)
+  #  TODO
+  */
+
+
+  /* ------------------------------------------------------------------------
+  #  PASTE MANAGEMENT
+  # 0 - save selection
+  # 1 - move the cursor into an invisible sandbox
+  # 2 - redirect pasted content in this sandox
+  # 3 - sanitize and adapt pasted content to the editor's format
+  # 4 - restore selection
+  # 5 - insert cleaned content is behind the cursor position
+  */
+
+
+  CNeditor.prototype.paste = function(event) {
+    var mySandBox, range, sel;
+    mySandBox = this.clipboard;
+    this._findLinesAndIsStartIsEnd();
+    range = rangy.createRange();
+    range.selectNodeContents(mySandBox);
+    sel = this.getEditorSelection();
+    sel.setSingleRange(range);
+    range.detach();
+    console.log("event :");
+    console.log(event);
+    if (event && event.clipboardData && event.clipboardData.getData) {
+      if (event.clipboardData.types === "text/html") {
+        mySandBox.innerHTML = event.clipboardData.getData('text/html');
+      } else if (event.clipboardData.types === "text/plain") {
+        mySandBox.innerHTML = event.clipboardData.getData('text/plain');
+      } else {
+        mySandBox.innerHTML = "";
+      }
+      this._waitForPasteData(mySandBox);
+      if (event.preventDefault) {
+        event.stopPropagation();
+        event.preventDefault();
+      }
+      return false;
+    } else {
+      mySandBox.innerHTML = "";
+      this._waitForPasteData(mySandBox);
+      return true;
+    }
+  };
+
+  /**
+   * init the div where the browser will actualy paste.
+   * this method is called after each refresh of the content of the editor (
+   * replaceContent, deleteContent, setEditorContent)
+   * TODO : should be called just once at editor init : for this the editable
+   * content shouldn't be directly in the body of the iframe but in a div.
+   * @return {obj} a ref to the clipboard div
+  */
+
+
+  CNeditor.prototype._initClipBoard = function() {
+    var clipboard$, getOffTheScreen;
+    clipboard$ = $(document.createElement('div'));
+    getOffTheScreen = {
+      left: -300
+    };
+    clipboard$.offset(getOffTheScreen);
+    clipboard$.prependTo(this.editorBody$);
+    this.clipboard = clipboard$[0];
+    this.clipboard.style.setProperty('width', '280px');
+    this.clipboard.style.setProperty('position', 'fixed');
+    this.clipboard.style.setProperty('overflow', 'hidden');
+    return this.clipboard;
+  };
+
+  /**
+   * Function that will call itself until the browser has pasted data in the
+   * clipboar div
+   * @param  {element} sandbox      the div where the browser will paste data
+   * @param  {function} processpaste the function to call back whan paste 
+   * is ok
+  */
+
+
+  CNeditor.prototype._waitForPasteData = function() {
+    if (this.clipboard.childNodes && this.clipboard.childNodes.length > 0) {
+      return this._processPaste();
+    } else {
+      return setTimeout(this._waitForPasteData, 10);
+    }
+  };
+
+  /*
+       * Called when the browser has pasted data in the clipboard div. Its role is to
+       * insert the content of the clipboard into the editor.
+       * @param  {element} sandbox
+  */
+
+
+  CNeditor.prototype._processPaste = function() {
+    var absDepth, caretOffset, caretTextNodeTarget, currSel, currentLineFrag, domWalkContext, dummyLine, elToInsert, endLine, endOffset, endTargetLineFrag, firstAddedLine, frag, htmlStr, i, line, lineElements, lineNextStartLine, nbElements, newText, parendDiv, range, sandbox, secondAddedLine, startLine, startOffset, targetNode, targetText, txt;
+    console.log("process paste");
+    sandbox = this.clipboard;
+    currSel = this.currentSel;
+    sandbox.innerHTML = sanitize(sandbox.innerHTML).xss();
+    frag = document.createDocumentFragment();
+    dummyLine = {
+      lineNext: null,
+      linePrev: null,
+      line$: $("<div id='dummy' class='Tu-1'></div>")
+    };
+    frag.appendChild(dummyLine.line$[0]);
+    currentLineFrag = document.createDocumentFragment();
+    absDepth = currSel.startLine.lineDepthAbs;
+    if (currSel.startLine.lineType === 'Th') {
+      absDepth += 1;
+    }
+    domWalkContext = {
+      absDepth: absDepth,
+      prevHxLevel: null,
+      frag: frag,
+      prevCNLineAbsDepth: null,
+      lastAddedLine: dummyLine,
+      currentLineFrag: currentLineFrag,
+      currentLineEl: currentLineFrag,
+      isCurrentLineBeingPopulated: false
+    };
+    htmlStr = this._domWalk(sandbox, domWalkContext);
+    sandbox.innerHTML = "";
+    frag.removeChild(frag.firstChild);
+    console.log(frag);
+    /*
+            # TODO : the following steps removes all the styles of the lines in frag
+            # Later this will be removed in order to take into account styles.
+    */
+
+    i = 0;
+    while (i < frag.childNodes.length) {
+      line = frag.childNodes[i];
+      txt = line.textContent;
+      line.innerHTML = '<span></span><br>';
+      line.firstChild.appendChild(document.createTextNode(txt));
+      i += 1;
+    }
+    /*
+            # END TODO
+    */
+
+    startLine = currSel.startLine;
+    endLine = currSel.endLine;
+    if (currSel.range.collapsed) {
+
+    } else if (endLine === startLine) {
+      currSel.range.deleteContents();
+    } else {
+      this._deleteMultiLinesSelections();
+      currSel = this._findLinesAndIsStartIsEnd();
+      startLine = currSel.startLine;
+    }
+    targetNode = currSel.range.startContainer;
+    startOffset = currSel.range.startOffset;
+    if (targetNode.length) {
+      endOffset = targetNode.length - startOffset;
+    } else {
+      endOffset = targetNode.childNodes.length - startOffset;
+    }
+    i = 0;
+    lineElements = frag.firstChild.childNodes;
+    nbElements = lineElements.length;
+    while (i < nbElements - 1) {
+      elToInsert = lineElements[i];
+      i += 1;
+      if ((elToInsert.tagName === 'SPAN') && (targetNode.tagName === 'SPAN' || targetNode.nodeType === Node.TEXT_NODE)) {
+        targetText = targetNode.textContent;
+        newText = targetText.substr(0, startOffset);
+        newText += elToInsert.textContent;
+        newText += targetText.substr(startOffset);
+        targetNode.textContent = newText;
+        startOffset += elToInsert.textContent.length;
+      }
+    }
+    if (frag.childNodes.length > 1) {
+      range = document.createRange();
+      range.setStart(targetNode, startOffset);
+      parendDiv = targetNode;
+      while (parendDiv.tagName !== 'DIV') {
+        parendDiv = parendDiv.parentElement;
+      }
+      range.setEnd(parendDiv, parendDiv.children.length - 1);
+      endTargetLineFrag = range.extractContents();
+      range.detach();
+      this._insertFrag(frag.lastChild, frag.lastChild.children.length - 1, endTargetLineFrag);
+      parendDiv = targetNode;
+      while (parendDiv.tagName !== 'DIV') {
+        parendDiv = parendDiv.parentElement;
+      }
+    }
+    firstAddedLine = dummyLine.lineNext;
+    secondAddedLine = firstAddedLine.lineNext;
+    frag.removeChild(frag.firstChild);
+    delete this._lines[firstAddedLine.lineID];
+    if (secondAddedLine !== null) {
+      lineNextStartLine = currSel.startLine.lineNext;
+      currSel.startLine.lineNext = secondAddedLine;
+      secondAddedLine.linePrev = currSel.startLine;
+      if (lineNextStartLine === null) {
+        this.editorBody$[0].appendChild(frag);
+      } else {
+        domWalkContext.lastAddedLine.lineNext = lineNextStartLine;
+        lineNextStartLine.linePrev = domWalkContext.lastAddedLine;
+        this.editorBody$[0].insertBefore(frag, lineNextStartLine.line$[0]);
+      }
+    }
+    if (secondAddedLine !== null) {
+      caretTextNodeTarget = lineNextStartLine.linePrev.line$[0].childNodes[0].firstChild;
+      caretOffset = caretTextNodeTarget.length - endOffset;
+      return currSel.sel.collapse(caretTextNodeTarget, caretOffset);
+    } else {
+      return currSel.sel.collapse(targetNode, startOffset);
+    }
+  };
+
+  /**
+   * Insert a frag in a node container at startOffset
+   * ASSERTION : 
+   * TODO : this method could be also used in _deleteMultiLinesSelections 
+   * especialy if _insertFrag optimizes the insertion by fusionning cleverly
+   * the elements
+   * @param  {Node} targetContainer the node where to make the insert
+   * @param  {Integer} targetOffset    the offset of insertion in targetContainer
+   * @param  {fragment} frag           the fragment to insert
+   * @return {nothing}                nothing
+  */
+
+
+  CNeditor.prototype._insertFrag = function(targetContainer, targetOffset, frag) {
+    var range, targetNode;
+    if (targetOffset === 0) {
+      range = document.createRange();
+      range.setStart(startContainer, startOffset);
+      range.setEnd(startContainer, startOffset);
+      range.insertNode(frag);
+      return range.detach();
+    } else {
+      if (frag.childNodes.length > 0) {
+        targetNode = targetContainer.childNodes[targetOffset - 1];
+        return targetNode.textContent += frag.firstChild.textContent;
+      }
+    }
+  };
+
+  /**
+   * Walks thoug an html tree in order to convert it in a strutured content
+   * that fit to a note structure.
+   * @param  {html element} elemt   Reference to an html element to be parsed
+   * @param  {object} context _domWalk is recursive and its context of execution
+   *                  is kept in this param instead of using the editor context
+   *                  (quicker and better) isolation
+  */
+
+
+  CNeditor.prototype._domWalk = function(elemt, context) {
+    var p;
+    this.__domWalk(elemt, context);
+    if (context.currentLineFrag.childNodes.length > 0) {
+      p = {
+        sourceLine: context.lastAddedLine,
+        fragment: context.currentLineFrag,
+        targetLineType: "Tu",
+        targetLineDepthAbs: context.absDepth,
+        targetLineDepthRel: context.absDepth
+      };
+      return context.lastAddedLine = this._insertLineAfter(p);
+    }
+  };
+
+  /**
+   * Walks thoug an html tree in order to convert it in a strutured content
+   * that fit to a note structure.
+   * @param  {html element} nodeToParse   Reference to an html element to 
+   *                        be parsed
+   * @param  {object} context __domWalk is recursive and its context of 
+   *                          execution is kept in this param instead of 
+   *                          using the editor context (quicker and better) 
+   *                          isolation
+  */
+
+
+  CNeditor.prototype.__domWalk = function(nodeToParse, context) {
+    var absDepth, child, deltaHxLevel, lastInsertedEl, prevHxLevel, spanNode, spaneEl, txtNode, _i, _len, _ref, _ref1;
+    absDepth = context.absDepth;
+    prevHxLevel = context.prevHxLevel;
+    console.log("node to parse");
+    _ref = nodeToParse.childNodes;
+    for (_i = 0, _len = _ref.length; _i < _len; _i++) {
+      child = _ref[_i];
+      switch (child.nodeName) {
+        case '#text':
+          txtNode = document.createTextNode(child.textContent);
+          if ((_ref1 = context.currentLineEl.nodeName) === 'SPAN' || _ref1 === 'A') {
+            context.currentLineEl.appendChild(txtNode);
+          } else {
+            spaneEl = document.createElement('span');
+            spaneEl.appendChild(txtNode);
+            context.currentLineEl.appendChild(spaneEl);
+          }
+          console.log("lineEl");
+          console.log(context.currentLineEl);
+          console.log(txtNode);
+          this._appendCurrentLineFrag(context, absDepth, absDepth);
+          context.isCurrentLineBeingPopulated = true;
+          break;
+        case 'P':
+        case 'UL':
+        case 'OL':
+          context.absDepth = absDepth;
+          this.__domWalk(child, context);
+          if (context.isCurrentLineBeingPopulated) {
+            this._appendCurrentLineFrag(context, absDepth, absDepth);
+          }
+          break;
+        case 'H1':
+        case 'H2':
+        case 'H3':
+        case 'H4':
+        case 'H5':
+        case 'H6':
+          deltaHxLevel = 0;
+          this.__domWalk(child, context);
+          if (context.isCurrentLineBeingPopulated) {
+            this._appendCurrentLineFrag(context, Math.min(0, deltaHxLevel) + absDepth, Math.min(0, deltaHxLevel) + absDepth);
+          }
+          break;
+        case 'LI':
+          if (context.isCurrentLineBeingPopulated) {
+            this._appendCurrentLineFrag(context, absDepth, absDepth);
+          }
+          this.__domWalk(child, context);
+          if (context.isCurrentLineBeingPopulated) {
+            this._appendCurrentLineFrag(context, absDepth, absDepth);
+          }
+          break;
+        case 'BR':
+          this._appendCurrentLineFrag(context, absDepth, absDepth);
+          break;
+        case 'A':
+          lastInsertedEl = context.currentLineEl.lastChild;
+          if (lastInsertedEl !== null && lastInsertedEl.nodeName === 'SPAN') {
+            lastInsertedEl.textContent += '[[' + child.textContent + '|' + child.href + ']]';
+          } else {
+            spanNode = document.createElement('span');
+            spanNode.textContent = child.textContent + ' [[' + child.href + ']] ';
+            context.currentLineEl.appendChild(spanNode);
+          }
+          context.isCurrentLineBeingPopulated = true;
+          break;
+        case 'DIV':
+          if (child.id.substr(0, 5) === 'CNID_') {
+            this._clipBoard_Insert_InternalLine(child, context);
+          } else {
+            this.__domWalk(child, context);
+          }
+          break;
+        default:
+          lastInsertedEl = context.currentLineEl.lastChild;
+          if (lastInsertedEl !== null && lastInsertedEl.nodeName === 'SPAN') {
+            lastInsertedEl.textContent += child.textContent;
+          } else {
+            spanNode = document.createElement('span');
+            spanNode.textContent = child.textContent;
+            context.currentLineEl.appendChild(spanNode);
+          }
+          context.isCurrentLineBeingPopulated = true;
+      }
+    }
+    return true;
+  };
+
+  /**
+   * Append to frag the currentLineFrag and prepare a new empty one.
+   * @param  {Object} context  [description]
+   * @param  {Number} absDepth absolute depth of the line to insert
+   * @param  {Number} relDepth relative depth of the line to insert
+  */
+
+
+  CNeditor.prototype._appendCurrentLineFrag = function(context, absDepth, relDepth) {
+    var p, spanNode;
+    if (context.currentLineFrag.childNodes.length === 0) {
+      spanNode = document.createElement('span');
+      context.currentLineFrag.appendChild(spanNode);
+    }
+    p = {
+      sourceLine: context.lastAddedLine,
+      fragment: context.currentLineFrag,
+      targetLineType: "Tu",
+      targetLineDepthAbs: absDepth,
+      targetLineDepthRel: absDepth
+    };
+    context.lastAddedLine = this._insertLineAfter(p);
+    console.log(context.currentLineEl);
+    console.log(context.frag);
+    context.frag.appendChild(context.currentLineEl);
+    context.currentLineFrag = document.createDocumentFragment();
+    context.currentLineEl = context.currentLineFrag;
+    return context.isCurrentLineBeingPopulated = false;
+  };
+
+  /**
+   * Insert in the editor a line that was copied in a cozy note editor
+   * @param  {html element} elemt a div ex : <div id="CNID_7" class="Lu-3"> ... </div>
+   * @return {line}        a ref to the line object
+  */
+
+
+  CNeditor.prototype._clipBoard_Insert_InternalLine = function(elemt, context) {
+    var deltaDepth, lineClass, lineDepthAbs, p;
+    lineClass = elemt.className.split('-');
+    lineDepthAbs = +lineClass[1];
+    lineClass = lineClass[0];
+    if (!context.prevCNLineAbsDepth) {
+      context.prevCNLineAbsDepth = lineDepthAbs;
+    }
+    deltaDepth = lineDepthAbs - context.prevCNLineAbsDepth;
+    if (deltaDepth > 0) {
+
+    } else {
+
+    }
+    p = {
+      sourceLine: context.lastAddedLine,
+      innerHTML: elemt.innerHTML,
+      targetLineType: "Tu",
+      targetLineDepthAbs: context.absDepth,
+      targetLineDepthRel: context.absDepth
+    };
+    return context.lastAddedLine = this._insertLineAfter(p);
+  };
+
+  /* ------------------------------------------------------------------------
+  #  MARKUP LANGUAGE CONVERTERS
+  # _cozy2md (Read a string of editor html code format and turns it into a
+  #           string in markdown format)
+  # _md2cozy (Read a string of html code given by showdown and turns it into
+  #           a string of editor html code)
+  */
+
+
+  /* ------------------------------------------------------------------------
+  #  _cozy2md
+  # Read a string of editor html code format and turns it into a string in
+  #  markdown format
+  */
+
+
+  CNeditor.prototype._cozy2md = function(text) {
+    var children, classType, converter, currDepth, htmlCode, i, j, l, lineCode, lineElt, markCode, markup, space, _i, _ref;
+    htmlCode = $(document.createElement('div')).html(text);
+    markCode = '';
+    currDepth = 0;
+    converter = {
+      'A': function(obj) {
+        var href, title;
+        title = obj.attr('title') != null ? obj.attr('title') : "";
+        href = obj.attr('href') != null ? obj.attr('href') : "";
+        return '[' + obj.html() + '](' + href + ' "' + title + '")';
+      },
+      'IMG': function(obj) {
+        var alt, src, title;
+        title = obj.attr('title') != null ? obj.attr('title') : "";
+        alt = obj.attr('alt') != null ? obj.attr('alt') : "";
+        src = obj.attr('src') != null ? obj.attr('src') : "";
+        return '![' + alt + '](' + src + ' "' + title + '")';
+      },
+      'SPAN': function(obj) {
+        return obj.text();
+      }
+    };
+    markup = {
+      'Th': function(blanks, depth) {
+        var dieses, i;
+        currDepth = depth;
+        dieses = '';
+        i = 0;
+        while (i < depth) {
+          dieses += '#';
+          i++;
+        }
+        return "\n" + dieses + ' ';
+      },
+      'Lh': function(blanks, depth) {
+        return "\n";
+      },
+      'Tu': function(blanks, depth) {
+        return "\n" + blanks + "+   ";
+      },
+      'Lu': function(blanks, depth) {
+        return "\n" + blanks + "    ";
+      },
+      'To': function(blanks, depth) {
+        return "\n" + blanks + "1.   ";
+      },
+      'Lo': function(blanks, depth) {
+        return "\n" + blanks + "    ";
+      }
+    };
+    classType = function(className) {
+      var blanks, depth, i, tab, type;
+      tab = className.split("-");
+      type = tab[0];
+      depth = parseInt(tab[1], 10);
+      blanks = '';
+      i = 1;
+      while (i < depth - currDepth) {
+        blanks += '    ';
+        i++;
+      }
+      return markup[type](blanks, depth);
+    };
+    children = htmlCode.children();
+    for (i = _i = 0, _ref = children.length - 1; 0 <= _ref ? _i <= _ref : _i >= _ref; i = 0 <= _ref ? ++_i : --_i) {
+      lineCode = $(children.get(i));
+      if (lineCode.attr('class') != null) {
+        markCode += classType(lineCode.attr('class'));
+      }
+      l = lineCode.children().length;
+      j = 0;
+      space = ' ';
+      while (j < l) {
+        lineElt = lineCode.children().get(j);
+        if (j + 2 === l) {
+          space = '';
+        }
+        if (lineElt.nodeType === 1 && (converter[lineElt.nodeName] != null)) {
+          markCode += converter[lineElt.nodeName]($(lineElt)) + space;
+        } else {
+          markCode += $(lineElt).text() + space;
+        }
+        j++;
+      }
+      markCode += "\n";
+    }
+    return markCode;
+  };
+
+  /* ------------------------------------------------------------------------
+  # Read a string of html code given by showdown and turns it into a string
+  # of editor html code
+  */
+
+
+  CNeditor.prototype._md2cozy = function(text) {
+    var conv, cozyCode, cozyTurn, depth, htmlCode, id, readHtml, recRead;
+    conv = new Showdown.converter();
+    text = conv.makeHtml(text);
+    htmlCode = $(document.createElement('ul')).html(text);
+    cozyCode = '';
+    id = 0;
+    cozyTurn = function(type, depth, p) {
+      var code;
+      id++;
+      code = '';
+      p.contents().each(function() {
+        var name;
+        name = this.nodeName;
+        if (name === "#text") {
+          return code += "<span>" + ($(this).text()) + "</span>";
+        } else if (this.tagName != null) {
+          $(this).wrap('<div></div>');
+          code += "" + ($(this).parent().html());
+          return $(this).unwrap();
+        }
+      });
+      return ("<div id=CNID_" + id + " class=" + type + "-" + depth + ">") + code + "<br></div>";
+    };
+    depth = 0;
+    readHtml = function(obj) {
+      var tag;
+      tag = obj[0].tagName;
+      if (tag[0] === "H") {
+        depth = parseInt(tag[1], 10);
+        return cozyCode += cozyTurn("Th", depth, obj);
+      } else if (tag === "P") {
+        return cozyCode += cozyTurn("Lh", depth, obj);
+      } else {
+        return recRead(obj, "u");
+      }
+    };
+    recRead = function(obj, status) {
+      var child, i, tag, _i, _ref, _results;
+      tag = obj[0].tagName;
+      if (tag === "UL") {
+        depth++;
+        obj.children().each(function() {
+          return recRead($(this), "u");
+        });
+        return depth--;
+      } else if (tag === "OL") {
+        depth++;
+        obj.children().each(function() {
+          return recRead($(this), "o");
+        });
+        return depth--;
+      } else if (tag === "LI" && (obj.contents().get(0) != null)) {
+        if (obj.contents().get(0).nodeName === "#text") {
+          obj = obj.clone().wrap('<p></p>').parent();
+        }
+        _results = [];
+        for (i = _i = 0, _ref = obj.children().length - 1; 0 <= _ref ? _i <= _ref : _i >= _ref; i = 0 <= _ref ? ++_i : --_i) {
+          child = $(obj.children().get(i));
+          if (i === 0) {
+            _results.push(cozyCode += cozyTurn("T" + status, depth, child));
+          } else {
+            _results.push(recRead(child, status));
+          }
+        }
+        return _results;
+      } else if (tag === "P") {
+        return cozyCode += cozyTurn("L" + status, depth, obj);
+      }
+    };
+    htmlCode.children().each(function() {
+      return readHtml($(this));
+    });
+    return cozyCode;
+  };
+
+  /* ------------------------------------------------------------------------
+  # EXTENSION  :  cleaned up HTML parsing
+  #
+  #  (TODO)
+  # 
+  # We suppose the html treated here has already been sanitized so the DOM
+  #  structure is coherent and not twisted
+  # 
+  # _parseHtml:
+  #  Parse an html string and return the matching html in the editor's format
+  # We try to restitute the very structure the initial fragment :
+  #   > indentation
+  #   > lists
+  #   > images, links, tables... and their specific attributes
+  #   > text
+  #   > textuals enhancements (bold, underlined, italic)
+  #   > titles
+  #   > line return
+  # 
+  # Ideas to do that :
+  #  0- textContent is always kept
+  #  1- A, IMG keep their specific attributes
+  #  2- UL, OL become divs whose class is Tu/To. LI become Lu/Lo
+  #  3- H[1-6] become divs whose class is Th. Depth is determined depending on
+  #     where the element was pasted.
+  #  4- U, B have the effect of adding to each elt they contain a class (bold
+  #     and underlined class)
+  #  5- BR delimit the different DIV that will be added
+  #  6- relative indentation preserved with imbrication of paragraphs P
+  #  7- any other elt is turned into a simple SPAN with a textContent
+  #  8- IFRAME, FRAME, SCRIPT are ignored
+  */
+
+
+  return CNeditor;
+
+})();
