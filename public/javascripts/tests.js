@@ -1,6 +1,7 @@
 undefined
 describe('Editor', function() {
   before(function(done) {
+    $("body").append('<div id="editor"></div>');
     return this.editor = new CNeditor($("#editor"), function() {
       return done();
     });
