@@ -19,11 +19,14 @@ exports.config =
     files:
         javascripts:
             joinTo:
-                'javascripts/app.js'     : /(^app)(?!(\/views\/CNeditor))/  # /app but not /app/views/CNeditor, it would be redundant
-                'javascripts/CNeditor.js': /^app\/views\/CNeditor/  # the editor class is seperated in order to use the compiled files in other projects
+                # /app but not /app/views/CNeditor, it would be redundant
+                'javascripts/app.js'     : /(^app)(?!(\/views\/CNeditor))/
+                # the editor class is seperated in order to use the compiled
+                # files in other projects
+                'javascripts/CNeditor.js': /^app\/views\/CNeditor/
                 'javascripts/vendor.js'  : /^vendor/
-                'test/javascripts/test.js': /^test(\/|\\)(?!vendor)/
-                'test/javascripts/test-vendor.js': /^test(\/|\\)(?=vendor)/
+                #'test/javascripts/test.js': /^test(\/|\\)(?!vendor)/
+                # 'test/javascripts/test-vendor.js': /^test(\/|\\)(?=vendor)/
             order:
                 # Files in `vendor` directories are compiled before other files
                 # even if they aren't specified in order.

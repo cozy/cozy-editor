@@ -30,36 +30,33 @@ CNeditor = (function() {
       #                      is set to the editorCtrl (callBack.call(this))
   */
 
-  function CNeditor(elementTarget, callBack) {
+  function CNeditor(editorTarget, callBack) {
+    var iframe$, node$,
+      _this = this;
+    this.editorTarget = editorTarget;
     this._processPaste = __bind(this._processPaste, this);
 
     this._waitForPasteData = __bind(this._waitForPasteData, this);
 
     this._keyPressListener = __bind(this._keyPressListener, this);
 
-    var allSetter, iframe$, node$,
-      _this = this;
-    if (elementTarget.nodeName === "IFRAME") {
-      console.log("et hop !");
+    if (this.editorTarget.nodeName === "IFRAME") {
       this.getEditorSelection = function() {
-        return rangy.getIframeSelection(elementTarget);
+        return rangy.getIframeSelection(this.editorTarget);
       };
       this.saveEditorSelection = function() {
-        return rangy.saveSelection(rangy.dom.getIframeWindow(elementTarget));
+        return rangy.saveSelection(rangy.dom.getIframeWindow(this.editorTarget));
       };
-      iframe$ = $(elementTarget);
+      iframe$ = $(this.editorTarget);
       iframe$.on('load', function() {
-        var editorBody$, editor_head$, editor_html$;
+        var editor_head$, editor_html$;
         editor_html$ = iframe$.contents().find("html");
-        editorBody$ = editor_html$.find("body");
-        editorBody$.parent().attr('id', '__ed-iframe-html');
-        editorBody$.attr("contenteditable", "true");
-        editorBody$.attr("id", "__ed-iframe-body");
-        _this.document = editorBody$[0].ownerDocument;
+        _this.editorBody$ = editor_html$.find("body");
+        _this.editorBody$.parent().attr('id', '__ed-iframe-html');
+        _this.editorBody$.attr("contenteditable", "true");
+        _this.editorBody$.attr("id", "__ed-iframe-body");
+        _this.document = _this.editorBody$[0].ownerDocument;
         editor_head$ = editor_html$.find("head");
-        editor_head$.html('<link id="editorCSS" href="stylesheets/CNeditor.css" rel="stylesheet">');
-        _this.editorBody$ = editorBody$;
-        _this.editorTarget = elementTarget;
         _this._lines = {};
         _this.newPosition = true;
         _this._highestId = 0;
@@ -73,76 +70,64 @@ CNeditor = (function() {
           historyPos: [null]
         };
         _this._lastKey = null;
-        editorBody$.prop('__editorCtl', _this);
-        editorBody$.on('mouseup', function() {
+        _this.editorBody$.prop('__editorCtl', _this);
+        _this.editorBody$.on('mouseup', function() {
           return _this.newPosition = true;
         });
-        editorBody$.on('keydown', _this._keyPressListener);
-        editorBody$.on('keyup', function() {
+        _this.editorBody$.on('keydown', _this._keyPressListener);
+        _this.editorBody$.on('keyup', function() {
           return iframe$.trigger(jQuery.Event("onKeyUp"));
         });
-        editorBody$.on('click', function(e) {
+        _this.editorBody$.on('click', function(event) {
           return _this._lastKey = null;
         });
-        editorBody$.on('paste', function(e) {
-          console.log("pasting...");
-          console.log(e);
+        _this.editorBody$.on('paste', function(event) {
           return _this.paste(e);
         });
         _this._initClipBoard();
-        callBack.call(_this);
-        return _this;
+        return callBack.call(_this);
       });
-      elementTarget.src = '';
+      this.editorTarget.src = '';
     } else {
-      console.log("target is not an iframe...");
       this.getEditorSelection = function() {
         return rangy.getSelection();
       };
       this.saveEditorSelection = function() {
         return rangy.saveSelection();
       };
-      node$ = $(elementTarget);
-      allSetter = function() {
-        var editorBody$;
-        editorBody$ = node$;
-        editorBody$.attr("contenteditable", "true");
-        editorBody$.attr("id", "__ed-iframe-body");
-        _this.editorBody$ = editorBody$;
-        _this.editorTarget = elementTarget;
-        _this._lines = {};
-        _this.newPosition = true;
-        _this._highestId = 0;
-        _this._deepest = 1;
-        _this._firstLine = null;
-        _this._history = {
-          index: 0,
-          history: [null],
-          historySelect: [null],
-          historyScroll: [null],
-          historyPos: [null]
-        };
-        _this._lastKey = null;
-        editorBody$.prop('__editorCtl', _this);
-        editorBody$.on('keydown', _this._keyPressListener);
-        editorBody$.on('mouseup', function() {
-          return _this.newPosition = true;
-        });
-        editorBody$.on('keyup', function() {
-          return node$.trigger(jQuery.Event("onKeyUp"));
-        });
-        editorBody$.on('click', function(e) {
-          return _this._lastKey = null;
-        });
-        editorBody$.on('paste', function(e) {
-          console.log("pasting...");
-          return _this.paste(e);
-        });
-        callBack.call(_this);
-        return _this;
+      node$ = $(this.editorTarget);
+      this.editorBody$ = node$;
+      this.editorBody$.attr("contenteditable", "true");
+      this.editorBody$.attr("id", "__ed-iframe-body");
+      this._lines = {};
+      this.newPosition = true;
+      this._highestId = 0;
+      this._deepest = 1;
+      this._firstLine = null;
+      this._history = {
+        index: 0,
+        history: [null],
+        historySelect: [null],
+        historyScroll: [null],
+        historyPos: [null]
       };
-      allSetter();
+      this._lastKey = null;
+      this.editorBody$.prop('__editorCtl', this);
+      this.editorBody$.on('keydown', this._keyPressListener);
+      this.editorBody$.on('mouseup', function() {
+        return _this.newPosition = true;
+      });
+      this.editorBody$.on('keyup', function() {
+        return node$.trigger(jQuery.Event("onKeyUp"));
+      });
+      this.editorBody$.on('click', function(event) {
+        return _this._lastKey = null;
+      });
+      this.editorBody$.on('paste', function(event) {
+        return _this.paste(event);
+      });
       this._initClipBoard();
+      callBack.call(this);
     }
   }
 
@@ -337,8 +322,10 @@ CNeditor = (function() {
     if (startDiv.nodeName !== "DIV") {
       startDiv = $(startDiv).parents("div")[0];
     }
-    if (endDiv.nodeName !== "DIV") {
+    if ((endDiv != null ? endDiv.nodeName : void 0) !== "DIV") {
       endDiv = $(endDiv).parents("div")[0];
+    } else {
+      endDiv = startDiv;
     }
     if (startDiv === endDiv && startDiv.innerHTML === '<span></span><br>') {
       this.isEmptyLine = true;
@@ -577,32 +564,30 @@ CNeditor = (function() {
   */
 
 
-  CNeditor.prototype._suppr = function(e) {
-    var sel, startLine;
+  CNeditor.prototype._suppr = function(event) {
+    var startLine;
     this._findLinesAndIsStartIsEnd();
-    sel = this.currentSel;
-    if (this.isEmptyLine) {
-      this.isEmptyLine = false;
-      sel.range.deleteContents();
+    startLine = this.currentSel.startLine;
+    if (this.currentSel.range.collapsed) {
+      console.log("carret alone");
     }
-    startLine = sel.startLine;
-    if (sel.range.collapsed) {
-      if (sel.rangeIsEndLine) {
-        if (startLine.lineNext !== null) {
-          sel.range.setEndBefore(startLine.lineNext.line$[0].firstChild);
-          sel.endLine = startLine.lineNext;
-          this._deleteMultiLinesSelections();
-          return e.preventDefault();
-        } else {
-          return e.preventDefault();
-        }
+    if (this.currentSel.rangeIsEndLine) {
+      if (startLine.lineNext !== null) {
+        console.log("there is a next line");
+        this.currentSel.range.setEndBefore(startLine.lineNext.line$[0].firstChild);
+        this.currentSel.endLine = startLine.lineNext;
+        this._deleteMultiLinesSelections();
+        return event.preventDefault();
+      } else {
+        console.log("no next line");
+        return event.preventDefault();
       }
-    } else if (sel.endLine === startLine) {
-      sel.range.deleteContents();
-      return e.preventDefault();
+    } else if (this.currentSel.endLine === startLine) {
+      return console.log("same line");
     } else {
+      console.log("multi line");
       this._deleteMultiLinesSelections();
-      return e.preventDefault();
+      return event.preventDefault();
     }
   };
 
@@ -1622,7 +1607,7 @@ CNeditor = (function() {
       if ((endContainer.id != null) && endContainer.id.substr(0, 5) === 'CNID_') {
         endLine = this._lines[endContainer.id];
         rangeIsEndLine = endContainer.children.length < initialEndOffset || endContainer.children[initialEndOffset].nodeName === "BR";
-      } else {
+      } else if ($(endContainer).parents("div").length > 0) {
         endLine = this._lines[$(endContainer).parents("div")[0].id];
         rangeIsEndLine = false;
         if (endContainer.nodeType === Node.TEXT_NODE) {
@@ -1636,11 +1621,13 @@ CNeditor = (function() {
           rangeIsEndLine = nextSibling === null || nextSibling.nodeName === 'BR';
           parentEndContainer = parentEndContainer.parentNode;
         }
+      } else {
+        endLine = this._lines["CNID_1"];
       }
       if (startContainer.nodeName === 'DIV') {
         startLine = this._lines[startContainer.id];
         rangeIsStartLine = initialStartOffset === 0;
-      } else {
+      } else if ($(startContainer).parents("div").length > 0) {
         startLine = this._lines[$(startContainer).parents("div")[0].id];
         if (startContainer.nodeType === Node.TEXT_NODE) {
           rangeIsStartLine = endContainer.previousSibling === null && initialStartOffset === 0;
@@ -1652,14 +1639,16 @@ CNeditor = (function() {
           rangeIsStartLine = parentStartContainer.previousSibling === null;
           parentStartContainer = parentStartContainer.parentNode;
         }
+      } else {
+        startLine = this._lines["CNID_1"];
       }
-      if (endLine.line$[0].innerHTML === "<span></span><br>") {
+      if ((endLine != null ? endLine.line$[0].innerHTML : void 0) === "<span></span><br>") {
         rangeIsEndLine = true;
       }
-      if (startLine.line$[0].innerHTML === "<span></span><br>") {
+      if ((startLine != null ? startLine.line$[0].innerHTML : void 0) === "<span></span><br>") {
         rangeIsStartLine = true;
       }
-      return this.currentSel = {
+      this.currentSel = {
         sel: sel,
         range: range,
         startLine: startLine,
@@ -1667,18 +1656,19 @@ CNeditor = (function() {
         rangeIsStartLine: rangeIsStartLine,
         rangeIsEndLine: rangeIsEndLine
       };
+      return this.currrentSel;
     }
   };
 
   /*  -----------------------------------------------------------------------
   #   _readHtml
   # 
-  # Parse a raw html inserted in the iframe in order to update the controler
+  # Parse a raw html inserted in the iframe in order to update the controller
   */
 
 
   CNeditor.prototype._readHtml = function() {
-    var DeltaDepthAbs, htmlLine, htmlLine$, lineClass, lineDepthAbs, lineDepthAbs_old, lineDepthRel, lineDepthRel_old, lineID, lineID_st, lineNew, lineNext, linePrev, lineType, linesDiv$, _i, _len, _ref;
+    var deltaDepthAbs, htmlLine, htmlLine$, lineClass, lineDepthAbs, lineDepthAbs_old, lineDepthRel, lineDepthRel_old, lineID, lineID_st, lineNew, lineNext, linePrev, lineType, linesDiv$, _i, _len, _ref;
     linesDiv$ = this.editorBody$.children();
     lineDepthAbs = 0;
     lineDepthRel = 0;
@@ -1695,12 +1685,12 @@ CNeditor = (function() {
       if (lineType !== "") {
         lineDepthAbs_old = lineDepthAbs;
         lineDepthAbs = +lineClass[1];
-        DeltaDepthAbs = lineDepthAbs - lineDepthAbs_old;
+        deltaDepthAbs = lineDepthAbs - lineDepthAbs_old;
         lineDepthRel_old = lineDepthRel;
         if (lineType === "Th") {
           lineDepthRel = 0;
         } else {
-          lineDepthRel = lineDepthRel_old + DeltaDepthAbs;
+          lineDepthRel = lineDepthRel_old + deltaDepthAbs;
         }
         lineID = parseInt(lineID, 10) + 1;
         lineID_st = "CNID_" + lineID;
@@ -1729,7 +1719,7 @@ CNeditor = (function() {
   # 
   # Functions to perform the motion of an entire block of lines
   # BUG : when doubleclicking on an end of line then moving this line
-  #       down, selection does not behaves as expected :-)
+  #       down, selection does not behave as expected :-)
   # TODO: correct behavior when moving the second line up
   # TODO: correct behavior when moving the first line down
   # TODO: improve re-insertion of the line swapped with the block
@@ -2156,8 +2146,6 @@ CNeditor = (function() {
     sel = this.getEditorSelection();
     sel.setSingleRange(range);
     range.detach();
-    console.log("event :");
-    console.log(event);
     if (event && event.clipboardData && event.clipboardData.getData) {
       if (event.clipboardData.types === "text/html") {
         mySandBox.innerHTML = event.clipboardData.getData('text/html');
@@ -2190,14 +2178,15 @@ CNeditor = (function() {
 
 
   CNeditor.prototype._initClipBoard = function() {
-    var clipboard$, getOffTheScreen;
-    clipboard$ = $(document.createElement('div'));
+    var getOffTheScreen;
+    this.clipboard$ = $(document.createElement('div'));
+    this.clipboard$.attr('id', 'editor-clipboard');
     getOffTheScreen = {
       left: -300
     };
-    clipboard$.offset(getOffTheScreen);
-    clipboard$.prependTo(this.editorBody$);
-    this.clipboard = clipboard$[0];
+    this.clipboard$.offset(getOffTheScreen);
+    this.clipboard$.prependTo(this.editorBody$);
+    this.clipboard = this.clipboard$[0];
     this.clipboard.style.setProperty('width', '280px');
     this.clipboard.style.setProperty('position', 'fixed');
     this.clipboard.style.setProperty('overflow', 'hidden');
@@ -2682,6 +2671,7 @@ CNeditor = (function() {
 
   CNeditor.prototype._md2cozy = function(text) {
     var conv, cozyCode, cozyTurn, depth, htmlCode, id, readHtml, recRead;
+    console.log(text);
     conv = new Showdown.converter();
     text = conv.makeHtml(text);
     htmlCode = $(document.createElement('ul')).html(text);
@@ -2691,17 +2681,21 @@ CNeditor = (function() {
       var code;
       id++;
       code = '';
-      p.contents().each(function() {
-        var name;
-        name = this.nodeName;
-        if (name === "#text") {
-          return code += "<span>" + ($(this).text()) + "</span>";
-        } else if (this.tagName != null) {
-          $(this).wrap('<div></div>');
-          code += "" + ($(this).parent().html());
-          return $(this).unwrap();
-        }
-      });
+      if (p != null) {
+        p.contents().each(function() {
+          var name;
+          name = this.nodeName;
+          if (name === "#text") {
+            return code += "<span>" + ($(this).text()) + "</span>";
+          } else if (this.tagName != null) {
+            $(this).wrap('<div></div>');
+            code += "" + ($(this).parent().html());
+            return $(this).unwrap();
+          }
+        });
+      } else {
+        code = "<span></span>";
+      }
       return ("<div id=CNID_" + id + " class=" + type + "-" + depth + ">") + code + "<br></div>";
     };
     depth = 0;
@@ -2753,6 +2747,9 @@ CNeditor = (function() {
     htmlCode.children().each(function() {
       return readHtml($(this));
     });
+    if (cozyCode.length === 0) {
+      cozyCode = cozyTurn("Tu", 1, null);
+    }
     return cozyCode;
   };
 
@@ -2825,36 +2822,33 @@ exports.CNeditor = (function() {
       #                      is set to the editorCtrl (callBack.call(this))
   */
 
-  function CNeditor(elementTarget, callBack) {
+  function CNeditor(editorTarget, callBack) {
+    var iframe$, node$,
+      _this = this;
+    this.editorTarget = editorTarget;
     this._processPaste = __bind(this._processPaste, this);
 
     this._waitForPasteData = __bind(this._waitForPasteData, this);
 
     this._keyPressListener = __bind(this._keyPressListener, this);
 
-    var allSetter, iframe$, node$,
-      _this = this;
-    if (elementTarget.nodeName === "IFRAME") {
-      console.log("et hop !");
+    if (this.editorTarget.nodeName === "IFRAME") {
       this.getEditorSelection = function() {
-        return rangy.getIframeSelection(elementTarget);
+        return rangy.getIframeSelection(this.editorTarget);
       };
       this.saveEditorSelection = function() {
-        return rangy.saveSelection(rangy.dom.getIframeWindow(elementTarget));
+        return rangy.saveSelection(rangy.dom.getIframeWindow(this.editorTarget));
       };
-      iframe$ = $(elementTarget);
+      iframe$ = $(this.editorTarget);
       iframe$.on('load', function() {
-        var editorBody$, editor_head$, editor_html$;
+        var editor_head$, editor_html$;
         editor_html$ = iframe$.contents().find("html");
-        editorBody$ = editor_html$.find("body");
-        editorBody$.parent().attr('id', '__ed-iframe-html');
-        editorBody$.attr("contenteditable", "true");
-        editorBody$.attr("id", "__ed-iframe-body");
-        _this.document = editorBody$[0].ownerDocument;
+        _this.editorBody$ = editor_html$.find("body");
+        _this.editorBody$.parent().attr('id', '__ed-iframe-html');
+        _this.editorBody$.attr("contenteditable", "true");
+        _this.editorBody$.attr("id", "__ed-iframe-body");
+        _this.document = _this.editorBody$[0].ownerDocument;
         editor_head$ = editor_html$.find("head");
-        editor_head$.html('<link id="editorCSS" href="stylesheets/CNeditor.css" rel="stylesheet">');
-        _this.editorBody$ = editorBody$;
-        _this.editorTarget = elementTarget;
         _this._lines = {};
         _this.newPosition = true;
         _this._highestId = 0;
@@ -2868,76 +2862,64 @@ exports.CNeditor = (function() {
           historyPos: [null]
         };
         _this._lastKey = null;
-        editorBody$.prop('__editorCtl', _this);
-        editorBody$.on('mouseup', function() {
+        _this.editorBody$.prop('__editorCtl', _this);
+        _this.editorBody$.on('mouseup', function() {
           return _this.newPosition = true;
         });
-        editorBody$.on('keydown', _this._keyPressListener);
-        editorBody$.on('keyup', function() {
+        _this.editorBody$.on('keydown', _this._keyPressListener);
+        _this.editorBody$.on('keyup', function() {
           return iframe$.trigger(jQuery.Event("onKeyUp"));
         });
-        editorBody$.on('click', function(e) {
+        _this.editorBody$.on('click', function(event) {
           return _this._lastKey = null;
         });
-        editorBody$.on('paste', function(e) {
-          console.log("pasting...");
-          console.log(e);
+        _this.editorBody$.on('paste', function(event) {
           return _this.paste(e);
         });
         _this._initClipBoard();
-        callBack.call(_this);
-        return _this;
+        return callBack.call(_this);
       });
-      elementTarget.src = '';
+      this.editorTarget.src = '';
     } else {
-      console.log("target is not an iframe...");
       this.getEditorSelection = function() {
         return rangy.getSelection();
       };
       this.saveEditorSelection = function() {
         return rangy.saveSelection();
       };
-      node$ = $(elementTarget);
-      allSetter = function() {
-        var editorBody$;
-        editorBody$ = node$;
-        editorBody$.attr("contenteditable", "true");
-        editorBody$.attr("id", "__ed-iframe-body");
-        _this.editorBody$ = editorBody$;
-        _this.editorTarget = elementTarget;
-        _this._lines = {};
-        _this.newPosition = true;
-        _this._highestId = 0;
-        _this._deepest = 1;
-        _this._firstLine = null;
-        _this._history = {
-          index: 0,
-          history: [null],
-          historySelect: [null],
-          historyScroll: [null],
-          historyPos: [null]
-        };
-        _this._lastKey = null;
-        editorBody$.prop('__editorCtl', _this);
-        editorBody$.on('keydown', _this._keyPressListener);
-        editorBody$.on('mouseup', function() {
-          return _this.newPosition = true;
-        });
-        editorBody$.on('keyup', function() {
-          return node$.trigger(jQuery.Event("onKeyUp"));
-        });
-        editorBody$.on('click', function(e) {
-          return _this._lastKey = null;
-        });
-        editorBody$.on('paste', function(e) {
-          console.log("pasting...");
-          return _this.paste(e);
-        });
-        callBack.call(_this);
-        return _this;
+      node$ = $(this.editorTarget);
+      this.editorBody$ = node$;
+      this.editorBody$.attr("contenteditable", "true");
+      this.editorBody$.attr("id", "__ed-iframe-body");
+      this._lines = {};
+      this.newPosition = true;
+      this._highestId = 0;
+      this._deepest = 1;
+      this._firstLine = null;
+      this._history = {
+        index: 0,
+        history: [null],
+        historySelect: [null],
+        historyScroll: [null],
+        historyPos: [null]
       };
-      allSetter();
+      this._lastKey = null;
+      this.editorBody$.prop('__editorCtl', this);
+      this.editorBody$.on('keydown', this._keyPressListener);
+      this.editorBody$.on('mouseup', function() {
+        return _this.newPosition = true;
+      });
+      this.editorBody$.on('keyup', function() {
+        return node$.trigger(jQuery.Event("onKeyUp"));
+      });
+      this.editorBody$.on('click', function(event) {
+        return _this._lastKey = null;
+      });
+      this.editorBody$.on('paste', function(event) {
+        return _this.paste(event);
+      });
       this._initClipBoard();
+      callBack.call(this);
     }
   }
 
@@ -3132,8 +3114,10 @@ exports.CNeditor = (function() {
     if (startDiv.nodeName !== "DIV") {
       startDiv = $(startDiv).parents("div")[0];
     }
-    if (endDiv.nodeName !== "DIV") {
+    if ((endDiv != null ? endDiv.nodeName : void 0) !== "DIV") {
       endDiv = $(endDiv).parents("div")[0];
+    } else {
+      endDiv = startDiv;
     }
     if (startDiv === endDiv && startDiv.innerHTML === '<span></span><br>') {
       this.isEmptyLine = true;
@@ -3372,32 +3356,30 @@ exports.CNeditor = (function() {
   */
 
 
-  CNeditor.prototype._suppr = function(e) {
-    var sel, startLine;
+  CNeditor.prototype._suppr = function(event) {
+    var startLine;
     this._findLinesAndIsStartIsEnd();
-    sel = this.currentSel;
-    if (this.isEmptyLine) {
-      this.isEmptyLine = false;
-      sel.range.deleteContents();
+    startLine = this.currentSel.startLine;
+    if (this.currentSel.range.collapsed) {
+      console.log("carret alone");
     }
-    startLine = sel.startLine;
-    if (sel.range.collapsed) {
-      if (sel.rangeIsEndLine) {
-        if (startLine.lineNext !== null) {
-          sel.range.setEndBefore(startLine.lineNext.line$[0].firstChild);
-          sel.endLine = startLine.lineNext;
-          this._deleteMultiLinesSelections();
-          return e.preventDefault();
-        } else {
-          return e.preventDefault();
-        }
+    if (this.currentSel.rangeIsEndLine) {
+      if (startLine.lineNext !== null) {
+        console.log("there is a next line");
+        this.currentSel.range.setEndBefore(startLine.lineNext.line$[0].firstChild);
+        this.currentSel.endLine = startLine.lineNext;
+        this._deleteMultiLinesSelections();
+        return event.preventDefault();
+      } else {
+        console.log("no next line");
+        return event.preventDefault();
       }
-    } else if (sel.endLine === startLine) {
-      sel.range.deleteContents();
-      return e.preventDefault();
+    } else if (this.currentSel.endLine === startLine) {
+      return console.log("same line");
     } else {
+      console.log("multi line");
       this._deleteMultiLinesSelections();
-      return e.preventDefault();
+      return event.preventDefault();
     }
   };
 
@@ -4417,7 +4399,7 @@ exports.CNeditor = (function() {
       if ((endContainer.id != null) && endContainer.id.substr(0, 5) === 'CNID_') {
         endLine = this._lines[endContainer.id];
         rangeIsEndLine = endContainer.children.length < initialEndOffset || endContainer.children[initialEndOffset].nodeName === "BR";
-      } else {
+      } else if ($(endContainer).parents("div").length > 0) {
         endLine = this._lines[$(endContainer).parents("div")[0].id];
         rangeIsEndLine = false;
         if (endContainer.nodeType === Node.TEXT_NODE) {
@@ -4431,11 +4413,13 @@ exports.CNeditor = (function() {
           rangeIsEndLine = nextSibling === null || nextSibling.nodeName === 'BR';
           parentEndContainer = parentEndContainer.parentNode;
         }
+      } else {
+        endLine = this._lines["CNID_1"];
       }
       if (startContainer.nodeName === 'DIV') {
         startLine = this._lines[startContainer.id];
         rangeIsStartLine = initialStartOffset === 0;
-      } else {
+      } else if ($(startContainer).parents("div").length > 0) {
         startLine = this._lines[$(startContainer).parents("div")[0].id];
         if (startContainer.nodeType === Node.TEXT_NODE) {
           rangeIsStartLine = endContainer.previousSibling === null && initialStartOffset === 0;
@@ -4447,14 +4431,16 @@ exports.CNeditor = (function() {
           rangeIsStartLine = parentStartContainer.previousSibling === null;
           parentStartContainer = parentStartContainer.parentNode;
         }
+      } else {
+        startLine = this._lines["CNID_1"];
       }
-      if (endLine.line$[0].innerHTML === "<span></span><br>") {
+      if ((endLine != null ? endLine.line$[0].innerHTML : void 0) === "<span></span><br>") {
         rangeIsEndLine = true;
       }
-      if (startLine.line$[0].innerHTML === "<span></span><br>") {
+      if ((startLine != null ? startLine.line$[0].innerHTML : void 0) === "<span></span><br>") {
         rangeIsStartLine = true;
       }
-      return this.currentSel = {
+      this.currentSel = {
         sel: sel,
         range: range,
         startLine: startLine,
@@ -4462,18 +4448,19 @@ exports.CNeditor = (function() {
         rangeIsStartLine: rangeIsStartLine,
         rangeIsEndLine: rangeIsEndLine
       };
+      return this.currrentSel;
     }
   };
 
   /*  -----------------------------------------------------------------------
   #   _readHtml
   # 
-  # Parse a raw html inserted in the iframe in order to update the controler
+  # Parse a raw html inserted in the iframe in order to update the controller
   */
 
 
   CNeditor.prototype._readHtml = function() {
-    var DeltaDepthAbs, htmlLine, htmlLine$, lineClass, lineDepthAbs, lineDepthAbs_old, lineDepthRel, lineDepthRel_old, lineID, lineID_st, lineNew, lineNext, linePrev, lineType, linesDiv$, _i, _len, _ref;
+    var deltaDepthAbs, htmlLine, htmlLine$, lineClass, lineDepthAbs, lineDepthAbs_old, lineDepthRel, lineDepthRel_old, lineID, lineID_st, lineNew, lineNext, linePrev, lineType, linesDiv$, _i, _len, _ref;
     linesDiv$ = this.editorBody$.children();
     lineDepthAbs = 0;
     lineDepthRel = 0;
@@ -4490,12 +4477,12 @@ exports.CNeditor = (function() {
       if (lineType !== "") {
         lineDepthAbs_old = lineDepthAbs;
         lineDepthAbs = +lineClass[1];
-        DeltaDepthAbs = lineDepthAbs - lineDepthAbs_old;
+        deltaDepthAbs = lineDepthAbs - lineDepthAbs_old;
         lineDepthRel_old = lineDepthRel;
         if (lineType === "Th") {
           lineDepthRel = 0;
         } else {
-          lineDepthRel = lineDepthRel_old + DeltaDepthAbs;
+          lineDepthRel = lineDepthRel_old + deltaDepthAbs;
         }
         lineID = parseInt(lineID, 10) + 1;
         lineID_st = "CNID_" + lineID;
@@ -4524,7 +4511,7 @@ exports.CNeditor = (function() {
   # 
   # Functions to perform the motion of an entire block of lines
   # BUG : when doubleclicking on an end of line then moving this line
-  #       down, selection does not behaves as expected :-)
+  #       down, selection does not behave as expected :-)
   # TODO: correct behavior when moving the second line up
   # TODO: correct behavior when moving the first line down
   # TODO: improve re-insertion of the line swapped with the block
@@ -4951,8 +4938,6 @@ exports.CNeditor = (function() {
     sel = this.getEditorSelection();
     sel.setSingleRange(range);
     range.detach();
-    console.log("event :");
-    console.log(event);
     if (event && event.clipboardData && event.clipboardData.getData) {
       if (event.clipboardData.types === "text/html") {
         mySandBox.innerHTML = event.clipboardData.getData('text/html');
@@ -4985,14 +4970,15 @@ exports.CNeditor = (function() {
 
 
   CNeditor.prototype._initClipBoard = function() {
-    var clipboard$, getOffTheScreen;
-    clipboard$ = $(document.createElement('div'));
+    var getOffTheScreen;
+    this.clipboard$ = $(document.createElement('div'));
+    this.clipboard$.attr('id', 'editor-clipboard');
     getOffTheScreen = {
       left: -300
     };
-    clipboard$.offset(getOffTheScreen);
-    clipboard$.prependTo(this.editorBody$);
-    this.clipboard = clipboard$[0];
+    this.clipboard$.offset(getOffTheScreen);
+    this.clipboard$.prependTo(this.editorBody$);
+    this.clipboard = this.clipboard$[0];
     this.clipboard.style.setProperty('width', '280px');
     this.clipboard.style.setProperty('position', 'fixed');
     this.clipboard.style.setProperty('overflow', 'hidden');
@@ -5477,6 +5463,7 @@ exports.CNeditor = (function() {
 
   CNeditor.prototype._md2cozy = function(text) {
     var conv, cozyCode, cozyTurn, depth, htmlCode, id, readHtml, recRead;
+    console.log(text);
     conv = new Showdown.converter();
     text = conv.makeHtml(text);
     htmlCode = $(document.createElement('ul')).html(text);
@@ -5486,17 +5473,21 @@ exports.CNeditor = (function() {
       var code;
       id++;
       code = '';
-      p.contents().each(function() {
-        var name;
-        name = this.nodeName;
-        if (name === "#text") {
-          return code += "<span>" + ($(this).text()) + "</span>";
-        } else if (this.tagName != null) {
-          $(this).wrap('<div></div>');
-          code += "" + ($(this).parent().html());
-          return $(this).unwrap();
-        }
-      });
+      if (p != null) {
+        p.contents().each(function() {
+          var name;
+          name = this.nodeName;
+          if (name === "#text") {
+            return code += "<span>" + ($(this).text()) + "</span>";
+          } else if (this.tagName != null) {
+            $(this).wrap('<div></div>');
+            code += "" + ($(this).parent().html());
+            return $(this).unwrap();
+          }
+        });
+      } else {
+        code = "<span></span>";
+      }
       return ("<div id=CNID_" + id + " class=" + type + "-" + depth + ">") + code + "<br></div>";
     };
     depth = 0;
@@ -5548,6 +5539,9 @@ exports.CNeditor = (function() {
     htmlCode.children().each(function() {
       return readHtml($(this));
     });
+    if (cozyCode.length === 0) {
+      cozyCode = cozyTurn("Tu", 1, null);
+    }
     return cozyCode;
   };
 

@@ -50,7 +50,6 @@ class exports.CNeditor
 
                 @document = @editorBody$[0].ownerDocument
                 editor_head$ = editor_html$.find("head")
-                editor_head$.html('<link id="editorCSS" href="stylesheets/CNeditor.css" rel="stylesheet">')
             
                 # 2- set the properties of the editor
                 @_lines       = {}            # contains every line
@@ -295,23 +294,30 @@ class exports.CNeditor
             startDiv = range.startContainer.children[range.startOffset]
         else
             startDiv = range.startContainer
+
         if range.endContainer.nodeName == "BODY"
             endDiv = range.endContainer.children[range.endOffset-1]
         else
             endDiv   = range.endContainer
+
         if startDiv.nodeName != "DIV"
             startDiv = $(startDiv).parents("div")[0]
-        if endDiv.nodeName != "DIV"
+
+        if endDiv?.nodeName != "DIV"
             endDiv = $(endDiv).parents("div")[0]
+        else
+            endDiv = startDiv
+
         if startDiv == endDiv and startDiv.innerHTML == '<span></span><br>'
             @isEmptyLine = true
-
         
         startContainer = range.startContainer
+
         # 0. if startC is the body
         if startContainer.nodeName == "BODY"
             elt = startContainer.children[range.startOffset].firstChild
             @_putStartOnStart(range, elt)
+
         # 1. if startC is a div
         else if startContainer.nodeName == "DIV"
             # 1.1 if line is empty
@@ -451,10 +457,10 @@ class exports.CNeditor
                 return
             when 18 #Alt
                 e.preventDefault()
-                return    
+                return
             else
                 switch e.which # TODO : to be deleted if it works with e.keyCode
-                    when 32 then keyStrokesCode = "space"  
+                    when 32 then keyStrokesCode = "space"
                     when 8  then keyStrokesCode = "backspace"
                     when 65 then keyStrokesCode = "A"
                     when 83 then keyStrokesCode = "S"
@@ -589,42 +595,47 @@ class exports.CNeditor
     # 
     # Manage deletions when suppr key is pressed
     ###
-    _suppr : (e) ->
+    _suppr : (event) ->
         @_findLinesAndIsStartIsEnd()
-        sel = this.currentSel
 
-        if @isEmptyLine
-            @isEmptyLine = false
-            sel.range.deleteContents()
+        #if @isEmptyLine
+            #console.log "empty line"
+            #@isEmptyLine = false
+            #@currentSel.range.deleteContents()
             
-        startLine = sel.startLine
+        startLine = @currentSel.startLine
         # 1- Case of a caret "alone" (no selection)
-        if sel.range.collapsed
+        if @currentSel.range.collapsed
+                console.log "carret alone"
+
             # 1.1 caret is at the end of the line
-            if sel.rangeIsEndLine
+            if @currentSel.rangeIsEndLine
+
                 # if there is a next line : modify the selection to make
                 # a multiline deletion
                 if startLine.lineNext != null
-                    sel.range.setEndBefore(startLine.lineNext.line$[0].firstChild)
-                    sel.endLine = startLine.lineNext
+                    console.log "there is a next line"
+                    @currentSel.range.setEndBefore(startLine.lineNext.line$[0].firstChild)
+                    @currentSel.endLine = startLine.lineNext
                     @_deleteMultiLinesSelections()
-                    e.preventDefault()
+                    event.preventDefault()
                 # if there is no next line :
                 # no modification, just prevent default action
                 else
-                    e.preventDefault()
+                    console.log "no next line"
+                    event.preventDefault()
+
             # 1.2 caret is in the middle of the line : nothing to do
-            # else
 
         # 2- Case of a selection contained in a line
-        else if sel.endLine == startLine
-            sel.range.deleteContents()
-            e.preventDefault()
+        else if @currentSel.endLine == startLine
+            console.log "same line"
 
         # 3- Case of a multi lines selection
         else
+            console.log "multi line"
             @_deleteMultiLinesSelections()
-            e.preventDefault()
+            event.preventDefault()
 
 
     ### ------------------------------------------------------------------------
@@ -709,7 +720,7 @@ class exports.CNeditor
             @_line2titleList(line)
             if line.lineID == endDivID
                 break
-            else 
+            else
                 line = line.lineNext
 
 
@@ -722,7 +733,7 @@ class exports.CNeditor
         if line.lineType != 'Th'
             if line.lineType[0] == 'L'
                 line.lineType = 'Tu'
-                line.lineDepthAbs += 1    
+                line.lineDepthAbs += 1
             @_titilizeSiblings(line)
             parent1stSibling = @_findParent1stSibling(line)
             while parent1stSibling!=null and parent1stSibling.lineType != 'Th'
@@ -733,14 +744,14 @@ class exports.CNeditor
     ### ------------------------------------------------------------------------
     # turn in Th or Lh of the siblings of line (and line itself of course)
     # the children are note modified
-    ### 
+    ###
     _titilizeSiblings : (line) ->
         lineDepthAbs = line.lineDepthAbs
         # 1- transform all its next siblings in Th
         l = line
         while l!=null and l.lineDepthAbs >= lineDepthAbs
             if l.lineDepthAbs == lineDepthAbs
-                switch l.lineType 
+                switch l.lineType
                     when 'Tu','To'
                         l.line$.prop("class","Th-#{lineDepthAbs}")
                         l.lineType = 'Th'
@@ -751,7 +762,7 @@ class exports.CNeditor
                         l.lineDepthRel = 0
             l=l.lineNext
         # 2- transform all its previous siblings in Th
-        l = line.linePrev 
+        l = line.linePrev
         while l!=null and l.lineDepthAbs >= lineDepthAbs
             if l.lineDepthAbs == lineDepthAbs
                 switch l.lineType
@@ -838,12 +849,12 @@ class exports.CNeditor
                 else
                     lineTypeTarget = false
             # TODO: à supprimer en mettant commençant les boucles par la ligne elle meme et non la suivante
-            if lineTypeTarget 
+            if lineTypeTarget
                 line.line$.prop("class","#{lineTypeTarget}-#{line.lineDepthAbs}")
                 line.lineType = lineTypeTarget
             if line.lineID == endLineID
                 break
-            else 
+            else
                 line = line.lineNext
 
 
@@ -1203,7 +1214,7 @@ class exports.CNeditor
             currSel.sel.setSingleRange(range4sel)
 
         # 4- Caret is in the middle of the line
-        else                     
+        else
             # Deletion of the end of the original line
             currSel.range.setEndBefore( startLine.line$[0].lastChild )
             endOfLineFragment = currSel.range.extractContents()
@@ -1529,10 +1540,10 @@ class exports.CNeditor
             
             # 2- find endLine 
             # endContainer refers to a div of a line
-            if endContainer.id? and endContainer.id.substr(0,5) == 'CNID_'  
+            if endContainer.id? and endContainer.id.substr(0,5) == 'CNID_'
                 endLine = @_lines[ endContainer.id ]
             # means the range ends inside a div (span, textNode...)
-            else   
+            else
                 endLine = @_lines[ $(endContainer).parents("div")[0].id ]
             
             # 3- find startLine
@@ -1543,7 +1554,7 @@ class exports.CNeditor
                 startLine = @_lines[ $(startContainer).parents("div")[0].id ]
             
             # 4- return
-            return this.currentSel = 
+            return this.currentSel =
                 sel              : sel
                 range            : range
                 startLine        : startLine
@@ -1590,7 +1601,7 @@ class exports.CNeditor
                 # or on the one before the last which is a <br>
                 rangeIsEndLine = endContainer.children.length < initialEndOffset or endContainer.children[initialEndOffset].nodeName=="BR"
             # means the range ends inside a div (span, textNode...)
-            else
+            else if $(endContainer).parents("div").length > 0
                 endLine = @_lines[ $(endContainer).parents("div")[0].id ]
                 # rangeIsEndLine if the selection is at the end of the
                 # endContainer and of each of its parents (this approach is more
@@ -1621,15 +1632,18 @@ class exports.CNeditor
                     #                  (nextSibling.nodeName=='BR' and
                     #                  endContainer.childNodes.length==initialEndOffset)
                     parentEndContainer = parentEndContainer.parentNode
+            else
+                endLine = @_lines["CNID_1"]
             
             # 3- find startLine and rangeIsStartLine
             if startContainer.nodeName == 'DIV' # startContainer refers to a div of a line
                 startLine = @_lines[ startContainer.id ]
                 rangeIsStartLine = initialStartOffset == 0
                 
-            else   # means the range starts inside a div (span, textNode...)
+            else if $(startContainer).parents("div").length > 0
+                # means the range starts inside a div (span, textNode...)
             
-                startLine = @_lines[ $(startContainer).parents("div")[0].id ]
+                startLine = @_lines[$(startContainer).parents("div")[0].id]
                 # case of a textNode: it must have no previousSibling nor offset
                 if startContainer.nodeType == Node.TEXT_NODE
                     rangeIsStartLine = endContainer.previousSibling == null and
@@ -1641,23 +1655,24 @@ class exports.CNeditor
                 while rangeIsStartLine && parentStartContainer.nodeName != "DIV"
                     rangeIsStartLine = parentStartContainer.previousSibling == null
                     parentStartContainer = parentStartContainer.parentNode
+            else
+                startLine = @_lines["CNID_1"]
 
             # Special case of an "empty" line (<span><""></span><br>)
-            if endLine.line$[0].innerHTML == "<span></span><br>"
+            if endLine?.line$[0].innerHTML == "<span></span><br>"
                 rangeIsEndLine = true
-            if startLine.line$[0].innerHTML == "<span></span><br>"
+            if startLine?.line$[0].innerHTML == "<span></span><br>"
                 rangeIsStartLine = true
 
-            # 4- return
-            return this.currentSel = 
+            # 4- build result
+            @currentSel =
                 sel              : sel
                 range            : range
                 startLine        : startLine
                 endLine          : endLine
                 rangeIsStartLine : rangeIsStartLine
                 rangeIsEndLine   : rangeIsEndLine
-        # return [sel,range,endLine,rangeIsEndLine,startLine,rangeIsStartLine]
-
+            @currrentSel
 
 
     ###  -----------------------------------------------------------------------
@@ -1684,12 +1699,12 @@ class exports.CNeditor
                 # hypothesis : _readHtml is called only on an html where 
                 #              class="Tu-xx" where xx is the absolute depth
                 lineDepthAbs     = +lineClass[1]
-                DeltaDepthAbs    = lineDepthAbs - lineDepthAbs_old
+                deltaDepthAbs    = lineDepthAbs - lineDepthAbs_old
                 lineDepthRel_old = lineDepthRel
                 if lineType == "Th"
                     lineDepthRel = 0
                 else
-                    lineDepthRel = lineDepthRel_old + DeltaDepthAbs
+                    lineDepthRel = lineDepthRel_old + deltaDepthAbs
                 lineID=(parseInt(lineID,10)+1)
                 lineID_st = "CNID_"+lineID
                 htmlLine$.prop("id",lineID_st)
@@ -1713,7 +1728,7 @@ class exports.CNeditor
     # 
     # Functions to perform the motion of an entire block of lines
     # BUG : when doubleclicking on an end of line then moving this line
-    #       down, selection does not behaves as expected :-)
+    #       down, selection does not behave as expected :-)
     # TODO: correct behavior when moving the second line up
     # TODO: correct behavior when moving the first line down
     # TODO: improve re-insertion of the line swapped with the block
@@ -2179,8 +2194,6 @@ class exports.CNeditor
         sel.setSingleRange range
         range.detach()
         # check whether the browser is a Webkit or not
-        console.log "event :"
-        console.log event
         if event and event.clipboardData and event.clipboardData.getData
             # Webkit: 1 - get data from clipboard
             #         2 - put data in the sandbox
@@ -2217,12 +2230,13 @@ class exports.CNeditor
      * @return {obj} a ref to the clipboard div
     ###
     _initClipBoard : () ->
-        clipboard$ = $ document.createElement('div')
+        @clipboard$ = $ document.createElement('div')
+        @clipboard$.attr('id', 'editor-clipboard')
         getOffTheScreen =
             left: -300
-        clipboard$.offset getOffTheScreen
-        clipboard$.prependTo @editorBody$
-        @clipboard = clipboard$[0]
+        @clipboard$.offset getOffTheScreen
+        @clipboard$.prependTo @editorBody$
+        @clipboard = @clipboard$[0]
         @clipboard.style.setProperty('width','280px')
         @clipboard.style.setProperty('position','fixed')
         @clipboard.style.setProperty('overflow','hidden')
@@ -2808,7 +2822,8 @@ class exports.CNeditor
     # of editor html code
     ###
     _md2cozy: (text) ->
-    
+        console.log text
+        
         conv = new Showdown.converter()
         text = conv.makeHtml text
        
@@ -2829,14 +2844,17 @@ class exports.CNeditor
             # We are treating a line again, thus id must be increased
             id++
             code = ''
-            p.contents().each () ->
-                name = @nodeName
-                if name == "#text"
-                    code += "<span>#{$(@).text()}</span>"
-                else if @tagName?
-                    $(@).wrap('<div></div>')
-                    code += "#{$(@).parent().html()}"
-                    $(@).unwrap()
+            if p?
+                p.contents().each () ->
+                    name = @nodeName
+                    if name == "#text"
+                        code += "<span>#{$(@).text()}</span>"
+                    else if @tagName?
+                        $(@).wrap('<div></div>')
+                        code += "#{$(@).parent().html()}"
+                        $(@).unwrap()
+            else
+                code = "<span></span>"
             return "<div id=CNID_#{id} class=#{type}-#{depth}>" + code +
                 "<br></div>"
                 
@@ -2882,7 +2900,10 @@ class exports.CNeditor
 
         htmlCode.children().each () ->
             readHtml $ @
-        
+    
+        if cozyCode.length == 0
+            cozyCode = cozyTurn("Tu", 1, null)
+
         return cozyCode
 
 

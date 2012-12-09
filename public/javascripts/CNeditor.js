@@ -134,7 +134,6 @@ window.require.define({"views/CNeditor/CNeditor": function(exports, require, mod
           _this.editorBody$.attr("id", "__ed-iframe-body");
           _this.document = _this.editorBody$[0].ownerDocument;
           editor_head$ = editor_html$.find("head");
-          editor_head$.html('<link id="editorCSS" href="stylesheets/CNeditor.css" rel="stylesheet">');
           _this._lines = {};
           _this.newPosition = true;
           _this._highestId = 0;
@@ -400,8 +399,10 @@ window.require.define({"views/CNeditor/CNeditor": function(exports, require, mod
       if (startDiv.nodeName !== "DIV") {
         startDiv = $(startDiv).parents("div")[0];
       }
-      if (endDiv.nodeName !== "DIV") {
+      if ((endDiv != null ? endDiv.nodeName : void 0) !== "DIV") {
         endDiv = $(endDiv).parents("div")[0];
+      } else {
+        endDiv = startDiv;
       }
       if (startDiv === endDiv && startDiv.innerHTML === '<span></span><br>') {
         this.isEmptyLine = true;
@@ -640,32 +641,30 @@ window.require.define({"views/CNeditor/CNeditor": function(exports, require, mod
     */
 
 
-    CNeditor.prototype._suppr = function(e) {
-      var sel, startLine;
+    CNeditor.prototype._suppr = function(event) {
+      var startLine;
       this._findLinesAndIsStartIsEnd();
-      sel = this.currentSel;
-      if (this.isEmptyLine) {
-        this.isEmptyLine = false;
-        sel.range.deleteContents();
+      startLine = this.currentSel.startLine;
+      if (this.currentSel.range.collapsed) {
+        console.log("carret alone");
       }
-      startLine = sel.startLine;
-      if (sel.range.collapsed) {
-        if (sel.rangeIsEndLine) {
-          if (startLine.lineNext !== null) {
-            sel.range.setEndBefore(startLine.lineNext.line$[0].firstChild);
-            sel.endLine = startLine.lineNext;
-            this._deleteMultiLinesSelections();
-            return e.preventDefault();
-          } else {
-            return e.preventDefault();
-          }
+      if (this.currentSel.rangeIsEndLine) {
+        if (startLine.lineNext !== null) {
+          console.log("there is a next line");
+          this.currentSel.range.setEndBefore(startLine.lineNext.line$[0].firstChild);
+          this.currentSel.endLine = startLine.lineNext;
+          this._deleteMultiLinesSelections();
+          return event.preventDefault();
+        } else {
+          console.log("no next line");
+          return event.preventDefault();
         }
-      } else if (sel.endLine === startLine) {
-        sel.range.deleteContents();
-        return e.preventDefault();
+      } else if (this.currentSel.endLine === startLine) {
+        return console.log("same line");
       } else {
+        console.log("multi line");
         this._deleteMultiLinesSelections();
-        return e.preventDefault();
+        return event.preventDefault();
       }
     };
 
@@ -1685,7 +1684,7 @@ window.require.define({"views/CNeditor/CNeditor": function(exports, require, mod
         if ((endContainer.id != null) && endContainer.id.substr(0, 5) === 'CNID_') {
           endLine = this._lines[endContainer.id];
           rangeIsEndLine = endContainer.children.length < initialEndOffset || endContainer.children[initialEndOffset].nodeName === "BR";
-        } else {
+        } else if ($(endContainer).parents("div").length > 0) {
           endLine = this._lines[$(endContainer).parents("div")[0].id];
           rangeIsEndLine = false;
           if (endContainer.nodeType === Node.TEXT_NODE) {
@@ -1699,11 +1698,13 @@ window.require.define({"views/CNeditor/CNeditor": function(exports, require, mod
             rangeIsEndLine = nextSibling === null || nextSibling.nodeName === 'BR';
             parentEndContainer = parentEndContainer.parentNode;
           }
+        } else {
+          endLine = this._lines["CNID_1"];
         }
         if (startContainer.nodeName === 'DIV') {
           startLine = this._lines[startContainer.id];
           rangeIsStartLine = initialStartOffset === 0;
-        } else {
+        } else if ($(startContainer).parents("div").length > 0) {
           startLine = this._lines[$(startContainer).parents("div")[0].id];
           if (startContainer.nodeType === Node.TEXT_NODE) {
             rangeIsStartLine = endContainer.previousSibling === null && initialStartOffset === 0;
@@ -1715,14 +1716,16 @@ window.require.define({"views/CNeditor/CNeditor": function(exports, require, mod
             rangeIsStartLine = parentStartContainer.previousSibling === null;
             parentStartContainer = parentStartContainer.parentNode;
           }
+        } else {
+          startLine = this._lines["CNID_1"];
         }
-        if (endLine.line$[0].innerHTML === "<span></span><br>") {
+        if ((endLine != null ? endLine.line$[0].innerHTML : void 0) === "<span></span><br>") {
           rangeIsEndLine = true;
         }
-        if (startLine.line$[0].innerHTML === "<span></span><br>") {
+        if ((startLine != null ? startLine.line$[0].innerHTML : void 0) === "<span></span><br>") {
           rangeIsStartLine = true;
         }
-        return this.currentSel = {
+        this.currentSel = {
           sel: sel,
           range: range,
           startLine: startLine,
@@ -1730,6 +1733,7 @@ window.require.define({"views/CNeditor/CNeditor": function(exports, require, mod
           rangeIsStartLine: rangeIsStartLine,
           rangeIsEndLine: rangeIsEndLine
         };
+        return this.currrentSel;
       }
     };
 
@@ -1741,7 +1745,7 @@ window.require.define({"views/CNeditor/CNeditor": function(exports, require, mod
 
 
     CNeditor.prototype._readHtml = function() {
-      var DeltaDepthAbs, htmlLine, htmlLine$, lineClass, lineDepthAbs, lineDepthAbs_old, lineDepthRel, lineDepthRel_old, lineID, lineID_st, lineNew, lineNext, linePrev, lineType, linesDiv$, _i, _len, _ref;
+      var deltaDepthAbs, htmlLine, htmlLine$, lineClass, lineDepthAbs, lineDepthAbs_old, lineDepthRel, lineDepthRel_old, lineID, lineID_st, lineNew, lineNext, linePrev, lineType, linesDiv$, _i, _len, _ref;
       linesDiv$ = this.editorBody$.children();
       lineDepthAbs = 0;
       lineDepthRel = 0;
@@ -1758,12 +1762,12 @@ window.require.define({"views/CNeditor/CNeditor": function(exports, require, mod
         if (lineType !== "") {
           lineDepthAbs_old = lineDepthAbs;
           lineDepthAbs = +lineClass[1];
-          DeltaDepthAbs = lineDepthAbs - lineDepthAbs_old;
+          deltaDepthAbs = lineDepthAbs - lineDepthAbs_old;
           lineDepthRel_old = lineDepthRel;
           if (lineType === "Th") {
             lineDepthRel = 0;
           } else {
-            lineDepthRel = lineDepthRel_old + DeltaDepthAbs;
+            lineDepthRel = lineDepthRel_old + deltaDepthAbs;
           }
           lineID = parseInt(lineID, 10) + 1;
           lineID_st = "CNID_" + lineID;
@@ -1792,7 +1796,7 @@ window.require.define({"views/CNeditor/CNeditor": function(exports, require, mod
     # 
     # Functions to perform the motion of an entire block of lines
     # BUG : when doubleclicking on an end of line then moving this line
-    #       down, selection does not behaves as expected :-)
+    #       down, selection does not behave as expected :-)
     # TODO: correct behavior when moving the second line up
     # TODO: correct behavior when moving the first line down
     # TODO: improve re-insertion of the line swapped with the block
@@ -2219,8 +2223,6 @@ window.require.define({"views/CNeditor/CNeditor": function(exports, require, mod
       sel = this.getEditorSelection();
       sel.setSingleRange(range);
       range.detach();
-      console.log("event :");
-      console.log(event);
       if (event && event.clipboardData && event.clipboardData.getData) {
         if (event.clipboardData.types === "text/html") {
           mySandBox.innerHTML = event.clipboardData.getData('text/html');
@@ -2745,6 +2747,7 @@ window.require.define({"views/CNeditor/CNeditor": function(exports, require, mod
 
     CNeditor.prototype._md2cozy = function(text) {
       var conv, cozyCode, cozyTurn, depth, htmlCode, id, readHtml, recRead;
+      console.log(text);
       conv = new Showdown.converter();
       text = conv.makeHtml(text);
       htmlCode = $(document.createElement('ul')).html(text);
@@ -2754,17 +2757,21 @@ window.require.define({"views/CNeditor/CNeditor": function(exports, require, mod
         var code;
         id++;
         code = '';
-        p.contents().each(function() {
-          var name;
-          name = this.nodeName;
-          if (name === "#text") {
-            return code += "<span>" + ($(this).text()) + "</span>";
-          } else if (this.tagName != null) {
-            $(this).wrap('<div></div>');
-            code += "" + ($(this).parent().html());
-            return $(this).unwrap();
-          }
-        });
+        if (p != null) {
+          p.contents().each(function() {
+            var name;
+            name = this.nodeName;
+            if (name === "#text") {
+              return code += "<span>" + ($(this).text()) + "</span>";
+            } else if (this.tagName != null) {
+              $(this).wrap('<div></div>');
+              code += "" + ($(this).parent().html());
+              return $(this).unwrap();
+            }
+          });
+        } else {
+          code = "<span></span>";
+        }
         return ("<div id=CNID_" + id + " class=" + type + "-" + depth + ">") + code + "<br></div>";
       };
       depth = 0;
@@ -2816,6 +2823,9 @@ window.require.define({"views/CNeditor/CNeditor": function(exports, require, mod
       htmlCode.children().each(function() {
         return readHtml($(this));
       });
+      if (cozyCode.length === 0) {
+        cozyCode = cozyTurn("Tu", 1, null);
+      }
       return cozyCode;
     };
 

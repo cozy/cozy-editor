@@ -20,6 +20,7 @@ exports.config =
         javascripts:
             joinTo:
                 'bin/CNeditor.js': /^app\/views\/CNeditor/
+                'javascripts/tests.js': /^test/
 
         stylesheets:
             joinTo:
@@ -28,7 +29,6 @@ exports.config =
     modules:
         wrapper: false
         definition:  (path, data) ->
-            console.log path
             if path=="public/bin/CNeditor.js"
                 data = data.replace(/exports\.CNeditor/, "CNeditor")
                 return data
