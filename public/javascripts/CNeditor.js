@@ -126,7 +126,7 @@ window.require.define({"views/CNeditor/CNeditor": function(exports, require, mod
         };
         iframe$ = $(this.editorTarget);
         iframe$.on('load', function() {
-          var editor_head$, editor_html$;
+          var cssLink, editor_head$, editor_html$;
           editor_html$ = iframe$.contents().find("html");
           _this.editorBody$ = editor_html$.find("body");
           _this.editorBody$.parent().attr('id', '__ed-iframe-html');
@@ -134,6 +134,9 @@ window.require.define({"views/CNeditor/CNeditor": function(exports, require, mod
           _this.editorBody$.attr("id", "__ed-iframe-body");
           _this.document = _this.editorBody$[0].ownerDocument;
           editor_head$ = editor_html$.find("head");
+          cssLink = '<link id="editorCSS" ';
+          cssLink += 'href="stylesheets/CNeditor.css" rel="stylesheet">';
+          editor_head$.html(cssLink);
           _this._lines = {};
           _this.newPosition = true;
           _this._highestId = 0;
@@ -2255,14 +2258,15 @@ window.require.define({"views/CNeditor/CNeditor": function(exports, require, mod
 
 
     CNeditor.prototype._initClipBoard = function() {
-      var clipboard$, getOffTheScreen;
-      clipboard$ = $(document.createElement('div'));
+      var getOffTheScreen;
+      this.clipboard$ = $(document.createElement('div'));
+      this.clipboard$.attr('id', 'editor-clipboard');
       getOffTheScreen = {
         left: -300
       };
-      clipboard$.offset(getOffTheScreen);
-      clipboard$.prependTo(this.editorBody$);
-      this.clipboard = clipboard$[0];
+      this.clipboard$.offset(getOffTheScreen);
+      this.clipboard$.prependTo(this.editorBody$);
+      this.clipboard = this.clipboard$[0];
       this.clipboard.style.setProperty('width', '280px');
       this.clipboard.style.setProperty('position', 'fixed');
       this.clipboard.style.setProperty('overflow', 'hidden');
