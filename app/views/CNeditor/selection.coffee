@@ -185,3 +185,25 @@ exports.normalize = (range) =>
     # 3. if endC is a textNode ;   do nothing
 
     return range
+
+exports.cleanSelection = (startLine, endLine, range) ->
+    if startLine is null
+        startLine = endLine
+        endLine = endLine.lineNext
+        selection.putStartOnStart range, startLine.line$[0].firstElementChild
+        endLine.line$.prepend '<span></span>'
+        selection.putEndOnStart range, endLine.line$[0].firstElementChild
+    else
+        startNode = startLine.line$[0].lastElementChild.previousElementSibling
+        endNode = endLine.line$[0].lastElementChild.previousElementSibling
+        range.setStartAfter startNode, 0
+        range.setEndAfter endNode, 0
+
+exports.cloneEndFragment = (range, endLine) ->
+    range4fragment = rangy.createRangyRange()
+    range4fragment.setStart range.endContainer, range.endOffset
+    console.log endLine.line$[0]
+    console.log endLine.line$[0].lastChild
+    
+    range4fragment.setEndAfter endLine.line$[0].lastChild
+    range4fragment.cloneContents()
