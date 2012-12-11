@@ -113,15 +113,13 @@ window.require.define({"initialize": function(exports, require, module) {
     this.deleteContent()
     */
 
-    var addClassToLines, checker, editorBody$, editorCtrler, getSelectedLines, removeClassFromLines,
+    var Recorder, addClassToLines, checker, content, editorBody$, editorCtrler, getSelectedLines, playButton, recordButton, recorder, removeClassFromLines, serializerDisplay,
       _this = this;
-    this.replaceContent(require('views/templates/content-shortlines-all'));
+    content = require('views/templates/content-shortlines-all');
+    this.replaceContent(content());
     editorCtrler = this;
     editorBody$ = this.editorBody$;
     beautify(editorBody$);
-    editorBody$.on('keyup', function() {
-      return beautify(editorBody$);
-    });
     $("#resultBtnBar_coller").on('click', function() {
       return beautify(editorBody$);
     });
@@ -139,11 +137,6 @@ window.require.define({"initialize": function(exports, require, module) {
         _results.push(i++);
       }
       return _results;
-    });
-    $('#contentSelect').on("change", function(e) {
-      console.log("views/templates/" + e.currentTarget.value);
-      editorCtrler.replaceContent(require("views/templates/" + e.currentTarget.value));
-      return beautify(editorBody$);
     });
     $('#cssSelect').on("change", function(e) {
       return editorCtrler.replaceCSS(e.currentTarget.value);
@@ -293,8 +286,27 @@ window.require.define({"initialize": function(exports, require, module) {
         }
       }, 400);
     });
-    return $("#logEditorCtrlerBtn").on("click", function() {
-      return console.log(editorCtrler);
+    recordButton = $("#record-button");
+    serializerDisplay = $("#resultText");
+    Recorder = require('./recorder').Recorder;
+    recorder = new Recorder(editorCtrler, editorBody$[0], serializerDisplay);
+    recorder.saveInitialState();
+    recordButton.click(function() {
+      if (!recordButton.hasClass("btn-warning")) {
+        recordButton.addClass("btn-warning");
+        recorder.recordingSession = [];
+        serializerDisplay.val(null);
+        editorBody$.mouseup(recorder.mouseRecorder);
+        return editorBody$.keyup(recorder.keyboardRecorder);
+      } else {
+        recordButton.removeClass("btn-warning");
+        editorBody$.off('mouseup', recorder.mouseRecorder);
+        return editorBody$.off('keyup', recorder.keyboardRecorder);
+      }
+    });
+    playButton = $("#play-button");
+    return playButton.click(function() {
+      return recorder.play();
     });
   };
 
@@ -324,6 +336,120 @@ window.require.define({"lib/app_helpers": function(exports, require, module) {
       }
       return _results;
     })();
+  })();
+  
+}});
+
+window.require.define({"recorder": function(exports, require, module) {
+  var __bind = function(fn, me){ return function(){ return fn.apply(me, arguments); }; };
+
+  exports.Recorder = (function() {
+
+    function Recorder(editor, editorBody, serializerDisplay) {
+      this.editor = editor;
+      this.editorBody = editorBody;
+      this.serializerDisplay = serializerDisplay;
+      this.keyboardRecorder = __bind(this.keyboardRecorder, this);
+
+      this.mouseRecorder = __bind(this.mouseRecorder, this);
+
+      this.slowPlay = __bind(this.slowPlay, this);
+
+      this.recordingSession = [];
+    }
+
+    /* Functionalities
+    */
+
+
+    Recorder.prototype.saveInitialState = function() {
+      return this.initialState = $(this.editorBody).html();
+    };
+
+    Recorder.prototype.restoreInitialState = function() {
+      $(this.editorBody).html(this.initialState);
+      return this.editor._readHtml();
+    };
+
+    Recorder.prototype.recordEvent = function(serializedEvent) {
+      var previousRecord;
+      this.saveInitialState();
+      previousRecord = this.serializerDisplay.val();
+      return this.serializerDisplay.val(previousRecord + "\n" + serializedEvent);
+    };
+
+    Recorder.prototype.refreshRecorder = function() {
+      return this.serializerDisplay.val(JSON.stringify(this.recordingSession));
+    };
+
+    Recorder.prototype.play = function() {
+      var action, _i, _len, _ref, _results;
+      this.restoreInitialState();
+      _ref = this.recordingSession;
+      _results = [];
+      for (_i = 0, _len = _ref.length; _i < _len; _i++) {
+        action = _ref[_i];
+        _results.push(this.playAction(action));
+      }
+      return _results;
+    };
+
+    Recorder.prototype.slowPlay = function() {
+      var action;
+      $(this.editorBody).focus();
+      this.restoreInitialState();
+      if (this.recordingSession.length > 0) {
+        action = this.recordingSession.shift();
+        this.playAction(action);
+        return setTimeout(this.slowPlay, 200);
+      } else {
+        return console.log("finished");
+      }
+    };
+
+    Recorder.prototype.playAction = function(action) {
+      var event, sel;
+      if (action.mouse != null) {
+        return rangy.deserializeSelection(action.mouse, this.editorBody);
+      } else {
+        event = jQuery.Event("keydown", action.keyboard);
+        sel = this.editor.getEditorSelection();
+        return $(this.editorBody).trigger(event);
+      }
+    };
+
+    /* Listeners
+    */
+
+
+    Recorder.prototype.mouseRecorder = function() {
+      var sel, serializedEvent, serializedSelection;
+      sel = this.editor.getEditorSelection();
+      serializedSelection = rangy.serializeSelection(sel, true, this.editorBody);
+      serializedEvent = {
+        mouse: serializedSelection
+      };
+      console.log(this);
+      this.recordingSession.push(serializedEvent);
+      return this.refreshRecorder();
+    };
+
+    Recorder.prototype.keyboardRecorder = function(event) {
+      var serializedEvent;
+      serializedEvent = {
+        keyboard: {
+          altKey: event.altKey,
+          shiftKey: event.shiftKey,
+          ctrlKey: event.ctrlKey,
+          keyCode: event.which
+        }
+      };
+      this.recordingSession.push(serializedEvent);
+      return this.refreshRecorder();
+    };
+
+    return Recorder;
+
   })();
   
 }});
@@ -714,7 +840,7 @@ window.require.define({"views/templates/editor": function(exports, require, modu
   var buf = [];
   with (locals || {}) {
   var interp;
-  buf.push('<div id="main" class="table-ly-wrpr"><!-- boutons for the editor--><div id="divMainBtn" class="table-ly-hder"><div id="generalBtnBar" class="btn-group"><button id="logKeysBtn" class="btn btn-small btn-primary">Log keystrokes</button><button id="printRangeBtn" class="btn btn-small btn-primary">Print Range</button><button id="addClass" class="btn btn-small btn-primary">Class of selected Lines</button><button id="addClass2LineBtn" class="btn btn-small btn-primary">Show Class on Lines</button><button id="record-button" class="btn btn-small btn-warning">Record</button></div><select id="contentSelect"><option value="content-full" style="display:block">Full note</option><option value="content-full-marker" style="display:block">Tout en puces</option><option value="content-shortlines-marker" style="display:block">Tout en puce, lignes courtes</option><option value="content-shortlines-all" style="display:block">Puces et titres, lignes courtes</option><option value="content-empty" style="display:block">Empty note</option><option value="content-full-relative-indent" style="display:block">Avec sommaire</option><option value="test_1" style="display:block">Test numero 1</option><option value="test_2" style="display:block">Test numero 2</option><option value="test_3" style="display:block">Test numero 3</option><option value="test_4" style="display:block">Test numero 4</option><option value="test_5" style="display:block">Test numero 5</option><option value="test_6" style="display:block">Test numero 6</option><option value="test_7" style="display:block">Test numero 7</option><option value="test_8" style="display:block">Test numero 8</option><option value="test_9" style="display:block">Test numero 9</option><option value="test_10" style="display:block">Test numero 10</option><option value="test_11" style="display:block">Test numero 11</option></select><select id="cssSelect"><option value="images/editor2.css" style="display:block">css1</option><option value="stylesheets/app.css" style="display:block">css2</option><option value="stylesheets/app-deep-1.css" style="display:block">depth_1</option><option value="stylesheets/app-deep-2.css" style="display:block">depth_2</option><option value="stylesheets/app-deep-3.css" style="display:block">depth_3</option><option value="stylesheets/app-deep-4.css" style="display:block">depth_4</option></select></div><div id="main-div" class="table-ly-ctnt"><div id="col-wrap"><div id="editor-col"><div id="well-editor" class="monWell"><div id="editorDiv" class="table-ly-wrpr"><!-- boutons for the editor--><div class="table-ly-hder"><div id="editorBtnBar" class="btn-group"><button id="indentBtn" class="btn btn-small btn-primary">Indent</button><button id="unIndentBtn" class="btn btn-small btn-primary">Un-indent</button><button id="markerListBtn" class="btn btn-small btn-primary">- Marker list</button><button id="titleBtn" class="btn btn-small btn-primary">1.1.2 Title</button><button id="clearBtn" class="btn btn-small btn-primary">Clear</button><button id="undoBtn" class="btn btn-small btn-primary">undo</button><button id="redoBtn" class="btn btn-small btn-primary">redo</button></div></div><!-- text for the editor--><div id="editorContent" class="table-ly-ctnt"><iframe id="editorIframe"></iframe></div></div></div></div><div id="result-col"><div id="well-result" class="monWell"><div id="resultDiv" class="table-ly-wrpr"><div class="table-ly-hder"><div id="resultBtnBar" class="btn-group"><button id="resultBtnBar_coller" class="btn btn-small btn-primary">Coller</button><button id="markdownBtn" class="btn btn-small btn-primary">Convert to Markdown</button><button id="cozyBtn" class="btn btn-small btn-primary">Convert to Cozy</button><button id="checkBtn" class="btn btn-small btn-primary">Run syntax test</button><button id="summaryBtn" class="btn btn-small btn-primary">Display Summary</button></div></div><!-- text for the resulting html--><div id="resultContent" class="table-ly-ctnt"><textarea id="resultText"></textarea></div></div></div></div></div></div></div>');
+  buf.push('<div id="main" class="table-ly-wrpr"><!-- boutons for the editor--><div id="divMainBtn" class="table-ly-hder"><div id="generalBtnBar" class="btn-group"><button id="logKeysBtn" class="btn btn-small btn-primary">Log keystrokes</button><button id="printRangeBtn" class="btn btn-small btn-primary">Print Range</button><button id="addClass" class="btn btn-small btn-primary">Class of selected Lines</button><button id="addClass2LineBtn" class="btn btn-small btn-primary">Show Class on Lines</button><button id="record-button" class="btn btn-small">Record</button><button id="play-button" class="btn btn-small">Play</button></div><select id="contentSelect"><option value="content-full" style="display:block">Full note</option><option value="content-full-marker" style="display:block">Tout en puces</option><option value="content-shortlines-marker" style="display:block">Tout en puce, lignes courtes</option><option value="content-shortlines-all" style="display:block">Puces et titres, lignes courtes</option><option value="content-empty" style="display:block">Empty note</option><option value="content-full-relative-indent" style="display:block">Avec sommaire</option><option value="test_1" style="display:block">Test numero 1</option><option value="test_2" style="display:block">Test numero 2</option><option value="test_3" style="display:block">Test numero 3</option><option value="test_4" style="display:block">Test numero 4</option><option value="test_5" style="display:block">Test numero 5</option><option value="test_6" style="display:block">Test numero 6</option><option value="test_7" style="display:block">Test numero 7</option><option value="test_8" style="display:block">Test numero 8</option><option value="test_9" style="display:block">Test numero 9</option><option value="test_10" style="display:block">Test numero 10</option><option value="test_11" style="display:block">Test numero 11</option></select><select id="cssSelect"><option value="images/editor2.css" style="display:block">css1</option><option value="stylesheets/app.css" style="display:block">css2</option><option value="stylesheets/app-deep-1.css" style="display:block">depth_1</option><option value="stylesheets/app-deep-2.css" style="display:block">depth_2</option><option value="stylesheets/app-deep-3.css" style="display:block">depth_3</option><option value="stylesheets/app-deep-4.css" style="display:block">depth_4</option></select></div><div id="main-div" class="table-ly-ctnt"><div id="col-wrap"><div id="editor-col"><div id="well-editor" class="monWell"><div id="editorDiv" class="table-ly-wrpr"><!-- boutons for the editor--><div class="table-ly-hder"><div id="editorBtnBar" class="btn-group"><button id="indentBtn" class="btn btn-small btn-primary">Indent</button><button id="unIndentBtn" class="btn btn-small btn-primary">Un-indent</button><button id="markerListBtn" class="btn btn-small btn-primary">- Marker list</button><button id="titleBtn" class="btn btn-small btn-primary">1.1.2 Title</button><button id="clearBtn" class="btn btn-small btn-primary">Clear</button><button id="undoBtn" class="btn btn-small btn-primary">undo</button><button id="redoBtn" class="btn btn-small btn-primary">redo</button></div></div><!-- text for the editor--><div id="editorContent" class="table-ly-ctnt"><iframe id="editorIframe"></iframe></div></div></div></div><div id="result-col"><div id="well-result" class="monWell"><div id="resultDiv" class="table-ly-wrpr"><div class="table-ly-hder"><div id="resultBtnBar" class="btn-group"><button id="resultBtnBar_coller" class="btn btn-small btn-primary">Coller</button><button id="markdownBtn" class="btn btn-small btn-primary">Convert to Markdown</button><button id="cozyBtn" class="btn btn-small btn-primary">Convert to Cozy</button><button id="checkBtn" class="btn btn-small btn-primary">Run syntax test</button><button id="summaryBtn" class="btn btn-small btn-primary">Display Summary</button></div></div><!-- text for the resulting html--><div id="resultContent" class="table-ly-ctnt"><textarea id="resultText"></textarea></div></div></div></div></div></div></div>');
   }
   return buf.join("");
   };

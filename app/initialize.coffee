@@ -38,8 +38,8 @@ cb = () ->
     this.replaceContent( require('views/templates/content-shortlines-all-hacked') )
     this.deleteContent()
     ###
-    this.replaceContent( require('views/templates/content-shortlines-all') )
-
+    content = require('views/templates/content-shortlines-all')
+    this.replaceContent content()
     #### -------------------------------------------------------------------
     # buttons init, beautify actions
     editorCtrler = this
@@ -47,8 +47,8 @@ cb = () ->
 
     beautify(editorBody$)
     
-    editorBody$.on 'keyup' , ->
-        beautify(editorBody$)
+    #editorBody$.on 'keyup' , ->
+        #beautify(editorBody$)
         
     $("#resultBtnBar_coller").on  'click' , ->
         beautify(editorBody$)
@@ -65,10 +65,10 @@ cb = () ->
             i++
             
     # Allows user to load a file in the Cozy format
-    $('#contentSelect').on "change" , (e) ->
-        console.log "views/templates/#{e.currentTarget.value}"
-        editorCtrler.replaceContent( require("views/templates/#{e.currentTarget.value}") )
-        beautify(editorBody$)
+    #$('#contentSelect').on "change" , (e) ->
+        #console.log "views/templates/#{e.currentTarget.value}"
+        #editorCtrler.replaceContent( require("views/templates/#{e.currentTarget.value}") )
+        #beautify(editorBody$)
 
     # Allows user to load a style sheet for the page
     $('#cssSelect').on "change" , (e) ->
@@ -207,24 +207,34 @@ cb = () ->
                 $("#resultText").val(st+"Syntax test FAILLURE : cf logs")
         , 400)
         
-    # default behaviour regarding the class at the beginning of the line :
-    # comment or uncomment depending default expected behaviour
-    # addClassToLines()
-    # $("#addClass2LineBtn").html "Hide Class on Lines"
-    # editorBody$.on 'keyup', addClassToLines
-    # editor_doAddClasseToLines = true
     
-    $("#logEditorCtrlerBtn").on "click", () ->
-        console.log editorCtrler
+    #### -------------------------------------------------------------------
+    # Recording stuff
 
+    recordButton = $ "#record-button"
+    serializerDisplay = $ "#resultText"
 
-    # automatic summary
-    # this.editorBody$.on 'mouseup', () =>
-    #     this.buildSummary()
-    # this.editorBody$.on 'keyup', () =>
-    #     this.buildSummary()
+    Recorder = require('./recorder').Recorder
+    recorder = new Recorder editorCtrler, editorBody$[0], serializerDisplay
+    recorder.saveInitialState()
 
+    recordButton.click ->
+        if not recordButton.hasClass "btn-warning"
+            recordButton.addClass "btn-warning"
+            recorder.recordingSession = []
+            serializerDisplay.val null
+            editorBody$.mouseup recorder.mouseRecorder
+            editorBody$.keyup recorder.keyboardRecorder
+        else
+            recordButton.removeClass "btn-warning"
+            editorBody$.off 'mouseup', recorder.mouseRecorder
+            editorBody$.off 'keyup', recorder.keyboardRecorder
 
+    playButton = $ "#play-button"
+    playButton.click ->
+        recorder.play()
+
+        
 
 ###****************************************************
  * 3 - creation of the editor

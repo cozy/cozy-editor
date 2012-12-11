@@ -43,7 +43,7 @@ class exports.CNeditor
 
                 # 1- preparation of the iframe
                 editor_html$ = iframe$.contents().find("html")
-                @editorBody$  = editor_html$.find("body")
+                @editorBody$ = editor_html$.find("body")
                 @editorBody$.parent().attr('id','__ed-iframe-html')
                 @editorBody$.attr("contenteditable", "true")
                 @editorBody$.attr("id","__ed-iframe-body")
@@ -67,24 +67,31 @@ class exports.CNeditor
                     historyScroll: [null]
                     historyPos   : [null]
                 @_lastKey     = null      # last pressed key (avoid duplication)
-                
+
                 # 3- initialize event listeners
                 @editorBody$.prop( '__editorCtl', this)
+                @editorBody$.on 'keydown', @_keyPressListener
                 @editorBody$.on 'mouseup', () =>
                     @newPosition = true
-                @editorBody$.on 'keydown', @_keyPressListener
                 @editorBody$.on 'keyup', () ->
                     iframe$.trigger jQuery.Event("onKeyUp")
                 @editorBody$.on 'click', (event) =>
                     @_lastKey = null
                 @editorBody$.on 'paste', (event) =>
-                    @paste(e)
+                    @paste(event)
+
+                # Create div that will contains line
+                @linesDiv = document.createElement('div')
+                @editorBody$.append @linesDiv
 
                 # init clipboard div
                 @_initClipBoard()
+                console.log "ok"
+                
 
-                # 5- return a ref to the editor's controler
+                # 4- return a ref to the editor's controler
                 callBack.call(this)
+                return this
 
             # this line is a trick : 
             # the load event is fired on chrome if the iframe src equals '#' but not in ff.
@@ -92,55 +99,6 @@ class exports.CNeditor
             # with this command we force the load on every browser...
             @editorTarget.src = ''
 
-
-        # if target is not an iframe
-        else
-
-            # methods to deal selection on an non-iframe element
-            @getEditorSelection = () ->
-                return rangy.getSelection()
-            @saveEditorSelection = () ->
-                return rangy.saveSelection()
-                
-            node$ = $(@editorTarget)
-
-            # 1- preparation of the editor jframe
-            @editorBody$  = node$
-            @editorBody$.attr("contenteditable", "true")
-            @editorBody$.attr("id","__ed-iframe-body")
-        
-            # 2- set the properties of the editor
-            @_lines       = {}            # contains every line
-            @newPosition  = true          # true only if cursor has moved
-            @_highestId   = 0             # last inserted line identifier
-            @_deepest     = 1             # current maximum indentation
-            @_firstLine   = null          # pointer to the first line
-            @_history     =               # for history management
-                index        : 0
-                history      : [null]
-                historySelect: [null]
-                historyScroll: [null]
-                historyPos   : [null]
-            @_lastKey     = null      # last pressed key (avoid duplication)
-            
-            # 3- initialize event listeners
-            @editorBody$.prop( '__editorCtl', this)
-            #editorBody$.on 'keypress', @_keyPressListener
-            @editorBody$.on 'keydown', @_keyPressListener
-            @editorBody$.on 'mouseup', () =>
-                @newPosition = true
-            @editorBody$.on 'keyup', () ->
-                node$.trigger jQuery.Event("onKeyUp")
-            @editorBody$.on 'click', (event) =>
-                @_lastKey = null
-            @editorBody$.on 'paste', (event) =>
-                @paste(event)
-
-            # init clipboard div
-            @_initClipBoard()
-
-            # 4- return a ref to the editor's controler
-            callBack.call(this)
 
     ### ------------------------------------------------------------------------
     # EXTENSION : _updateDeepest
@@ -174,25 +132,23 @@ class exports.CNeditor
     # Initialize the editor content from a html string
     ###
     replaceContent : (htmlContent) ->
-        @editorBody$.html htmlContent
+        @linesDiv.innerHTML = htmlContent
         @_readHtml()
-        @_initClipBoard()
         #@_buildSummary()
 
     ### ------------------------------------------------------------------------
     # Clear editor content
     ###
-    deleteContent : () ->
-        @editorBody$.html '<div id="CNID_1" class="Tu-1"><span></span><br></div>'
+    deleteContent : ->
+        @linesDiv.innerHTML = '<div id="CNID_1" class="Tu-1"><span></span><br></div>'
         @_readHtml()
-        @_initClipBoard()
         #@_buildSummary()
     
     ### ------------------------------------------------------------------------
     # Returns a markdown string representing the editor content
     ###
     getEditorContent : () ->
-        cozyContent = @editorBody$.html()
+        cozyContent = @linesDiv.innerHTML
         return @_cozy2md cozyContent
         
     ### ------------------------------------------------------------------------
@@ -200,8 +156,9 @@ class exports.CNeditor
     ###
     setEditorContent : (mdContent) ->
         cozyContent = @_md2cozy mdContent
-        @editorBody$.html cozyContent
-        # update the controler
+        
+        @linesDiv.innerHTML = cozyContent
+
         @_readHtml()
         @_initClipBoard()
                   
@@ -241,9 +198,8 @@ class exports.CNeditor
             blank = document.createTextNode " "
             elt.appendChild blank
             range.setEnd(blank, 1)
-            # range.setEnd(elt, 0)
             
-    _putStartOnEnd : (range, elt) ->
+    _putStartOnEnd: (range, elt) ->
         if elt.lastChild?
             offset = elt.lastChild.textContent.length
             if offset == 0
@@ -254,9 +210,8 @@ class exports.CNeditor
             blank = document.createTextNode " "
             elt.appendChild blank
             range.setStart(blank, 0)
-            # range.setStart(elt, 0)
             
-    _putEndOnStart : (range, elt) ->
+    _putEndOnStart: (range, elt) ->
         if elt.firstChild?
             offset = elt.firstChild.textContent.length
             if offset == 0 then elt.firstChild.data = " "
@@ -265,19 +220,42 @@ class exports.CNeditor
             blank = document.createTextNode " "
             elt.appendChild blank
             range.setEnd(blank, 0)
-            # range.setEnd(elt, 0)
             
-    _putStartOnStart : (range, elt) ->
+    _putStartOnStart: (range, elt) ->
         if elt.firstChild?
             offset = elt.firstChild.textContent.length
             if offset == 0 then elt.firstChild.data = " "
-            range.setStart(elt.firstChild, 0)
+            range.setStart elt.firstChild, 0
         else
             blank = document.createTextNode " "
             elt.appendChild blank
-            range.setStart(blank, 0)
-            # range.setStart(elt, 0)
-            
+            range.setStart blank, 0
+
+    # Determine selection start div even if selection start in the body element or
+    # inside a div child element.
+    _getStartDiv: (range) ->
+        if range.startContainer.nodeName == 'BODY'
+            startDiv = range.startContainer.children[range.startOffset]
+        else
+            startDiv = range.startContainer
+
+        if startDiv.nodeName != "DIV"
+            startDiv = $(startDiv).parents("div")[0]
+        startDiv
+
+    # Determine selection end div even if selection ends in the body element or
+    # inside a div child element.
+    _getEndDiv: (range, startDiv) ->
+        if range.endContainer.nodeName == "BODY"
+            endDiv = range.endContainer.children[range.endOffset - 1]
+        else
+            endDiv   = range.endContainer
+
+        if endDiv?.nodeName != "DIV"
+            endDiv = $(endDiv).parents("div")[0]
+        else
+            endDiv = startDiv
+        endDiv
 
     ### ------------------------------------------------------------------------
     #  _normalize(range)
@@ -287,38 +265,22 @@ class exports.CNeditor
     #
     #  Set the flag isEmptyLine to true if an empty line is being normalized
     #  so further suppr ~ backspace work properly.
-    #
     # 
     ###
-    _normalize : (range) ->
+    _normalize : (range) =>
+        startDiv = @_getStartDiv range
+        endDiv = @_getEndDiv range, startDiv
 
-        # Check if the line was empty before normalization
-        if range.startContainer.nodeName == 'BODY'
-            startDiv = range.startContainer.children[range.startOffset]
-        else
-            startDiv = range.startContainer
+        @isEmptyLine = startDiv == endDiv and startDiv.innerHTML == '<span></span><br>'
 
-        if range.endContainer.nodeName == "BODY"
-            endDiv = range.endContainer.children[range.endOffset-1]
-        else
-            endDiv   = range.endContainer
-
-        if startDiv.nodeName != "DIV"
-            startDiv = $(startDiv).parents("div")[0]
-
-        if endDiv?.nodeName != "DIV"
-            endDiv = $(endDiv).parents("div")[0]
-        else
-            endDiv = startDiv
-
-        if startDiv == endDiv and startDiv.innerHTML == '<span></span><br>'
-            @isEmptyLine = true
-        
         startContainer = range.startContainer
+        console.log "normalize"
+        console.log range
+        
 
-        # 0. if startC is the body
+        # 0. if start is the body
         if startContainer.nodeName == "BODY"
-            elt = startContainer.children[range.startOffset].firstChild
+            elt = startContainer.children[range.startOffset]
             @_putStartOnStart(range, elt)
 
         # 1. if startC is a div
@@ -536,7 +498,7 @@ class exports.CNeditor
             @newPosition = true
         
         # 4- the current selection is initialized on each keypress
-        this.currentSel = null
+        @currentSel = null
                  
         # 5- launch the action corresponding to the pressed shortcut
         switch shortcut
@@ -609,7 +571,6 @@ class exports.CNeditor
         startLine = @currentSel.startLine
         # 1- Case of a caret "alone" (no selection)
         if @currentSel.range.collapsed
-                console.log "carret alone"
 
             # 1.1 caret is at the end of the line
             if @currentSel.rangeIsEndLine
@@ -617,7 +578,6 @@ class exports.CNeditor
                 # if there is a next line : modify the selection to make
                 # a multiline deletion
                 if startLine.lineNext != null
-                    console.log "there is a next line"
                     @currentSel.range.setEndBefore(startLine.lineNext.line$[0].firstChild)
                     @currentSel.endLine = startLine.lineNext
                     @_deleteMultiLinesSelections()
@@ -625,14 +585,12 @@ class exports.CNeditor
                 # if there is no next line :
                 # no modification, just prevent default action
                 else
-                    console.log "no next line"
                     event.preventDefault()
 
             # 1.2 caret is in the middle of the line : nothing to do
 
         # 2- Case of a selection contained in a line
         else if @currentSel.endLine == startLine
-            console.log "same line"
 
         # 3- Case of a multi lines selection
         else
@@ -697,21 +655,11 @@ class exports.CNeditor
         sel   = @getEditorSelection()
         range = sel.getRangeAt(0)
         
-        if range.startContainer.nodeName == 'BODY'
-            startDiv = range.startContainer.children[range.startOffset]
-        else
-            startDiv = range.startContainer
-        if range.endContainer.nodeName == "BODY"
-            endDiv = range.endContainer.children[range.endOffset-1]
-        else
-            endDiv   = range.endContainer
-
+        startDiv = @_getStartDiv range
+        endDiv = @_getEndDiv range, startDiv
+        
         # 2- find first and last div corresponding to the 1rst and
         #    last selected lines
-        if startDiv.nodeName != "DIV"
-            startDiv = $(startDiv).parents("div")[0]
-        if endDiv.nodeName != "DIV"
-            endDiv = $(endDiv).parents("div")[0]
         endLineID = endDiv.id
         
         # 3- loop on each line between the firts and last line selected
@@ -788,27 +736,18 @@ class exports.CNeditor
     ###
     markerList : (l) ->
         # 1- Variables
-        if l? 
+        if l?
             startDivID = l.lineID
             endLineID  = startDivID
         else
             range = @getEditorSelection().getRangeAt(0)
-            if range.startContainer.nodeName == 'BODY'
-                startDiv = range.startContainer.children[range.startOffset]
-            else
-                startDiv = range.startContainer
-            if range.endContainer.nodeName == "BODY"
-                endDiv = range.endContainer.children[range.endOffset-1]
-            else
-                endDiv   = range.endContainer
+
+            startDiv = @_getStartDiv range
+            endDiv = @_getEndDiv range, startDiv
                 
             # 2- find first and last div corresponding to the 1rst and
             #    last selected lines
-            if startDiv.nodeName != "DIV"
-                startDiv = $(startDiv).parents("div")[0]
             startDivID =  startDiv.id
-            if endDiv.nodeName != "DIV"
-                endDiv = $(endDiv).parents("div")[0]
             endLineID = endDiv.id
             
         # 3- loop on each line between the firts and last line selected
@@ -899,21 +838,11 @@ class exports.CNeditor
         sel   = @getEditorSelection()
         range = sel.getRangeAt(0)
         
-        if range.startContainer.nodeName == 'BODY'
-            startDiv = range.startContainer.children[range.startOffset]
-        else
-            startDiv = range.startContainer
-        if range.endContainer.nodeName == "BODY"
-            endDiv = range.endContainer.children[range.endOffset-1]
-        else
-            endDiv   = range.endContainer
-
+        startDiv = @_getStartDiv range
+        endDiv = @_getEndDiv range, startDiv
+                
         # 2- find first and last div corresponding to the 1rst and
         #    last selected lines
-        if startDiv.nodeName != "DIV"
-            startDiv = $(startDiv).parents("div")[0]
-        if endDiv.nodeName != "DIV"
-            endDiv = $(endDiv).parents("div")[0]
         endLineID = endDiv.id
         
         # 3- loop on each line between the firts and last line selected
@@ -998,15 +927,10 @@ class exports.CNeditor
         else
             sel   = @getEditorSelection()
             range = sel.getRangeAt(0)
-            if range.startContainer.nodeName == 'BODY'
-                startDiv = range.startContainer.children[range.startOffset]
-            else
-                startDiv = range.startContainer
-            if range.endContainer.nodeName == "BODY"
-                endDiv = range.endContainer.children[range.endOffset-1]
-            else
-                endDiv   = range.endContainer
-       
+
+            startDiv = @_getStartDiv range
+            endDiv = @_getEndDiv range, startDiv
+                    
         # 2- find first and last div corresponding to the 1rst and
         #    last selected lines
         if startDiv.nodeName != "DIV"
@@ -1103,30 +1027,18 @@ class exports.CNeditor
     #  shiftTab
     #   param : myRange : if defined, refers to a specific region to untab
     ###
-    shiftTab : (myRange) ->
+    shiftTab : (range) ->
 
         # 1- Variables
-        if myRange?
-            range = myRange
-        else
+        unless range?
             sel   = @getEditorSelection()
             range = sel.getRangeAt(0)
             
-        if range.startContainer.nodeName == 'BODY'
-            startDiv = range.startContainer.children[range.startOffset]
-        else
-            startDiv = range.startContainer
-        if range.endContainer.nodeName == "BODY"
-            endDiv = range.endContainer.children[range.endOffset-1]
-        else
-            endDiv   = range.endContainer
+        startDiv = @_getStartDiv range
+        endDiv = @_getEndDiv range, startDiv
         
         # 2- find first and last div corresponding to the 1rst and
         #    last selected lines
-        if startDiv.nodeName != "DIV"
-            startDiv = $(startDiv).parents("div")[0]
-        if endDiv.nodeName != "DIV"
-            endDiv = $(endDiv).parents("div")[0]
         endLineID = endDiv.id
         
         # 3- loop on each line between the firts and last line selected
@@ -1365,7 +1277,7 @@ class exports.CNeditor
         # if startFrag et myEndLine are SPAN and they both have the same class
         # then we concatenate both
         if startFrag.tagName == myEndLine.tagName == 'SPAN' and
-           startFrag.className == myEndLine.className             
+           startFrag.className == myEndLine.className
             startOffset = myEndLine.textContent.length
             newText = myEndLine.textContent + startFrag.textContent
             myEndLine.innerHTML = newText
@@ -1496,14 +1408,14 @@ class exports.CNeditor
         @_highestId += 1
         lineID = 'CNID_' + @_highestId
         newLine$ = $("<div id='#{lineID}' class='#{p.targetLineType}-#{p.targetLineDepthAbs}'></div>")
-        if p.fragment? 
+        if p.fragment?
             newLine$.append( p.fragment )
             newLine$.append( $('<br>') )
         else
             newLine$.append( $('<span></span><br>') )
         sourceLine = p.sourceLine
         newLine$ = newLine$.insertBefore(sourceLine.line$)
-        newLine = 
+        newLine =
             line$        : newLine$
             lineID       : lineID
             lineType     : p.targetLineType
@@ -1517,9 +1429,14 @@ class exports.CNeditor
         sourceLine.linePrev=newLine
         return newLine
 
+    _getLineDiv : (container)->
+        parent = container
+        while parent.nodeName != 'DIV' and ((parent.id? and parent.id.substr(0,5) != 'CNID_') or not parent.id?) and parent.parentNode != null
+            parent = parent.parentNode
+        return parent
 
     ### ------------------------------------------------------------------------
-    #  _findLines
+    #  _endDiv
     #  
     # Finds :
     #   First and last line of selection. 
@@ -1532,7 +1449,7 @@ class exports.CNeditor
     #   endLine : the last line of the range
     ###
     _findLines : () ->
-        if this.currentSel == null
+        if @currentSel == null
             # 1- Variables
             sel                = @getEditorSelection()
             range              = sel.getRangeAt(0)
@@ -1547,14 +1464,14 @@ class exports.CNeditor
                 endLine = @_lines[ endContainer.id ]
             # means the range ends inside a div (span, textNode...)
             else
-                endLine = @_lines[ $(endContainer).parents("div")[0].id ]
+                endLine = @_lines[@_getLineDiv(endContainer).id]
             
             # 3- find startLine
             if startContainer.nodeName == 'DIV'
                 # startContainer refers to a div of a line
                 startLine = @_lines[ startContainer.id ]
             else   # means the range starts inside a div (span, textNode...)
-                startLine = @_lines[ $(startContainer).parents("div")[0].id ]
+                startLine = @_lines[@_getLineDiv(startContainer).id]
             
             # 4- return
             return this.currentSel =
@@ -1605,7 +1522,8 @@ class exports.CNeditor
                 rangeIsEndLine = endContainer.children.length < initialEndOffset or endContainer.children[initialEndOffset].nodeName=="BR"
             # means the range ends inside a div (span, textNode...)
             else if $(endContainer).parents("div").length > 0
-                endLine = @_lines[ $(endContainer).parents("div")[0].id ]
+                endLineDiv = @_getLineDiv(endContainer)
+                endLine = @_lines[endLineDiv.id]
                 # rangeIsEndLine if the selection is at the end of the
                 # endContainer and of each of its parents (this approach is more
                 # robust than just considering that the line is a flat
@@ -1646,7 +1564,7 @@ class exports.CNeditor
             else if $(startContainer).parents("div").length > 0
                 # means the range starts inside a div (span, textNode...)
             
-                startLine = @_lines[$(startContainer).parents("div")[0].id]
+                startLine = @_lines[@_getLineDiv(startContainer).id]
                 # case of a textNode: it must have no previousSibling nor offset
                 if startContainer.nodeType == Node.TEXT_NODE
                     rangeIsStartLine = endContainer.previousSibling == null and
@@ -1675,6 +1593,10 @@ class exports.CNeditor
                 endLine          : endLine
                 rangeIsStartLine : rangeIsStartLine
                 rangeIsEndLine   : rangeIsEndLine
+
+
+            console.log @currentSel
+            
             @currrentSel
 
 
@@ -1683,8 +1605,8 @@ class exports.CNeditor
     # 
     # Parse a raw html inserted in the iframe in order to update the controller
     ###
-    _readHtml : () ->
-        linesDiv$    = @editorBody$.children()  # linesDiv$= $[Div of lines]
+    _readHtml: () ->
+        linesDiv$    = $(@linesDiv).children()  # linesDiv$= $[Div of lines]
         # loop on lines (div) to initialise the editor controler
         lineDepthAbs = 0
         lineDepthRel = 0
@@ -1764,22 +1686,12 @@ class exports.CNeditor
         sel   = @getEditorSelection()
         range = sel.getRangeAt(0)
         
-        if range.startContainer.nodeName == 'BODY'
-            startDiv = range.startContainer.children[range.startOffset]
-        else
-            startDiv = range.startContainer
-        if range.endContainer.nodeName == "BODY"
-            endDiv = range.endContainer.children[range.endOffset-1]
-        else
-            endDiv   = range.endContainer
-
+        startDiv = @_getStartDiv range
+        endDiv = @_getEndDiv range, startDiv
+        
         # Find first and last div corresponding to the first and last
         # selected lines
-        if startDiv.nodeName != "DIV"
-            startDiv = $(startDiv).parents("div")[0]
         startLineID = startDiv.id
-        if endDiv.nodeName != "DIV"
-            endDiv = $(endDiv).parents("div")[0]
         endLineID = endDiv.id
         
         lineStart = @_lines[startLineID]
@@ -1907,22 +1819,12 @@ class exports.CNeditor
         sel   = @getEditorSelection()
         range = sel.getRangeAt(0)
         
-        if range.startContainer.nodeName == 'BODY'
-            startDiv = range.startContainer.children[range.startOffset]
-        else
-            startDiv = range.startContainer
-        if range.endContainer.nodeName == "BODY"
-            endDiv = range.endContainer.children[range.endOffset-1]
-        else
-            endDiv   = range.endContainer
+        startDiv = @_getStartDiv range
+        endDiv = @_getEndDiv range, startDiv
 
         # Find first and last div corresponding to the first and last
         # selected lines
-        if startDiv.nodeName != "DIV"
-            startDiv = $(startDiv).parents("div")[0]
         startLineID = startDiv.id
-        if endDiv.nodeName != "DIV"
-            endDiv = $(endDiv).parents("div")[0]
         endLineID = endDiv.id
         
         lineStart = @_lines[startLineID]
@@ -2060,7 +1962,7 @@ class exports.CNeditor
         # save html selection
         @_history.historySelect.push savedSel
         # save scrollbar position
-        savedScroll = 
+        savedScroll =
             xcoord: @editorBody$.scrollTop()
             ycoord: @editorBody$.scrollLeft()
         @_history.historyScroll.push savedScroll
@@ -2103,7 +2005,7 @@ class exports.CNeditor
             # restore newPosition
             @newPosition = @_history.historyPos[@_history.index]
             # 0 - restore html
-            @editorBody$.html @_history.history[@_history.index]
+            @linesDiv.innerHTML = @_history.history[@_history.index]
             # 1 - restore selection
             savedSel = @_history.historySelect[@_history.index]
             savedSel.restored = false
@@ -2130,7 +2032,7 @@ class exports.CNeditor
             # 0 - update the index
             @_history.index += 1
             # 1 - restore html
-            @editorBody$.html @_history.history[@_history.index+1]
+            @linesDiv.innerHTML = @_history.history[@_history.index+1]
             # 2 - restore selection
             savedSel = @_history.historySelect[@_history.index+1]
             savedSel.restored = false
@@ -2225,12 +2127,12 @@ class exports.CNeditor
 
 
     ###*
-     * init the div where the browser will actualy paste.
-     * this method is called after each refresh of the content of the editor (
-     * replaceContent, deleteContent, setEditorContent)
-     * TODO : should be called just once at editor init : for this the editable
-     * content shouldn't be directly in the body of the iframe but in a div.
-     * @return {obj} a ref to the clipboard div
+    # * init the div where the browser will actualy paste.
+    # * this method is called after each refresh of the content of the editor (
+    # * replaceContent, deleteContent, setEditorContent)
+    # * TODO : should be called just once at editor init : for this the editable
+    # * content shouldn't be directly in the body of the iframe but in a div.
+    # * @return {obj} a ref to the clipboard div
     ###
     _initClipBoard : () ->
         @clipboard$ = $ document.createElement('div')
@@ -2271,9 +2173,6 @@ class exports.CNeditor
     ###
 
     _processPaste : () =>
-        # var
-        console.log "process paste"
-        
         sandbox = @.clipboard
         currSel = @currentSel
 
@@ -2336,8 +2235,6 @@ class exports.CNeditor
         sandbox.innerHTML = ""
         # delete dummy line from the fragment
         frag.removeChild(frag.firstChild)
-        console.log frag
-        
 
         ###
         # TODO : the following steps removes all the styles of the lines in frag
@@ -2426,11 +2323,11 @@ class exports.CNeditor
             currSel.startLine.lineNext = secondAddedLine
             secondAddedLine.linePrev   = currSel.startLine
             if lineNextStartLine == null
-                @editorBody$[0].appendChild(frag)
+                @linesDiv.appendChild(frag)
             else
                 domWalkContext.lastAddedLine.lineNext = lineNextStartLine
                 lineNextStartLine.linePrev = domWalkContext.lastAddedLine
-                @editorBody$[0].insertBefore(frag, lineNextStartLine.line$[0])
+                @linesDiv.insertBefore(frag, lineNextStartLine.line$[0])
         
         # 8- position caret
         if secondAddedLine != null
@@ -2455,15 +2352,6 @@ class exports.CNeditor
      * @return {nothing}                nothing
     ###
     _insertFrag : (targetContainer, targetOffset, frag) ->
-            # for sourceNode in frag
-            #     if targetContainer.nodeName == sourceNode.nodeName
-            #         switch targetContainer.nodeName 
-            #             when '#text'
-            #                 # insert text
-            #                 targetContainer.textContent = targetContainer.textContent.substring(0,targetOffset)+sourceNode.textContent+targetContainer.textContent.substring(targetOffset)
-            #             when 'SPAN'
-            #                 _insertFrag()
-            #                 targetContainer = targetContainer.childNodes[targetOffset]
 
             if targetOffset == 0
                 range = document.createRange()
@@ -2475,7 +2363,6 @@ class exports.CNeditor
                 if frag.childNodes.length>0
                     targetNode = targetContainer.childNodes[targetOffset-1]
                     targetNode.textContent += frag.firstChild.textContent
-
 
 
     ###*
@@ -2499,7 +2386,6 @@ class exports.CNeditor
             context.lastAddedLine = @_insertLineAfter(p)
 
 
-
     ###*
      * Walks thoug an html tree in order to convert it in a strutured content
      * that fit to a note structure.
@@ -2513,8 +2399,6 @@ class exports.CNeditor
     __domWalk : (nodeToParse, context) ->
         absDepth    = context.absDepth
         prevHxLevel = context.prevHxLevel
-        
-        console.log "node to parse"
         
         # loop on the child nodes of the parsed node
         for child in nodeToParse.childNodes
