@@ -1010,10 +1010,10 @@ class exports.CNeditor
     # @return {[none]}           [nothing]
     ###
     _deleteMultiLinesSelections : (startLine, endLine) ->
-
         # true when the caret needs to be repositioned after deletion
         replaceCaret = true
 
+        # Get start and end positions of the selection.
         if startLine?
             replaceCaret = false
             range = rangy.createRange()
@@ -1031,52 +1031,17 @@ class exports.CNeditor
         endLineDepth = endLine.lineDepthAbs
         deltaDepth = endLineDepth - startLineDepth
 
-        # 1- copy the end of endLine in a fragment
+        # copy the non selected end of endLine in a fragment
         endOfLineFragment = selection.cloneEndFragment range, endLine
 
-        # 2- adapt the type of endLine and of its children to startLine 
-        # the only useful case is when endLine must be changed from Th to Tu or To
-        endLineType = endLine.lineType
-        startLineType = startLine.lineType
-        if endLineType[1] is 'h' and startLineType[1] is not 'h'
-            if endLineType[0] is 'L'
-                endLineType = 'T' + endLineType[1]
-                endLine.line$.prop "class","#{endLineType}-#{endLineDepth}"
-            @markerList endLine
-
-        # 3- delete lines
-        range.deleteContents()
-
-        # 4- append fragment and delete endLine
-        if startLine.line$[0].lastChild.nodeName == 'BR'
-            startLine.line$[0].removeChild(startLine.line$[0].lastChild)
-        startFrag = endOfLineFragment.childNodes[0]
-        myEndLine = startLine.line$[0].lastElementChild
-
-        # if startFrag et myEndLine are SPAN and they both have the same class
-        # then we concatenate both
-        if startFrag.tagName == myEndLine.tagName == 'SPAN' and
-           startFrag.className == myEndLine.className
-            startOffset = myEndLine.textContent.length
-            newText = myEndLine.textContent + startFrag.textContent
-            myEndLine.innerHTML = newText
-            startContainer = myEndLine.firstChild
-            
-            l = 1
-            while l < endOfLineFragment.childNodes.length
-                $(endOfLineFragment.childNodes[l]).appendTo startLine.line$
-                l++
-        else
-            startLine.line$.append( endOfLineFragment )
-            
-        startLine.lineNext = endLine.lineNext
-        endLine.lineNext.linePrev = startLine if endLine.lineNext != null
-        endLine.line$.remove()
-        delete this._lines[endLine.lineID]
-
-        @_adaptDepth startLine, startLineDepth, endLineDepth, deltaDepth
+        # Perform deletion on selection and adapt remaining parts consequently.
+        @_adaptEndLineType startLine, endLine # adapt end line type if needed.
+        @_deleteSelectedLines range
+        @_addMissingFragment startLine, endOfLineFragment.childNodes[0]
+        @_removeEndLine startLine, endLine
         @_setCaret(startContainer, startOffset) if replaceCaret
-
+        @_adaptDepth startLine, startLineDepth, endLineDepth, deltaDepth
+ 
     #  adapt the depth of the children and following siblings of end line
     #    in case the depth delta between start and end line is
     #    greater than 0, then the structure is not correct : we reduce
@@ -1085,7 +1050,7 @@ class exports.CNeditor
     #  Then adapt the type of the first line after the children and siblings of
     #    end line. Its previous sibling or parent might have been deleted, 
     #    we then must find its new one in order to adapt its type.
-    _adaptDepth: (startLine, startLineDepthAbs, endLineDepthAbs, delatDepth) ->
+    _adaptDepth: (startLine, startLineDepthAbs, endLineDepthAbs, deltaDepth) ->
         line = startLine.lineNext
         if line != null
             deltaDepth1stLine = line.lineDepthAbs - startLineDepthAbs
@@ -1102,6 +1067,7 @@ class exports.CNeditor
             if line.lineType[0] == 'L'
                 line.lineType = 'T' + line.lineType[1]
                 line.line$.prop("class","#{line.lineType}-#{line.lineDepthAbs}")
+
             # find the previous sibling, adjust type to its type.
             firstLineAfterSiblingsOfDeleted = line
             depthSibling = line.lineDepthAbs
@@ -1117,13 +1083,61 @@ class exports.CNeditor
                     else
                         @markerList(firstLineAfterSiblingsOfDeleted)
 
+    # Delete selection registered in given range.
+    _deleteSelectedLines: (range) ->
+        range.deleteContents() # delete lines
 
+    # Add back missing unselected fragment that have been deleted by our rough
+    # deletion.
+    # if startFrag et myEndLine are SPAN and they both have the same class
+    # then we concatenate both
+    _addMissingFragment: (startLine, startFrag) ->
+        if startLine.line$[0].lastChild.nodeName == 'BR'
+            startLine.line$[0].removeChild(startLine.line$[0].lastChild)
+        endLine = startLine.line$[0].lastElementChild
+
+        if startFrag.tagName == endLine.tagName == 'SPAN' and
+           startFrag.className == endLine.className
+            startOffset = endLine.textContent.length
+            newText = endLine.textContent + startFrag.textContent
+            endLine.innerHTML = newText
+            startContainer = endLine.firstChild
+            
+            l = 1
+            while l < endOfLineFragment.childNodes.length
+                $(endOfLineFragment.childNodes[l]).appendTo startLine.line$
+                l++
+        else
+            startLine.line$.append endOfLineFragment
+
+    # Remove end line and update line links of the start line.
+    _removeEndLine: (startLine, endLine) ->
+        startLine.lineNext = endLine.lineNext
+        endLine.lineNext.linePrev = startLine if endLine.lineNext != null
+        endLine.line$.remove()
+        delete @_lines[endLine.lineID]
+
+
+    # adapt the type of endLine and of its children to startLine 
+    # the only useful case is when endLine must be changed from Th to Tu or To
+    _adaptEndLineType: (startLine, endLine) ->
+        endLineType = endLine.lineType
+        startLineType = startLine.lineType
+        if endLineType[1] is 'h' and startLineType[1] is not 'h'
+            if endLineType[0] is 'L'
+                endLineType = 'T' + endLineType[1]
+                endLine.line$.prop "class","#{endLineType}-#{endLineDepth}"
+            @markerList endLine
+
+
+    # Put caret at given position. Regitser current selection.
     _setCaret: (startContainer, startOffset) ->
         range4caret = rangy.createRange()
         range4caret.collapseToPoint startContainer, startOffset
         @currentSel.sel.setSingleRange range4caret
         @currentSel = null
                 
+
     ### ------------------------------------------------------------------------
     #  _insertLineAfter
     # 
