@@ -1037,7 +1037,7 @@ class exports.CNeditor
         # Perform deletion on selection and adapt remaining parts consequently.
         @_adaptEndLineType startLine, endLine # adapt end line type if needed.
         @_deleteSelectedLines range
-        @_addMissingFragment startLine, endOfLineFragment.childNodes[0]
+        @_addMissingFragment startLine, endOfLineFragment
         @_removeEndLine startLine, endLine
         @_setCaret(startContainer, startOffset) if replaceCaret
         @_adaptDepth startLine, startLineDepth, endLineDepth, deltaDepth
@@ -1091,7 +1091,8 @@ class exports.CNeditor
     # deletion.
     # if startFrag et myEndLine are SPAN and they both have the same class
     # then we concatenate both
-    _addMissingFragment: (startLine, startFrag) ->
+    _addMissingFragment: (startLine, endOfLineFragment) ->
+        startFrag = endOfLineFragment.childNodes[0]
         if startLine.line$[0].lastChild.nodeName == 'BR'
             startLine.line$[0].removeChild(startLine.line$[0].lastChild)
         endLine = startLine.line$[0].lastElementChild
