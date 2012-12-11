@@ -853,7 +853,7 @@ class exports.CNeditor
                         # if lineNext is a Lx, then it must be turned in a Tx
                         if line.lineNext? and line.lineNext.lineType[0]=='L'
                             nextL = line.lineNext
-                            nextL.lineType='T'+nextL.lineType[1]
+                            nextL.lineType = 'T'+nextL.lineType[1] 
                             nextL.line$.prop('class',"#{nextL.lineType}-#{nextL.lineDepthAbs}")
                     else
                         isTabAllowed = false
@@ -1000,19 +1000,18 @@ class exports.CNeditor
             return linePrevSibling
 
 
-    ### ------------------------------------------------------------------------
-    #  _deleteMultiLinesSelections
-    # 
-    # Delete the user multi line selection
-    #
-    # prerequisite : at least 2 different lines must be selected
-    # parameters   : startLine = first line to be deleted
-    #                endLine   = last line to be deleted
+
+    ###* ------------------------------------------------------------------------
+     * Delete the user multi line selection
+     * Prerequisite : at least 2 different lines must be selected
+     * If startLine and endLine are specified, lines included between these two
+     * are deleted (including startLine & endLine.
+     * @param  {[line]} startLine [optional] if exists, the whole line will be taken
+     * @param  {[line]} endLine   [optional] if exists, the whole line will be taken
+     * @return {[none]}           [nothing]
     ###
     _deleteMultiLinesSelections : (startLine, endLine) ->
-        # If startLine and endLine are specified, lines included between these
-        # two are removed. This is useful when making line's depth inheritance
-        
+
         # true when the caret needs to be repositioned after deletion
         replaceCaret = true
 
@@ -1065,7 +1064,7 @@ class exports.CNeditor
         # 4- append fragment and delete endLine
         # TODO : consider using _insertFrag 
         if startLine.line$[0].lastChild.nodeName == 'BR'
-            startLine.line$[0].removeChild( startLine.line$[0].lastChild)
+            startLine.line$[0].removeChild(startLine.line$[0].lastChild)
         startFrag = endOfLineFragment.childNodes[0]
         myEndLine = startLine.line$[0].lastElementChild
         # if startFrag et myEndLine are SPAN and they both have the same class
@@ -1097,7 +1096,7 @@ class exports.CNeditor
         line = startLine.lineNext
         if line != null
             deltaDepth1stLine = line.lineDepthAbs - startLineDepthAbs
-            if deltaDepth1stLine >= 1
+            if deltaDepth1stLine > 1
                 while line!= null and line.lineDepthAbs >= endLineDepthAbs
                     newDepth = line.lineDepthAbs - deltaDepth
                     line.lineDepthAbs = newDepth
@@ -1117,10 +1116,10 @@ class exports.CNeditor
             firstLineAfterSiblingsOfDeleted = line
             depthSibling = line.lineDepthAbs
             
-            line = line.linePrev
             while line != null and line.lineDepthAbs > depthSibling
                 line = line.linePrev
-            if line != null
+
+            if line != null and line != firstLineAfterSiblingsOfDeleted
                 prevSiblingType = line.lineType
                 if firstLineAfterSiblingsOfDeleted.lineType!=prevSiblingType
                     if prevSiblingType[1]=='h'
