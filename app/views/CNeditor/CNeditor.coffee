@@ -2203,15 +2203,15 @@ class exports.CNeditor
                     
                     if context.currentLineEl.nodeName in ['SPAN','A']
                         console.log "span"
-                        
                         context.currentLineEl.appendChild txtNode
                     else
                         console.log "no span"
                         spanEl = document.createElement('span')
                         spanEl.appendChild txtNode
                         console.log spanEl
-                        
-                        context.currentLineEl.appendChild spanEl
+                        context.currentLineEl = spanEl
+
+                        console.log context.currentLineEl
 
                     console.log "lineEl"
                     console.log context.currentLineEl
