@@ -19,18 +19,21 @@ exports.config =
     files:
         javascripts:
             joinTo:
-                'bin/CNeditor.js': /^app\/views\/CNeditor/
+                '../CNeditor.js': /^app\/views\/CNeditor\/.*\.coffee/
                 'javascripts/tests.js': /^test/
 
         stylesheets:
             joinTo:
-                'bin/CNeditor.css': /^app\/views\/CNeditor/
+                '../CNeditor.css': /^app\/views\/CNeditor/
 
     modules:
         wrapper: false
         definition:  (path, data) ->
-            if path=="public/bin/CNeditor.js"
+            if path == "public/bin/CNeditor.js"
                 data = data.replace(/exports\.CNeditor/, "CNeditor")
+                data = data.replace(/exports\.md2cozy/, "md2cozy")
+                data = data.replace(/exports\.cozy2md/, "cozy2md")
+                #data = data.replace(/.*require.*/, "")
                 return data
 
     # minify: true
