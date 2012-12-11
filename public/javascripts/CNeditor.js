@@ -94,10 +94,15 @@ window.require.define({"views/CNeditor/CNeditor": function(exports, require, mod
   #   editorBody$       : the jquery pointer on the body of the iframe
   #   _lines            : {} an objet, each property refers a line
   #   _highestId        : 
-  #   _firstLine        : pointes the first line : TODO : not taken into account
+  #   _firstLine        : points the first line : TODO : not taken into account
   */
 
-  var __bind = function(fn, me){ return function(){ return fn.apply(me, arguments); }; };
+  var md2cozy, selection,
+    __bind = function(fn, me){ return function(){ return fn.apply(me, arguments); }; };
+
+  md2cozy = require('./md2cozy');
+
+  selection = require('./selection');
 
   exports.CNeditor = (function() {
     /*
@@ -116,8 +121,6 @@ window.require.define({"views/CNeditor/CNeditor": function(exports, require, mod
       this._waitForPasteData = __bind(this._waitForPasteData, this);
 
       this._keyPressListener = __bind(this._keyPressListener, this);
-
-      this._normalize = __bind(this._normalize, this);
 
       if (this.editorTarget.nodeName === "IFRAME") {
         this.getEditorSelection = function() {
@@ -169,7 +172,6 @@ window.require.define({"views/CNeditor/CNeditor": function(exports, require, mod
           _this.linesDiv = document.createElement('div');
           _this.editorBody$.append(_this.linesDiv);
           _this._initClipBoard();
-          console.log("ok");
           callBack.call(_this);
           return _this;
         });
@@ -224,7 +226,9 @@ window.require.define({"views/CNeditor/CNeditor": function(exports, require, mod
 
 
     CNeditor.prototype.deleteContent = function() {
-      this.linesDiv.innerHTML = '<div id="CNID_1" class="Tu-1"><span></span><br></div>';
+      var emptyLine;
+      emptyLine = '<div id="CNID_1" class="Tu-1"><span></span><br></div>';
+      this.linesDiv.innerHTML = emptyLine;
       return this._readHtml();
     };
 
@@ -236,7 +240,7 @@ window.require.define({"views/CNeditor/CNeditor": function(exports, require, mod
     CNeditor.prototype.getEditorContent = function() {
       var cozyContent;
       cozyContent = this.linesDiv.innerHTML;
-      return this._cozy2md(cozyContent);
+      return md2cozy.cozy2md(cozyContent);
     };
 
     /* ------------------------------------------------------------------------
@@ -246,10 +250,9 @@ window.require.define({"views/CNeditor/CNeditor": function(exports, require, mod
 
     CNeditor.prototype.setEditorContent = function(mdContent) {
       var cozyContent;
-      cozyContent = this._md2cozy(mdContent);
+      cozyContent = md2cozy.md2cozy(mdContent);
       this.linesDiv.innerHTML = cozyContent;
-      this._readHtml();
-      return this._initClipBoard();
+      return this._readHtml();
     };
 
     /*
@@ -263,182 +266,6 @@ window.require.define({"views/CNeditor/CNeditor": function(exports, require, mod
       linkElm = document.querySelector('#editorCSS');
       linkElm.setAttribute('href', path);
       return document.head.appendChild(linkElm);
-    };
-
-    /* ------------------------------------------------------------------------
-    # UTILITY FUNCTIONS
-    # used to set ranges and help normalize selection
-    # 
-    # parameters: elt  :  a dom object with only textNode children
-    #
-    # note: with google chrome, it seems that non visible elements
-    #       cannot be selected with rangy (that's where 'blank' comes in)
-    */
-
-
-    CNeditor.prototype._putEndOnEnd = function(range, elt) {
-      var blank, offset;
-      if (elt.lastChild != null) {
-        offset = elt.lastChild.textContent.length;
-        if (offset === 0) {
-          elt.lastChild.data = " ";
-          offset = 1;
-        }
-        return range.setEnd(elt.lastChild, offset);
-      } else {
-        blank = document.createTextNode(" ");
-        elt.appendChild(blank);
-        return range.setEnd(blank, 1);
-      }
-    };
-
-    CNeditor.prototype._putStartOnEnd = function(range, elt) {
-      var blank, offset;
-      if (elt.lastChild != null) {
-        offset = elt.lastChild.textContent.length;
-        if (offset === 0) {
-          elt.lastChild.data = " ";
-          offset = 1;
-        }
-        return range.setStart(elt.lastChild, offset);
-      } else {
-        blank = document.createTextNode(" ");
-        elt.appendChild(blank);
-        return range.setStart(blank, 0);
-      }
-    };
-
-    CNeditor.prototype._putEndOnStart = function(range, elt) {
-      var blank, offset;
-      if (elt.firstChild != null) {
-        offset = elt.firstChild.textContent.length;
-        if (offset === 0) {
-          elt.firstChild.data = " ";
-        }
-        return range.setEnd(elt.firstChild, 0);
-      } else {
-        blank = document.createTextNode(" ");
-        elt.appendChild(blank);
-        return range.setEnd(blank, 0);
-      }
-    };
-
-    CNeditor.prototype._putStartOnStart = function(range, elt) {
-      var blank, offset;
-      if (elt.firstChild != null) {
-        offset = elt.firstChild.textContent.length;
-        if (offset === 0) {
-          elt.firstChild.data = " ";
-        }
-        return range.setStart(elt.firstChild, 0);
-      } else {
-        blank = document.createTextNode(" ");
-        elt.appendChild(blank);
-        return range.setStart(blank, 0);
-      }
-    };
-
-    CNeditor.prototype._getStartDiv = function(range) {
-      var startDiv;
-      if (range.startContainer.nodeName === 'BODY') {
-        startDiv = range.startContainer.children[range.startOffset];
-      } else {
-        startDiv = range.startContainer;
-      }
-      if (startDiv.nodeName !== "DIV") {
-        startDiv = $(startDiv).parents("div")[0];
-      }
-      return startDiv;
-    };
-
-    CNeditor.prototype._getEndDiv = function(range, startDiv) {
-      var endDiv;
-      if (range.endContainer.nodeName === "BODY") {
-        endDiv = range.endContainer.children[range.endOffset - 1];
-      } else {
-        endDiv = range.endContainer;
-      }
-      if ((endDiv != null ? endDiv.nodeName : void 0) !== "DIV") {
-        endDiv = $(endDiv).parents("div")[0];
-      } else {
-        endDiv = startDiv;
-      }
-      return endDiv;
-    };
-
-    /* ------------------------------------------------------------------------
-    #  _normalize(range)
-    # 
-    #  Modify 'range' containers and offsets so it represent a clean selection
-    #  that it starts inside a textNode and ends inside a textNode.
-    #
-    #  Set the flag isEmptyLine to true if an empty line is being normalized
-    #  so further suppr ~ backspace work properly.
-    #
-    */
-
-
-    CNeditor.prototype._normalize = function(range) {
-      var elt, endContainer, endDiv, offset, startContainer, startDiv, targetChild, _ref, _ref1;
-      startDiv = this._getStartDiv(range);
-      endDiv = this._getEndDiv(range, startDiv);
-      this.isEmptyLine = startDiv === endDiv && startDiv.innerHTML === '<span></span><br>';
-      startContainer = range.startContainer;
-      console.log("normalize");
-      console.log(range);
-      if (startContainer.nodeName === "BODY") {
-        elt = startContainer.children[range.startOffset];
-        this._putStartOnStart(range, elt);
-      } else if (startContainer.nodeName === "DIV") {
-        if (this.isEmptyLine) {
-          elt = startContainer.childNodes[0];
-          this._putStartOnStart(range, elt);
-        } else if (range.startOffset < startContainer.childNodes.length - 1) {
-          elt = startContainer.childNodes[range.startOffset];
-          this._putStartOnStart(range, elt);
-        } else {
-          elt = startContainer.lastChild.previousElementSibling;
-          this._putStartOnEnd(range, elt);
-        }
-      } else if ((_ref = startContainer.nodeName) === "SPAN" || _ref === "IMG" || _ref === "A") {
-        if (startContainer.firstChild === null || startContainer.textContent.length === 0) {
-          this._putStartOnEnd(range, startContainer);
-        } else if (range.startOffset < startContainer.childNodes.length) {
-          targetChild = startContainer.childNodes[range.startOffset];
-          range.setStart(targetChild, 0);
-        } else {
-          targetChild = startContainer.lastChild;
-          offset = targetChild.data.length;
-          range.setStart(targetChild, offset);
-        }
-      }
-      endContainer = range.endContainer;
-      if (endContainer.nodeName === "BODY") {
-        elt = endContainer.children[range.endOffset - 1].lastChild;
-        this._putEndOnEnd(range, elt.previousElementSibling);
-      }
-      if (endContainer.nodeName === "DIV") {
-        if (range.endOffset < endContainer.childNodes.length - 1) {
-          elt = endContainer.childNodes[range.endOffset];
-          this._putEndOnStart(range, elt);
-        } else {
-          elt = endContainer.lastChild.previousElementSibling;
-          this._putEndOnEnd(range, elt);
-        }
-      } else if ((_ref1 = endContainer.nodeName) === "SPAN" || _ref1 === "IMG" || _ref1 === "A") {
-        if (endContainer.firstChild === null || endContainer.textContent.length === 0) {
-          this._putEndOnEnd(range, endContainer);
-        }
-        if (range.endOffset < endContainer.childNodes.length) {
-          targetChild = startContainer.childNodes[range.endOffset];
-          range.setEnd(targetChild, 0);
-        } else {
-          targetChild = endContainer.lastChild;
-          offset = targetChild.data.length;
-          range.setEnd(targetChild, offset);
-        }
-      }
-      return range;
     };
 
     /* ------------------------------------------------------------------------
@@ -560,8 +387,8 @@ window.require.define({"views/CNeditor/CNeditor": function(exports, require, mod
         this.newPosition = false;
         sel = this.getEditorSelection();
         range = sel.getRangeAt(0);
-        normalizedRange = rangy.createRange();
-        normalizedRange = this._normalize(range);
+        rangy.createRange();
+        normalizedRange = selection.normalize(range);
         normalizedSel = this.getEditorSelection();
         normalizedSel.setSingleRange(normalizedRange);
       }
@@ -687,18 +514,16 @@ window.require.define({"views/CNeditor/CNeditor": function(exports, require, mod
 
 
     CNeditor.prototype.titleList = function() {
-      var endDiv, endDivID, endLineID, line, range, sel, startDiv, _results;
+      var endDiv, line, range, sel, startDiv, _results;
       sel = this.getEditorSelection();
       range = sel.getRangeAt(0);
-      startDiv = this._getStartDiv(range);
-      endDiv = this._getEndDiv(range, startDiv);
-      endLineID = endDiv.id;
+      startDiv = selection.getStartDiv(range);
+      endDiv = selection.getEndDiv(range, startDiv);
       line = this._lines[startDiv.id];
-      endDivID = endDiv.id;
       _results = [];
       while (true) {
         this._line2titleList(line);
-        if (line.lineID === endDivID) {
+        if (line.lineID === endDiv.id) {
           break;
         } else {
           _results.push(line = line.lineNext);
@@ -734,7 +559,7 @@ window.require.define({"views/CNeditor/CNeditor": function(exports, require, mod
 
     /* ------------------------------------------------------------------------
     # turn in Th or Lh of the siblings of line (and line itself of course)
-    # the children are note modified
+    # the children are not modified
     */
 
 
@@ -796,8 +621,8 @@ window.require.define({"views/CNeditor/CNeditor": function(exports, require, mod
         endLineID = startDivID;
       } else {
         range = this.getEditorSelection().getRangeAt(0);
-        startDiv = this._getStartDiv(range);
-        endDiv = this._getEndDiv(range, startDiv);
+        startDiv = selection.getStartDiv(range);
+        endDiv = selection.getEndDiv(range, startDiv);
         startDivID = startDiv.id;
         endLineID = endDiv.id;
       }
@@ -904,8 +729,8 @@ window.require.define({"views/CNeditor/CNeditor": function(exports, require, mod
       var endDiv, endLineID, l, line, lineTypeTarget, range, sel, startDiv, _results;
       sel = this.getEditorSelection();
       range = sel.getRangeAt(0);
-      startDiv = this._getStartDiv(range);
-      endDiv = this._getEndDiv(range, startDiv);
+      startDiv = selection.getStartDiv(range);
+      endDiv = selection.getEndDiv(range, startDiv);
       endLineID = endDiv.id;
       line = this._lines[startDiv.id];
       _results = [];
@@ -1001,8 +826,8 @@ window.require.define({"views/CNeditor/CNeditor": function(exports, require, mod
       } else {
         sel = this.getEditorSelection();
         range = sel.getRangeAt(0);
-        startDiv = this._getStartDiv(range);
-        endDiv = this._getEndDiv(range, startDiv);
+        startDiv = selection.getStartDiv(range);
+        endDiv = selection.getEndDiv(range, startDiv);
       }
       if (startDiv.nodeName !== "DIV") {
         startDiv = $(startDiv).parents("div")[0];
@@ -1121,8 +946,8 @@ window.require.define({"views/CNeditor/CNeditor": function(exports, require, mod
         sel = this.getEditorSelection();
         range = sel.getRangeAt(0);
       }
-      startDiv = this._getStartDiv(range);
-      endDiv = this._getEndDiv(range, startDiv);
+      startDiv = selection.getStartDiv(range);
+      endDiv = selection.getEndDiv(range, startDiv);
       endLineID = endDiv.id;
       line = this._lines[startDiv.id];
       _results = [];
@@ -1319,9 +1144,9 @@ window.require.define({"views/CNeditor/CNeditor": function(exports, require, mod
         if (startLine === null) {
           startLine = endLine;
           endLine = endLine.lineNext;
-          this._putStartOnStart(range, startLine.line$[0].firstElementChild);
+          selection.putStartOnStart(range, startLine.line$[0].firstElementChild);
           endLine.line$.prepend('<span></span>');
-          this._putEndOnStart(range, endLine.line$[0].firstElementChild);
+          selection.putEndOnStart(range, endLine.line$[0].firstElementChild);
         } else {
           startNode = startLine.line$[0].lastElementChild.previousElementSibling;
           endNode = endLine.line$[0].lastElementChild.previousElementSibling;
@@ -1515,15 +1340,6 @@ window.require.define({"views/CNeditor/CNeditor": function(exports, require, mod
       return newLine;
     };
 
-    CNeditor.prototype._getLineDiv = function(container) {
-      var parent;
-      parent = container;
-      while (parent.nodeName !== 'DIV' && (((parent.id != null) && parent.id.substr(0, 5) !== 'CNID_') || !(parent.id != null)) && parent.parentNode !== null) {
-        parent = parent.parentNode;
-      }
-      return parent;
-    };
-
     /* ------------------------------------------------------------------------
     #  _endDiv
     #  
@@ -1551,12 +1367,12 @@ window.require.define({"views/CNeditor/CNeditor": function(exports, require, mod
         if ((endContainer.id != null) && endContainer.id.substr(0, 5) === 'CNID_') {
           endLine = this._lines[endContainer.id];
         } else {
-          endLine = this._lines[this._getLineDiv(endContainer).id];
+          endLine = this._lines[selection.getLineDiv(endContainer).id];
         }
         if (startContainer.nodeName === 'DIV') {
           startLine = this._lines[startContainer.id];
         } else {
-          startLine = this._lines[this._getLineDiv(startContainer).id];
+          startLine = this._lines[selection.getLineDiv(startContainer).id];
         }
         return this.currentSel = {
           sel: sel,
@@ -1603,7 +1419,7 @@ window.require.define({"views/CNeditor/CNeditor": function(exports, require, mod
           endLine = this._lines[endContainer.id];
           rangeIsEndLine = endContainer.children.length < initialEndOffset || endContainer.children[initialEndOffset].nodeName === "BR";
         } else if ($(endContainer).parents("div").length > 0) {
-          endLineDiv = this._getLineDiv(endContainer);
+          endLineDiv = selection.getLineDiv(endContainer);
           endLine = this._lines[endLineDiv.id];
           rangeIsEndLine = false;
           if (endContainer.nodeType === Node.TEXT_NODE) {
@@ -1624,7 +1440,7 @@ window.require.define({"views/CNeditor/CNeditor": function(exports, require, mod
           startLine = this._lines[startContainer.id];
           rangeIsStartLine = initialStartOffset === 0;
         } else if ($(startContainer).parents("div").length > 0) {
-          startLine = this._lines[this._getLineDiv(startContainer).id];
+          startLine = this._lines[selection.getLineDiv(startContainer).id];
           if (startContainer.nodeType === Node.TEXT_NODE) {
             rangeIsStartLine = endContainer.previousSibling === null && initialStartOffset === 0;
           } else {
@@ -1749,8 +1565,8 @@ window.require.define({"views/CNeditor/CNeditor": function(exports, require, mod
       var cloneLine, endDiv, endLineID, line, lineEnd, lineNext, linePrev, lineStart, myRange, numOfUntab, range, sel, startDiv, startLineID, _results, _results1;
       sel = this.getEditorSelection();
       range = sel.getRangeAt(0);
-      startDiv = this._getStartDiv(range);
-      endDiv = this._getEndDiv(range, startDiv);
+      startDiv = selection.getStartDiv(range);
+      endDiv = selection.getEndDiv(range, startDiv);
       startLineID = startDiv.id;
       endLineID = endDiv.id;
       lineStart = this._lines[startLineID];
@@ -1857,8 +1673,8 @@ window.require.define({"views/CNeditor/CNeditor": function(exports, require, mod
       var cloneLine, endDiv, endLineID, isSecondLine, line, lineEnd, lineNext, linePrev, lineStart, myRange, numOfUntab, range, sel, startDiv, startLineID, _results, _results1;
       sel = this.getEditorSelection();
       range = sel.getRangeAt(0);
-      startDiv = this._getStartDiv(range);
-      endDiv = this._getEndDiv(range, startDiv);
+      startDiv = selection.getStartDiv(range);
+      endDiv = selection.getEndDiv(range, startDiv);
       startLineID = startDiv.id;
       endLineID = endDiv.id;
       lineStart = this._lines[startLineID];
@@ -2187,7 +2003,7 @@ window.require.define({"views/CNeditor/CNeditor": function(exports, require, mod
 
 
     CNeditor.prototype._processPaste = function() {
-      var absDepth, caretOffset, caretTextNodeTarget, currSel, currentLineFrag, domWalkContext, dummyLine, elToInsert, endLine, endOffset, endTargetLineFrag, firstAddedLine, frag, htmlStr, i, line, lineElements, lineNextStartLine, nbElements, newText, parendDiv, range, sandbox, secondAddedLine, startLine, startOffset, targetNode, targetText, txt;
+      var absDepth, caretOffset, caretTextNodeTarget, currSel, currentLineFrag, domWalkContext, dummyLine, elToInsert, endLine, endOffset, endTargetLineFrag, frag, htmlStr, i, line, lineElements, lineNextStartLine, nbElements, newText, parendDiv, range, sandbox, startLine, startOffset, targetNode, targetText, txt;
       sandbox = this.clipboard;
       currSel = this.currentSel;
       sandbox.innerHTML = sanitize(sandbox.innerHTML).xss();
@@ -2216,6 +2032,8 @@ window.require.define({"views/CNeditor/CNeditor": function(exports, require, mod
       htmlStr = this._domWalk(sandbox, domWalkContext);
       sandbox.innerHTML = "";
       frag.removeChild(frag.firstChild);
+      console.log("htmlStr");
+      console.log(frag);
       /*
               # TODO : the following steps removes all the styles of the lines in frag
               # Later this will be removed in order to take into account styles.
@@ -2252,7 +2070,11 @@ window.require.define({"views/CNeditor/CNeditor": function(exports, require, mod
         endOffset = targetNode.childNodes.length - startOffset;
       }
       i = 0;
-      lineElements = frag.firstChild.childNodes;
+      if (frag.childNodes.length > 0) {
+        lineElements = frag.firstChild.childNodes;
+      } else {
+        lineElements = [frag];
+      }
       nbElements = lineElements.length;
       while (i < nbElements - 1) {
         elToInsert = lineElements[i];
@@ -2282,11 +2104,7 @@ window.require.define({"views/CNeditor/CNeditor": function(exports, require, mod
           parendDiv = parendDiv.parentElement;
         }
       }
-      firstAddedLine = dummyLine.lineNext;
-      secondAddedLine = firstAddedLine.lineNext;
-      frag.removeChild(frag.firstChild);
-      delete this._lines[firstAddedLine.lineID];
-      if (secondAddedLine !== null) {
+      if (typeof secondAddedLine !== "undefined" && secondAddedLine !== null) {
         lineNextStartLine = currSel.startLine.lineNext;
         currSel.startLine.lineNext = secondAddedLine;
         secondAddedLine.linePrev = currSel.startLine;
@@ -2298,7 +2116,7 @@ window.require.define({"views/CNeditor/CNeditor": function(exports, require, mod
           this.linesDiv.insertBefore(frag, lineNextStartLine.line$[0]);
         }
       }
-      if (secondAddedLine !== null) {
+      if (typeof secondAddedLine !== "undefined" && secondAddedLine !== null) {
         caretTextNodeTarget = lineNextStartLine.linePrev.line$[0].childNodes[0].firstChild;
         caretOffset = caretTextNodeTarget.length - endOffset;
         return currSel.sel.collapse(caretTextNodeTarget, caretOffset);
@@ -2374,7 +2192,7 @@ window.require.define({"views/CNeditor/CNeditor": function(exports, require, mod
 
 
     CNeditor.prototype.__domWalk = function(nodeToParse, context) {
-      var absDepth, child, deltaHxLevel, lastInsertedEl, prevHxLevel, spanNode, spaneEl, txtNode, _i, _len, _ref, _ref1;
+      var absDepth, child, deltaHxLevel, lastInsertedEl, prevHxLevel, spanEl, spanNode, txtNode, _i, _len, _ref, _ref1;
       absDepth = context.absDepth;
       prevHxLevel = context.prevHxLevel;
       _ref = nodeToParse.childNodes;
@@ -2384,11 +2202,14 @@ window.require.define({"views/CNeditor/CNeditor": function(exports, require, mod
           case '#text':
             txtNode = document.createTextNode(child.textContent);
             if ((_ref1 = context.currentLineEl.nodeName) === 'SPAN' || _ref1 === 'A') {
+              console.log("span");
               context.currentLineEl.appendChild(txtNode);
             } else {
-              spaneEl = document.createElement('span');
-              spaneEl.appendChild(txtNode);
-              context.currentLineEl.appendChild(spaneEl);
+              console.log("no span");
+              spanEl = document.createElement('span');
+              spanEl.appendChild(txtNode);
+              console.log(spanEl);
+              context.currentLineEl.appendChild(spanEl);
             }
             console.log("lineEl");
             console.log(context.currentLineEl);
@@ -2485,6 +2306,7 @@ window.require.define({"views/CNeditor/CNeditor": function(exports, require, mod
       };
       context.lastAddedLine = this._insertLineAfter(p);
       console.log(context.currentLineEl);
+      console.log("context.frag = ");
       console.log(context.frag);
       context.frag.appendChild(context.currentLineEl);
       context.currentLineFrag = document.createDocumentFragment();
@@ -2524,202 +2346,6 @@ window.require.define({"views/CNeditor/CNeditor": function(exports, require, mod
     };
 
     /* ------------------------------------------------------------------------
-    #  MARKUP LANGUAGE CONVERTERS
-    # _cozy2md (Read a string of editor html code format and turns it into a
-    #           string in markdown format)
-    # _md2cozy (Read a string of html code given by showdown and turns it into
-    #           a string of editor html code)
-    */
-
-
-    /* ------------------------------------------------------------------------
-    #  _cozy2md
-    # Read a string of editor html code format and turns it into a string in
-    #  markdown format
-    */
-
-
-    CNeditor.prototype._cozy2md = function(text) {
-      var children, classType, converter, currDepth, htmlCode, i, j, l, lineCode, lineElt, markCode, markup, space, _i, _ref;
-      htmlCode = $(document.createElement('div')).html(text);
-      markCode = '';
-      currDepth = 0;
-      converter = {
-        'A': function(obj) {
-          var href, title;
-          title = obj.attr('title') != null ? obj.attr('title') : "";
-          href = obj.attr('href') != null ? obj.attr('href') : "";
-          return '[' + obj.html() + '](' + href + ' "' + title + '")';
-        },
-        'IMG': function(obj) {
-          var alt, src, title;
-          title = obj.attr('title') != null ? obj.attr('title') : "";
-          alt = obj.attr('alt') != null ? obj.attr('alt') : "";
-          src = obj.attr('src') != null ? obj.attr('src') : "";
-          return '![' + alt + '](' + src + ' "' + title + '")';
-        },
-        'SPAN': function(obj) {
-          return obj.text();
-        }
-      };
-      markup = {
-        'Th': function(blanks, depth) {
-          var dieses, i;
-          currDepth = depth;
-          dieses = '';
-          i = 0;
-          while (i < depth) {
-            dieses += '#';
-            i++;
-          }
-          return "\n" + dieses + ' ';
-        },
-        'Lh': function(blanks, depth) {
-          return "\n";
-        },
-        'Tu': function(blanks, depth) {
-          return "\n" + blanks + "+   ";
-        },
-        'Lu': function(blanks, depth) {
-          return "\n" + blanks + "    ";
-        },
-        'To': function(blanks, depth) {
-          return "\n" + blanks + "1.   ";
-        },
-        'Lo': function(blanks, depth) {
-          return "\n" + blanks + "    ";
-        }
-      };
-      classType = function(className) {
-        var blanks, depth, i, tab, type;
-        tab = className.split("-");
-        type = tab[0];
-        depth = parseInt(tab[1], 10);
-        blanks = '';
-        i = 1;
-        while (i < depth - currDepth) {
-          blanks += '    ';
-          i++;
-        }
-        return markup[type](blanks, depth);
-      };
-      children = htmlCode.children();
-      for (i = _i = 0, _ref = children.length - 1; 0 <= _ref ? _i <= _ref : _i >= _ref; i = 0 <= _ref ? ++_i : --_i) {
-        lineCode = $(children.get(i));
-        if (lineCode.attr('class') != null) {
-          markCode += classType(lineCode.attr('class'));
-        }
-        l = lineCode.children().length;
-        j = 0;
-        space = ' ';
-        while (j < l) {
-          lineElt = lineCode.children().get(j);
-          if (j + 2 === l) {
-            space = '';
-          }
-          if (lineElt.nodeType === 1 && (converter[lineElt.nodeName] != null)) {
-            markCode += converter[lineElt.nodeName]($(lineElt)) + space;
-          } else {
-            markCode += $(lineElt).text() + space;
-          }
-          j++;
-        }
-        markCode += "\n";
-      }
-      return markCode;
-    };
-
-    /* ------------------------------------------------------------------------
-    # Read a string of html code given by showdown and turns it into a string
-    # of editor html code
-    */
-
-
-    CNeditor.prototype._md2cozy = function(text) {
-      var conv, cozyCode, cozyTurn, depth, htmlCode, id, readHtml, recRead;
-      console.log(text);
-      conv = new Showdown.converter();
-      text = conv.makeHtml(text);
-      htmlCode = $(document.createElement('ul')).html(text);
-      cozyCode = '';
-      id = 0;
-      cozyTurn = function(type, depth, p) {
-        var code;
-        id++;
-        code = '';
-        if (p != null) {
-          p.contents().each(function() {
-            var name;
-            name = this.nodeName;
-            if (name === "#text") {
-              return code += "<span>" + ($(this).text()) + "</span>";
-            } else if (this.tagName != null) {
-              $(this).wrap('<div></div>');
-              code += "" + ($(this).parent().html());
-              return $(this).unwrap();
-            }
-          });
-        } else {
-          code = "<span></span>";
-        }
-        return ("<div id=CNID_" + id + " class=" + type + "-" + depth + ">") + code + "<br></div>";
-      };
-      depth = 0;
-      readHtml = function(obj) {
-        var tag;
-        tag = obj[0].tagName;
-        if (tag[0] === "H") {
-          depth = parseInt(tag[1], 10);
-          return cozyCode += cozyTurn("Th", depth, obj);
-        } else if (tag === "P") {
-          return cozyCode += cozyTurn("Lh", depth, obj);
-        } else {
-          return recRead(obj, "u");
-        }
-      };
-      recRead = function(obj, status) {
-        var child, i, tag, _i, _ref, _results;
-        tag = obj[0].tagName;
-        if (tag === "UL") {
-          depth++;
-          obj.children().each(function() {
-            return recRead($(this), "u");
-          });
-          return depth--;
-        } else if (tag === "OL") {
-          depth++;
-          obj.children().each(function() {
-            return recRead($(this), "o");
-          });
-          return depth--;
-        } else if (tag === "LI" && (obj.contents().get(0) != null)) {
-          if (obj.contents().get(0).nodeName === "#text") {
-            obj = obj.clone().wrap('<p></p>').parent();
-          }
-          _results = [];
-          for (i = _i = 0, _ref = obj.children().length - 1; 0 <= _ref ? _i <= _ref : _i >= _ref; i = 0 <= _ref ? ++_i : --_i) {
-            child = $(obj.children().get(i));
-            if (i === 0) {
-              _results.push(cozyCode += cozyTurn("T" + status, depth, child));
-            } else {
-              _results.push(recRead(child, status));
-            }
-          }
-          return _results;
-        } else if (tag === "P") {
-          return cozyCode += cozyTurn("L" + status, depth, obj);
-        }
-      };
-      htmlCode.children().each(function() {
-        return readHtml($(this));
-      });
-      if (cozyCode.length === 0) {
-        cozyCode = cozyTurn("Tu", 1, null);
-      }
-      return cozyCode;
-    };
-
-    /* ------------------------------------------------------------------------
     # EXTENSION  :  cleaned up HTML parsing
     #
     #  (TODO)
@@ -2753,9 +2379,401 @@ window.require.define({"views/CNeditor/CNeditor": function(exports, require, mod
     */
 
 
+    CNeditor.prototype.logKeyPress = function(e) {
+      console.clear();
+      console.log('__keyPressListener____________________________');
+      console.log(e);
+      console.log("ctrl " + e.ctrlKey + "; Alt " + e.altKey + "; Shift " + e.shiftKey + "; ");
+      console.log("which " + e.which + "; keyCode " + e.keyCode);
+      return console.log("metaKeyStrokesCode:'" + metaKeyStrokesCode + "' keyStrokesCode:'" + keyStrokesCode + "'");
+    };
+
     return CNeditor;
 
   })();
+  
+}});
+
+window.require.define({"views/CNeditor/md2cozy": function(exports, require, module) {
+  /* ------------------------------------------------------------------------
+  #  MARKUP LANGUAGE CONVERTERS
+  # _cozy2md (Read a string of editor html code format and turns it into a
+  #           string in markdown format)
+  # _md2cozy (Read a string of html code given by showdown and turns it into
+  #           a string of editor html code)
+  */
+
+  /* ------------------------------------------------------------------------
+  #  _cozy2md
+  # Read a string of editor html code format and turns it into a string in
+  #  markdown format
+  */
+
+  exports.cozy2md = function(text) {
+    var children, classType, converter, currDepth, htmlCode, i, j, l, lineCode, lineElt, markCode, markup, space, _i, _ref;
+    htmlCode = $(document.createElement('div')).html(text);
+    markCode = '';
+    currDepth = 0;
+    converter = {
+      'A': function(obj) {
+        var href, title;
+        title = obj.attr('title') != null ? obj.attr('title') : "";
+        href = obj.attr('href') != null ? obj.attr('href') : "";
+        return '[' + obj.html() + '](' + href + ' "' + title + '")';
+      },
+      'IMG': function(obj) {
+        var alt, src, title;
+        title = obj.attr('title') != null ? obj.attr('title') : "";
+        alt = obj.attr('alt') != null ? obj.attr('alt') : "";
+        src = obj.attr('src') != null ? obj.attr('src') : "";
+        return '![' + alt + '](' + src + ' "' + title + '")';
+      },
+      'SPAN': function(obj) {
+        return obj.text();
+      }
+    };
+    markup = {
+      'Th': function(blanks, depth) {
+        var dieses, i;
+        currDepth = depth;
+        dieses = '';
+        i = 0;
+        while (i < depth) {
+          dieses += '#';
+          i++;
+        }
+        return "\n" + dieses + ' ';
+      },
+      'Lh': function(blanks, depth) {
+        return "\n";
+      },
+      'Tu': function(blanks, depth) {
+        return "\n" + blanks + "+   ";
+      },
+      'Lu': function(blanks, depth) {
+        return "\n" + blanks + "    ";
+      },
+      'To': function(blanks, depth) {
+        return "\n" + blanks + "1.   ";
+      },
+      'Lo': function(blanks, depth) {
+        return "\n" + blanks + "    ";
+      }
+    };
+    classType = function(className) {
+      var blanks, depth, i, tab, type;
+      tab = className.split("-");
+      type = tab[0];
+      depth = parseInt(tab[1], 10);
+      blanks = '';
+      i = 1;
+      while (i < depth - currDepth) {
+        blanks += '    ';
+        i++;
+      }
+      return markup[type](blanks, depth);
+    };
+    children = htmlCode.children();
+    for (i = _i = 0, _ref = children.length - 1; 0 <= _ref ? _i <= _ref : _i >= _ref; i = 0 <= _ref ? ++_i : --_i) {
+      lineCode = $(children.get(i));
+      if (lineCode.attr('class') != null) {
+        markCode += classType(lineCode.attr('class'));
+      }
+      l = lineCode.children().length;
+      j = 0;
+      space = ' ';
+      while (j < l) {
+        lineElt = lineCode.children().get(j);
+        if (j + 2 === l) {
+          space = '';
+        }
+        if (lineElt.nodeType === 1 && (converter[lineElt.nodeName] != null)) {
+          markCode += converter[lineElt.nodeName]($(lineElt)) + space;
+        } else {
+          markCode += $(lineElt).text() + space;
+        }
+        j++;
+      }
+      markCode += "\n";
+    }
+    return markCode;
+  };
+
+  /* ------------------------------------------------------------------------
+  # Read a string of html code given by showdown and turns it into a string
+  # of editor html code
+  */
+
+
+  exports.md2cozy = function(text) {
+    var conv, cozyCode, cozyTurn, depth, htmlCode, id, readHtml, recRead;
+    conv = new Showdown.converter();
+    text = conv.makeHtml(text);
+    htmlCode = $(document.createElement('ul')).html(text);
+    cozyCode = '';
+    id = 0;
+    cozyTurn = function(type, depth, p) {
+      var code;
+      id++;
+      code = '';
+      if (p != null) {
+        p.contents().each(function() {
+          var name;
+          name = this.nodeName;
+          if (name === "#text") {
+            return code += "<span>" + ($(this).text()) + "</span>";
+          } else if (this.tagName != null) {
+            $(this).wrap('<div></div>');
+            code += "" + ($(this).parent().html());
+            return $(this).unwrap();
+          }
+        });
+      } else {
+        code = "<span></span>";
+      }
+      return ("<div id=CNID_" + id + " class=" + type + "-" + depth + ">") + code + "<br></div>";
+    };
+    depth = 0;
+    readHtml = function(obj) {
+      var tag;
+      tag = obj[0].tagName;
+      if (tag[0] === "H") {
+        depth = parseInt(tag[1], 10);
+        return cozyCode += cozyTurn("Th", depth, obj);
+      } else if (tag === "P") {
+        return cozyCode += cozyTurn("Lh", depth, obj);
+      } else {
+        return recRead(obj, "u");
+      }
+    };
+    recRead = function(obj, status) {
+      var child, i, tag, _i, _ref, _results;
+      tag = obj[0].tagName;
+      if (tag === "UL") {
+        depth++;
+        obj.children().each(function() {
+          return recRead($(this), "u");
+        });
+        return depth--;
+      } else if (tag === "OL") {
+        depth++;
+        obj.children().each(function() {
+          return recRead($(this), "o");
+        });
+        return depth--;
+      } else if (tag === "LI" && (obj.contents().get(0) != null)) {
+        if (obj.contents().get(0).nodeName === "#text") {
+          obj = obj.clone().wrap('<p></p>').parent();
+        }
+        _results = [];
+        for (i = _i = 0, _ref = obj.children().length - 1; 0 <= _ref ? _i <= _ref : _i >= _ref; i = 0 <= _ref ? ++_i : --_i) {
+          child = $(obj.children().get(i));
+          if (i === 0) {
+            _results.push(cozyCode += cozyTurn("T" + status, depth, child));
+          } else {
+            _results.push(recRead(child, status));
+          }
+        }
+        return _results;
+      } else if (tag === "P") {
+        return cozyCode += cozyTurn("L" + status, depth, obj);
+      }
+    };
+    htmlCode.children().each(function() {
+      return readHtml($(this));
+    });
+    if (cozyCode.length === 0) {
+      cozyCode = cozyTurn("Tu", 1, null);
+    }
+    return cozyCode;
+  };
+  
+}});
+
+window.require.define({"views/CNeditor/selection": function(exports, require, module) {
+  /* ------------------------------------------------------------------------
+  # UTILITY FUNCTIONS
+  # used to set ranges and help normalize selection
+  # 
+  # parameters: elt  :  a dom object with only textNode children
+  #
+  # note: with google chrome, it seems that non visible elements
+  #       cannot be selected with rangy (that's where 'blank' comes in)
+  */
+
+  var _this = this;
+
+  exports.putStartOnStart = function(range, elt) {
+    var blank, offset;
+    if (elt.firstChild != null) {
+      offset = elt.firstChild.textContent.length;
+      if (offset === 0) {
+        elt.firstChild.data = " ";
+      }
+      return range.setStart(elt.firstChild, 0);
+    } else {
+      blank = document.createTextNode(" ");
+      elt.appendChild(blank);
+      return range.setStart(blank, 0);
+    }
+  };
+
+  exports.putStartOnEnd = function(range, elt) {
+    var blank, offset;
+    if (elt.lastChild != null) {
+      offset = elt.lastChild.textContent.length;
+      if (offset === 0) {
+        elt.lastChild.data = " ";
+        offset = 1;
+      }
+      return range.setStart(elt.lastChild, offset);
+    } else {
+      blank = document.createTextNode(" ");
+      elt.appendChild(blank);
+      return range.setStart(blank, 0);
+    }
+  };
+
+  exports.putEndOnStart = function(range, elt) {
+    var blank, offset;
+    if (elt.firstChild != null) {
+      offset = elt.firstChild.textContent.length;
+      if (offset === 0) {
+        elt.firstChild.data = " ";
+      }
+      return range.setEnd(elt.firstChild, 0);
+    } else {
+      blank = document.createTextNode(" ");
+      elt.appendChild(blank);
+      return range.setEnd(blank, 0);
+    }
+  };
+
+  exports.putEndOnEnd = function(range, elt) {
+    var blank, offset;
+    if (elt.lastChild != null) {
+      offset = elt.lastChild.textContent.length;
+      if (offset === 0) {
+        elt.lastChild.data = " ";
+        offset = 1;
+      }
+      return range.setEnd(elt.lastChild, offset);
+    } else {
+      blank = document.createTextNode(" ");
+      elt.appendChild(blank);
+      return range.setEnd(blank, 1);
+    }
+  };
+
+  exports.getStartDiv = function(range) {
+    var startDiv;
+    if (range.startContainer.nodeName === 'BODY') {
+      startDiv = range.startContainer.children[range.startOffset];
+    } else {
+      startDiv = range.startContainer;
+    }
+    if (startDiv.nodeName !== "DIV") {
+      startDiv = $(startDiv).parents("div")[0];
+    }
+    return startDiv;
+  };
+
+  exports.getEndDiv = function(range, startDiv) {
+    var endDiv;
+    if (range.endContainer.nodeName === "BODY") {
+      endDiv = range.endContainer.children[range.endOffset - 1];
+    } else {
+      endDiv = range.endContainer;
+    }
+    if ((endDiv != null ? endDiv.nodeName : void 0) !== "DIV") {
+      endDiv = $(endDiv).parents("div")[0];
+    } else {
+      endDiv = startDiv;
+    }
+    return endDiv;
+  };
+
+  exports.getLineDiv = function(container) {
+    var parent;
+    parent = container;
+    while (parent.nodeName !== 'DIV' && (((parent.id != null) && parent.id.substr(0, 5) !== 'CNID_') || !(parent.id != null)) && parent.parentNode !== null) {
+      parent = parent.parentNode;
+    }
+    return parent;
+  };
+
+  /* ------------------------------------------------------------------------
+  #  _normalize(range)
+  # 
+  #  Modify 'range' containers and offsets so it represent a clean selection
+  #  that it starts inside a textNode and ends inside a textNode.
+  #
+  #  Set the flag isEmptyLine to true if an empty line is being normalized
+  #  so further suppr ~ backspace work properly.
+  #
+  */
+
+
+  exports.normalize = function(range) {
+    var elt, endContainer, endDiv, isEmptyLine, offset, startContainer, startDiv, targetChild, _ref, _ref1;
+    startDiv = exports.getStartDiv(range);
+    endDiv = exports.getEndDiv(range, startDiv);
+    isEmptyLine = startDiv === endDiv && startDiv.innerHTML === '<span></span><br>';
+    startContainer = range.startContainer;
+    if (startContainer.nodeName === "BODY") {
+      elt = startContainer.children[range.startOffset];
+      exports.putStartOnStart(range, elt);
+    } else if (startContainer.nodeName === "DIV") {
+      if (isEmptyLine) {
+        elt = startContainer.childNodes[0];
+        exports.putStartOnStart(range, elt);
+      } else if (range.startOffset < startContainer.childNodes.length - 1) {
+        elt = startContainer.childNodes[range.startOffset];
+        exports.putStartOnStart(range, elt);
+      } else {
+        elt = startContainer.lastChild.previousElementSibling;
+        exports.putStartOnEnd(range, elt);
+      }
+    } else if ((_ref = startContainer.nodeName) === "SPAN" || _ref === "IMG" || _ref === "A") {
+      if (startContainer.firstChild === null || startContainer.textContent.length === 0) {
+        exports.putStartOnEnd(range, startContainer);
+      } else if (range.startOffset < startContainer.childNodes.length) {
+        targetChild = startContainer.childNodes[range.startOffset];
+        range.setStart(targetChild, 0);
+      } else {
+        targetChild = startContainer.lastChild;
+        offset = targetChild.data.length;
+        range.setStart(targetChild, offset);
+      }
+    }
+    endContainer = range.endContainer;
+    if (endContainer.nodeName === "BODY") {
+      elt = endContainer.children[range.endOffset - 1].lastChild;
+      exports.putEndOnEnd(range, elt.previousElementSibling);
+    }
+    if (endContainer.nodeName === "DIV") {
+      if (range.endOffset < endContainer.childNodes.length - 1) {
+        elt = endContainer.childNodes[range.endOffset];
+        exports.putEndOnStart(range, elt);
+      } else {
+        elt = endContainer.lastChild.previousElementSibling;
+        exports.putEndOnEnd(range, elt);
+      }
+    } else if ((_ref1 = endContainer.nodeName) === "SPAN" || _ref1 === "IMG" || _ref1 === "A") {
+      if (endContainer.firstChild === null || endContainer.textContent.length === 0) {
+        exports.putEndOnEnd(range, endContainer);
+      }
+      if (range.endOffset < endContainer.childNodes.length) {
+        targetChild = startContainer.childNodes[range.endOffset];
+        range.setEnd(targetChild, 0);
+      } else {
+        targetChild = endContainer.lastChild;
+        offset = targetChild.data.length;
+        range.setEnd(targetChild, offset);
+      }
+    }
+    return range;
+  };
   
 }});
 
