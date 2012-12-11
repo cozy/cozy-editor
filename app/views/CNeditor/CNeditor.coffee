@@ -50,6 +50,9 @@ class exports.CNeditor
 
                 @document = @editorBody$[0].ownerDocument
                 editor_head$ = editor_html$.find("head")
+                cssLink = '<link id="editorCSS" '
+                cssLink += 'href="stylesheets/CNeditor.css" rel="stylesheet">'
+                editor_head$.html(cssLink)
             
                 # 2- set the properties of the editor
                 @_lines       = {}            # contains every line
