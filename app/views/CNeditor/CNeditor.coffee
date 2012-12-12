@@ -251,12 +251,12 @@ class exports.CNeditor
         if shortcut in ["-A", "-S", "-V", "-Y", "-Z"] then shortcut = "-other"
 
             # Record last pressed shortcut and eventually update the history
-        if @_lastKey != shortcut and
-           shortcut in ["-tab", "-return", "-backspace", "-suppr",
-                        "CtrlShift-down", "CtrlShift-up",
-                        "CtrlShift-left", "CtrlShift-right",
-                        "Ctrl-V", "Shift-tab", "-space", "-other"]
-            @_addHistory()
+        #if @_lastKey != shortcut and \
+               #shortcut in ["-tab", "-return", "-backspace", "-suppr",
+                            #"CtrlShift-down", "CtrlShift-up",
+                            #"CtrlShift-left", "CtrlShift-right",
+                            #"Ctrl-V", "Shift-tab", "-space", "-other"]
+            #@_addHistory()
            
         @_lastKey = shortcut
 
@@ -285,12 +285,11 @@ class exports.CNeditor
             # (following code is redundant but helpful for debugging)
             sel = @getEditorSelection()
             range = sel.getRangeAt(0)
-            rangy.createRange()
-            normalizedRange = selection.normalize(range)
+            normalizedRange = selection.normalize range
 
             # update window selection so it is normalized
             normalizedSel = @getEditorSelection()
-            normalizedSel.setSingleRange(normalizedRange)
+            normalizedSel.setSingleRange normalizedRange
 
         
         # 2.1- Set a flag if the user moved the caret with keyboard
@@ -360,11 +359,6 @@ class exports.CNeditor
     _suppr : (event) ->
         @_findLinesAndIsStartIsEnd()
 
-        #if @isEmptyLine
-            #console.log "empty line"
-            #@isEmptyLine = false
-            #@currentSel.range.deleteContents()
-            
         startLine = @currentSel.startLine
         # 1- Case of a caret "alone" (no selection)
         if @currentSel.range.collapsed
@@ -391,7 +385,6 @@ class exports.CNeditor
 
         # 3- Case of a multi lines selection
         else
-            console.log "multi line"
             @_deleteMultiLinesSelections()
             event.preventDefault()
 
@@ -1010,14 +1003,12 @@ class exports.CNeditor
     # @return {[none]}           [nothing]
     ###
     _deleteMultiLinesSelections : (startLine, endLine) ->
-        # true when the caret needs to be repositioned after deletion
-        replaceCaret = true
 
         # Get start and end positions of the selection.
         if startLine?
-            replaceCaret = false
             range = rangy.createRange()
             selection.cleanSelection startLine, endLine, range
+            replaceCaret = false
         else
             @_findLines()
             range = @currentSel.range
@@ -1025,6 +1016,9 @@ class exports.CNeditor
             startOffset = range.startOffset
             startLine = @currentSel.startLine
             endLine = @currentSel.endLine
+            prevStartLine = startLine.linePrev if startLine?
+            nextEndLine = endLine.lineNext if endLine?
+            replaceCaret = true
             
         # Calculate depth for start and end line
         startLineDepth = startLine.lineDepthAbs
@@ -1038,9 +1032,11 @@ class exports.CNeditor
         @_adaptEndLineType startLine, endLine # adapt end line type if needed.
         @_deleteSelectedLines range
         @_addMissingFragment startLine, endOfLineFragment
+        #startContainer = newStartContainer if newStartContainer?
         @_removeEndLine startLine, endLine
-        @_setCaret(startContainer, startOffset) if replaceCaret
-        @_adaptDepth startLine, startLineDepth, endLineDepth, deltaDepth
+        #@_adaptDepth startLine, startLineDepth, endLineDepth, deltaDepth
+        if replaceCaret
+            @_setCaret(startContainer, startOffset, startLine, nextEndLine)
  
     #  adapt the depth of the children and following siblings of end line
     #    in case the depth delta between start and end line is
@@ -1093,9 +1089,11 @@ class exports.CNeditor
     # then we concatenate both
     _addMissingFragment: (startLine, endOfLineFragment) ->
         startFrag = endOfLineFragment.childNodes[0]
-        if startLine.line$[0].lastChild.nodeName == 'BR'
+        if startLine.line$[0].lastChild is null
+            startLine.line$.prepend '<span></span>'
+        if startLine.line$[0].lastChild.nodeName is 'BR'
             startLine.line$[0].removeChild(startLine.line$[0].lastChild)
-        endLine = startLine.line$[0].lastElementChild
+        endLine = startLine.line$[0].lastChild
 
         if startFrag.tagName == endLine.tagName == 'SPAN' and
            startFrag.className == endLine.className
@@ -1108,8 +1106,14 @@ class exports.CNeditor
             while l < endOfLineFragment.childNodes.length
                 $(endOfLineFragment.childNodes[l]).appendTo startLine.line$
                 l++
+
+            if startContainer?.nodeName is '#text'
+                startContainer = endLine.nextLine
+            startContainer
         else
             startLine.line$.append endOfLineFragment
+            null
+
 
     # Remove end line and update line links of the start line.
     _removeEndLine: (startLine, endLine) ->
@@ -1132,10 +1136,18 @@ class exports.CNeditor
 
 
     # Put caret at given position. Regitser current selection.
-    _setCaret: (startContainer, startOffset) ->
-        range4caret = rangy.createRange()
-        range4caret.collapseToPoint startContainer, startOffset
-        @currentSel.sel.setSingleRange range4caret
+    _setCaret: (startContainer, startOffset, startLine, nextEndLine) ->
+        if startOffset is 0
+            if startLine?
+                startContainer = startLine.line$[0].firstChild.firstChild
+            else
+                startContainer = nextEndLine.line$[0]
+        else
+            startContainer = startLine.line$[0].firstChild.firstChild
+        
+        range = rangy.createRange()
+        range.collapseToPoint startContainer, startOffset
+        @currentSel.sel.setSingleRange range
         @currentSel = null
                 
 
@@ -1788,7 +1800,7 @@ class exports.CNeditor
             # if we are in an unsaved state
             if @_history.index == @_history.history.length-1
                 # save current state
-                @_addHistory()
+                # @_addHistory()
                 # re-evaluate index
                 @_history.index -= 1
 
