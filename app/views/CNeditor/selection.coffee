@@ -9,45 +9,45 @@
 #       cannot be selected with rangy (that's where 'blank' comes in)
 ###
 exports.putStartOnStart = (range, elt) ->
-    if elt.firstChild?
+    if elt?.firstChild?
         offset = elt.firstChild.textContent.length
         if offset == 0 then elt.firstChild.data = " "
         range.setStart elt.firstChild, 0
-    else
+    else if elt?
         blank = document.createTextNode " "
         elt.appendChild blank
         range.setStart blank, 0
 
 exports.putStartOnEnd = (range, elt) ->
-    if elt.lastChild?
+    if elt?.lastChild?
         offset = elt.lastChild.textContent.length
         if offset == 0
             elt.lastChild.data = " "
             offset = 1
         range.setStart(elt.lastChild, offset)
-    else
+    else if elt?
         blank = document.createTextNode " "
         elt.appendChild blank
         range.setStart(blank, 0)
         
 exports.putEndOnStart = (range, elt) ->
-    if elt.firstChild?
+    if elt?.firstChild?
         offset = elt.firstChild.textContent.length
         if offset == 0 then elt.firstChild.data = " "
         range.setEnd(elt.firstChild, 0)
-    else
+    else if elt?
         blank = document.createTextNode " "
         elt.appendChild blank
         range.setEnd(blank, 0)
         
 exports.putEndOnEnd = (range, elt) ->
-    if elt.lastChild?
+    if elt?.lastChild?
         offset = elt.lastChild.textContent.length
         if offset == 0
             elt.lastChild.data = " "
             offset = 1
         range.setEnd(elt.lastChild, offset)
-    else
+    else if elt?
         blank = document.createTextNode " "
         elt.appendChild blank
         range.setEnd(blank, 1)
@@ -127,7 +127,8 @@ exports.normalize = (range) =>
         else
             # place caret at the end of the last child (before br)
             elt = startContainer.lastChild.previousElementSibling
-            exports.putStartOnEnd range, elt
+            if elt?
+                exports.putStartOnEnd range, elt
            
     # 2. if startC is a span, a, img
     else if startContainer.nodeName in ["SPAN","IMG","A"]
@@ -152,6 +153,9 @@ exports.normalize = (range) =>
     # 0. if endC is the body
     if endContainer.nodeName == "BODY"
         elt = endContainer.children[range.endOffset-1].lastChild
+        if elt.previousElementSibling.lastChild.nodeName == "BR"
+            elt.previousElementSibling.removeChild elt.previousElementSibling.lastChild
+            range.endOffset = 0
         exports.putEndOnEnd range, elt.previousElementSibling
     # 1. if endC is a div
     if endContainer.nodeName == "DIV"
@@ -185,3 +189,25 @@ exports.normalize = (range) =>
     # 3. if endC is a textNode ;   do nothing
 
     return range
+
+exports.cleanSelection = (startLine, endLine, range) ->
+    if startLine is null
+        startLine = endLine
+        endLine = endLine.lineNext
+        selection.putStartOnStart range, startLine.line$[0].firstElementChild
+        endLine.line$.prepend '<span></span>'
+        selection.putEndOnStart range, endLine.line$[0].firstElementChild
+    else
+        startNode = startLine.line$[0].lastElementChild.previousElementSibling
+        endNode = endLine.line$[0].lastElementChild.previousElementSibling
+        range.setStartAfter startNode, 0
+        range.setEndAfter endNode, 0
+
+exports.cloneEndFragment = (range, endLine) ->
+    range4fragment = rangy.createRangyRange()
+    if range.endContainer.length >= range.endOffset
+        range.endOffset = range.endOffset - 1
+
+    range4fragment.setStart range.endContainer, range.endOffset
+    range4fragment.setEndAfter endLine.line$[0].lastChild
+    range4fragment.cloneContents()

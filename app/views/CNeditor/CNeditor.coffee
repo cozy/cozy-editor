@@ -253,12 +253,12 @@ class exports.CNeditor
         if shortcut in ["-A", "-S", "-V", "-Y", "-Z"] then shortcut = "-other"
 
             # Record last pressed shortcut and eventually update the history
-        if @_lastKey != shortcut and
-           shortcut in ["-tab", "-return", "-backspace", "-suppr",
-                        "CtrlShift-down", "CtrlShift-up",
-                        "CtrlShift-left", "CtrlShift-right",
-                        "Ctrl-V", "Shift-tab", "-space", "-other"]
-            @_addHistory()
+        #if @_lastKey != shortcut and \
+               #shortcut in ["-tab", "-return", "-backspace", "-suppr",
+                            #"CtrlShift-down", "CtrlShift-up",
+                            #"CtrlShift-left", "CtrlShift-right",
+                            #"Ctrl-V", "Shift-tab", "-space", "-other"]
+            #@_addHistory()
            
         @_lastKey = shortcut
 
@@ -287,12 +287,11 @@ class exports.CNeditor
             # (following code is redundant but helpful for debugging)
             sel = @getEditorSelection()
             range = sel.getRangeAt(0)
-            rangy.createRange()
-            normalizedRange = selection.normalize(range)
+            normalizedRange = selection.normalize range
 
             # update window selection so it is normalized
             normalizedSel = @getEditorSelection()
-            normalizedSel.setSingleRange(normalizedRange)
+            normalizedSel.setSingleRange normalizedRange
 
         
         # 2.1- Set a flag if the user moved the caret with keyboard
@@ -362,11 +361,6 @@ class exports.CNeditor
     _suppr : (event) ->
         @_findLinesAndIsStartIsEnd()
 
-        #if @isEmptyLine
-            #console.log "empty line"
-            #@isEmptyLine = false
-            #@currentSel.range.deleteContents()
-            
         startLine = @currentSel.startLine
         # 1- Case of a caret "alone" (no selection)
         if @currentSel.range.collapsed
@@ -393,7 +387,6 @@ class exports.CNeditor
 
         # 3- Case of a multi lines selection
         else
-            console.log "multi line"
             @_deleteMultiLinesSelections()
             event.preventDefault()
 
@@ -1002,99 +995,60 @@ class exports.CNeditor
             return linePrevSibling
 
 
-
-    ###* ------------------------------------------------------------------------
-     * Delete the user multi line selection
-     * Prerequisite : at least 2 different lines must be selected
-     * If startLine and endLine are specified, lines included between these two
-     * are deleted (including startLine & endLine.
-     * @param  {[line]} startLine [optional] if exists, the whole line will be taken
-     * @param  {[line]} endLine   [optional] if exists, the whole line will be taken
-     * @return {[none]}           [nothing]
+    ###*
+    # Delete the user multi line selection
+    # Prerequisite : at least 2 different lines must be selected
+    # If startLine and endLine are specified, lines included between these two
+    # are deleted (including startLine & endLine.
+    # @param  {[line]} startLine [optional] if exists, the whole line will be taken
+    # @param  {[line]} endLine   [optional] if exists, the whole line will be taken
+    # @return {[none]}           [nothing]
     ###
     _deleteMultiLinesSelections : (startLine, endLine) ->
 
-        # true when the caret needs to be repositioned after deletion
-        replaceCaret = true
-
-        # 0 - variables
-        if startLine != undefined
-            replaceCaret = false
+        # Get start and end positions of the selection.
+        if startLine?
             range = rangy.createRange()
-            
-            # If the very first line must be deleted
-            if startLine == null
-                startLine = endLine
-                endLine = endLine.lineNext
-                selection.putStartOnStart(range, startLine.line$[0].firstElementChild)
-                endLine.line$.prepend '<span></span>'
-                selection.putEndOnStart(range, endLine.line$[0].firstElementChild)
-            else
-                startNode = startLine.line$[0].lastElementChild.previousElementSibling
-                endNode = endLine.line$[0].lastElementChild.previousElementSibling
-                range.setStartAfter(startNode,0)
-                range.setEndAfter(endNode,0)
+            selection.cleanSelection startLine, endLine, range
+            replaceCaret = false
         else
             @_findLines()
-            range = this.currentSel.range
+            range = @currentSel.range
             startContainer = range.startContainer
-            startOffset    = range.startOffset
-            startLine      = this.currentSel.startLine
-            endLine        = this.currentSel.endLine
+            startOffset = range.startOffset
+            startLine = @currentSel.startLine
+            endLine = @currentSel.endLine
+            prevStartLine = startLine.linePrev if startLine?
+            nextEndLine = endLine.lineNext if endLine?
+            replaceCaret = true
             
-        endLineDepthAbs   = endLine.lineDepthAbs
-        startLineDepthAbs = startLine.lineDepthAbs
-        deltaDepth        = endLineDepthAbs - startLineDepthAbs
+        # Calculate depth for start and end line
+        startLineDepth = startLine.lineDepthAbs
+        endLineDepth = endLine.lineDepthAbs
+        deltaDepth = endLineDepth - startLineDepth
 
-        # 1- copy the end of endLine in a fragment
-        range4fragment = rangy.createRangyRange()
-        range4fragment.setStart(range.endContainer, range.endOffset)
-        range4fragment.setEndAfter(endLine.line$[0].lastChild)
-        endOfLineFragment = range4fragment.cloneContents()
+        # copy the non selected end of endLine in a fragment
+        endOfLineFragment = selection.cloneEndFragment range, endLine
 
-        # 2- adapt the type of endLine and of its children to startLine 
-        # the only useful case is when endLine must be changed from Th to Tu or To
-        if endLine.lineType[1] == 'h' and startLine.lineType[1] != 'h'
-            if endLine.lineType[0] == 'L'
-                endLine.lineType = 'T' + endLine.lineType[1]
-                endLine.line$.prop("class","#{endLine.lineType}-#{endLine.lineDepthAbs}")
-            @markerList(endLine)
-
-        # 3- delete lines
-        range.deleteContents()
-
-        # 4- append fragment and delete endLine
-        # TODO : consider using _insertFrag 
-        if startLine.line$[0].lastChild.nodeName == 'BR'
-            startLine.line$[0].removeChild(startLine.line$[0].lastChild)
-        startFrag = endOfLineFragment.childNodes[0]
-        myEndLine = startLine.line$[0].lastElementChild
-        # if startFrag et myEndLine are SPAN and they both have the same class
-        # then we concatenate both
-        if startFrag.tagName == myEndLine.tagName == 'SPAN' and
-           startFrag.className == myEndLine.className
-            startOffset = myEndLine.textContent.length
-            newText = myEndLine.textContent + startFrag.textContent
-            myEndLine.innerHTML = newText
-            startContainer = myEndLine.firstChild
-            
-            l=1
-            while l < endOfLineFragment.childNodes.length
-                $(endOfLineFragment.childNodes[l]).appendTo startLine.line$
-                l++
-        else
-            startLine.line$.append( endOfLineFragment )
-            
-        startLine.lineNext = endLine.lineNext
-        if endLine.lineNext != null
-            endLine.lineNext.linePrev=startLine
-        endLine.line$.remove()
-        delete this._lines[endLine.lineID]
-
-        # 5- adapt the depth of the children and following siblings of end line
-        #    in case the depth delta between start and end line is
-        #    greater than 0, then the structure is not correct : we reduce
-        #    the depth of all the children and siblings of endLine.
+        # Perform deletion on selection and adapt remaining parts consequently.
+        @_adaptEndLineType startLine, endLine # adapt end line type if needed.
+        @_deleteSelectedLines range
+        @_addMissingFragment startLine, endOfLineFragment
+        #startContainer = newStartContainer if newStartContainer?
+        @_removeEndLine startLine, endLine
+        #@_adaptDepth startLine, startLineDepth, endLineDepth, deltaDepth
+        if replaceCaret
+            @_setCaret(startContainer, startOffset, startLine, nextEndLine)
+ 
+    #  adapt the depth of the children and following siblings of end line
+    #    in case the depth delta between start and end line is
+    #    greater than 0, then the structure is not correct : we reduce
+    #    the depth of all the children and siblings of endLine.
+    #
+    #  Then adapt the type of the first line after the children and siblings of
+    #    end line. Its previous sibling or parent might have been deleted, 
+    #    we then must find its new one in order to adapt its type.
+    _adaptDepth: (startLine, startLineDepthAbs, endLineDepthAbs, deltaDepth) ->
         line = startLine.lineNext
         if line != null
             deltaDepth1stLine = line.lineDepthAbs - startLineDepthAbs
@@ -1105,15 +1059,13 @@ class exports.CNeditor
                     line.line$.prop("class","#{line.lineType}-#{newDepth}")
                     line = line.lineNext
                     
-        # 6- adapt the type of the first line after the children and siblings of
-        #    end line. Its previous sibling or parent might have been deleted, 
-        #    we then must find its new one in order to adapt its type.
         if line != null
             # if the line is a line (Lx), then make it "independant"
             # by turning it in a Tx
             if line.lineType[0] == 'L'
                 line.lineType = 'T' + line.lineType[1]
                 line.line$.prop("class","#{line.lineType}-#{line.lineDepthAbs}")
+
             # find the previous sibling, adjust type to its type.
             firstLineAfterSiblingsOfDeleted = line
             depthSibling = line.lineDepthAbs
@@ -1123,23 +1075,84 @@ class exports.CNeditor
 
             if line != null and line != firstLineAfterSiblingsOfDeleted
                 prevSiblingType = line.lineType
-                if firstLineAfterSiblingsOfDeleted.lineType!=prevSiblingType
-                    if prevSiblingType[1]=='h'
+                if firstLineAfterSiblingsOfDeleted.lineType != prevSiblingType
+                    if prevSiblingType[1] == 'h'
                         @_line2titleList(firstLineAfterSiblingsOfDeleted)
                     else
                         @markerList(firstLineAfterSiblingsOfDeleted)
 
-        # 7- position caret
-        if replaceCaret
-            range4caret = rangy.createRange()
-            range4caret.collapseToPoint(startContainer, startOffset)
-            this.currentSel.sel.setSingleRange(range4caret)
-            this.currentSel = null
+    # Delete selection registered in given range.
+    _deleteSelectedLines: (range) ->
+        range.deleteContents() # delete lines
 
-        # else
-        #   do nothing
+    # Add back missing unselected fragment that have been deleted by our rough
+    # deletion.
+    # if startFrag et myEndLine are SPAN and they both have the same class
+    # then we concatenate both
+    _addMissingFragment: (startLine, endOfLineFragment) ->
+        startFrag = endOfLineFragment.childNodes[0]
+        if startLine.line$[0].lastChild is null
+            startLine.line$.prepend '<span></span>'
+        if startLine.line$[0].lastChild.nodeName is 'BR'
+            startLine.line$[0].removeChild(startLine.line$[0].lastChild)
+        endLine = startLine.line$[0].lastChild
+
+        if startFrag.tagName == endLine.tagName == 'SPAN' and
+           startFrag.className == endLine.className
+            startOffset = endLine.textContent.length
+            newText = endLine.textContent + startFrag.textContent
+            endLine.innerHTML = newText
+            startContainer = endLine.firstChild
+            
+            l = 1
+            while l < endOfLineFragment.childNodes.length
+                $(endOfLineFragment.childNodes[l]).appendTo startLine.line$
+                l++
+
+            if startContainer?.nodeName is '#text'
+                startContainer = endLine.nextLine
+            startContainer
+        else
+            startLine.line$.append endOfLineFragment
+            null
+
+
+    # Remove end line and update line links of the start line.
+    _removeEndLine: (startLine, endLine) ->
+        startLine.lineNext = endLine.lineNext
+        endLine.lineNext.linePrev = startLine if endLine.lineNext != null
+        endLine.line$.remove()
+        delete @_lines[endLine.lineID]
+
+
+    # adapt the type of endLine and of its children to startLine 
+    # the only useful case is when endLine must be changed from Th to Tu or To
+    _adaptEndLineType: (startLine, endLine) ->
+        endLineType = endLine.lineType
+        startLineType = startLine.lineType
+        if endLineType[1] is 'h' and startLineType[1] is not 'h'
+            if endLineType[0] is 'L'
+                endLineType = 'T' + endLineType[1]
+                endLine.line$.prop "class","#{endLineType}-#{endLineDepth}"
+            @markerList endLine
+
+
+    # Put caret at given position. Regitser current selection.
+    _setCaret: (startContainer, startOffset, startLine, nextEndLine) ->
+        if startOffset is 0
+            if startLine?
+                startContainer = startLine.line$[0].firstChild.firstChild
+            else
+                startContainer = nextEndLine.line$[0]
+        else
+            startContainer = startLine.line$[0].firstChild.firstChild
         
+        range = rangy.createRange()
+        range.collapseToPoint startContainer, startOffset
+        @currentSel.sel.setSingleRange range
+        @currentSel = null
                 
+
     ### ------------------------------------------------------------------------
     #  _insertLineAfter
     # 
@@ -1236,6 +1249,25 @@ class exports.CNeditor
         sourceLine.linePrev=newLine
         return newLine
 
+
+    _findStartLine: (startContainer) ->
+        if startContainer.nodeName == 'DIV'
+            # startContainer refers to a div of a line
+            startLine = @_lines[ startContainer.id ]
+        else   # means the range starts inside a div (span, textNode...)
+            startLine = @_lines[selection.getLineDiv(startContainer).id]
+        
+
+    _findEndLine: (endContainer) ->
+        # endContainer refers to a div of a line
+        if endContainer.id? and endContainer.id.substr(0,5) == 'CNID_'
+            endLine = @_lines[ endContainer.id ]
+        # means the range ends inside a div (span, textNode...)
+        else
+            endLine = @_lines[selection.getLineDiv(endContainer).id]
+        endLine
+
+
     ### ------------------------------------------------------------------------
     #  _endDiv
     #  
@@ -1250,38 +1282,21 @@ class exports.CNeditor
     #   endLine : the last line of the range
     ###
     _findLines : () ->
-        if @currentSel == null
-            # 1- Variables
-            sel                = @getEditorSelection()
-            range              = sel.getRangeAt(0)
-            startContainer     = range.startContainer
-            endContainer       = range.endContainer
-            initialStartOffset = range.startOffset
-            initialEndOffset   = range.endOffset
+        if @currentSel is null
+            sel = @getEditorSelection()
+            range = sel.getRangeAt(0)
             
-            # 2- find endLine 
-            # endContainer refers to a div of a line
-            if endContainer.id? and endContainer.id.substr(0,5) == 'CNID_'
-                endLine = @_lines[ endContainer.id ]
-            # means the range ends inside a div (span, textNode...)
-            else
-                endLine = @_lines[selection.getLineDiv(endContainer).id]
+            endLine = @_findEndLine range.endContainer
+            startLine = @_findStartLine range.startContainer
             
-            # 3- find startLine
-            if startContainer.nodeName == 'DIV'
-                # startContainer refers to a div of a line
-                startLine = @_lines[ startContainer.id ]
-            else   # means the range starts inside a div (span, textNode...)
-                startLine = @_lines[selection.getLineDiv(startContainer).id]
-            
-            # 4- return
-            return this.currentSel =
+            @currentSel =
                 sel              : sel
                 range            : range
                 startLine        : startLine
                 endLine          : endLine
                 rangeIsStartLine : null
                 rangeIsEndLine   : null
+        @currentSel
 
 
     ### ------------------------------------------------------------------------
@@ -1798,7 +1813,7 @@ class exports.CNeditor
             # if we are in an unsaved state
             if @_history.index == @_history.history.length-1
                 # save current state
-                @_addHistory()
+                # @_addHistory()
                 # re-evaluate index
                 @_history.index -= 1
 
@@ -2226,15 +2241,15 @@ class exports.CNeditor
                     
                     if context.currentLineEl.nodeName in ['SPAN','A']
                         console.log "span"
-                        
                         context.currentLineEl.appendChild txtNode
                     else
                         console.log "no span"
                         spanEl = document.createElement('span')
                         spanEl.appendChild txtNode
                         console.log spanEl
-                        
-                        context.currentLineEl.appendChild spanEl
+                        context.currentLineEl = spanEl
+
+                        console.log context.currentLineEl
 
                     console.log "lineEl"
                     console.log context.currentLineEl
@@ -2405,7 +2420,7 @@ class exports.CNeditor
             # context.absDepth += 1
         else
             # context.absDepth += deltaDepth
-        p = 
+        p =
             sourceLine         : context.lastAddedLine
             innerHTML          : elemt.innerHTML
             targetLineType     : "Tu"
