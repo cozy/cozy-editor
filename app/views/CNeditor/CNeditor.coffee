@@ -20,8 +20,9 @@
 #   _firstLine        : points the first line : TODO : not taken into account 
 ###
 
-#md2cozy = require('./md2cozy').md2cozy
-#selection = require('./selection').selection
+if require?
+    md2cozy = require('./md2cozy').md2cozy
+    selection = require('./selection').selection
 
 class exports.CNeditor
 

@@ -234,9 +234,16 @@ cb = () ->
     playButton.click ->
         recorder.play()
 
+    slowPlayButton = $ "#slow-play-button"
+    slowPlayButton.click ->
+        recorder.slowPlay()
+
+        
         
 
 ###****************************************************
  * 3 - creation of the editor
 ###
-editor = new CNeditor( document.querySelector('#editorIframe'), cb )
+
+$ ->
+    editor = new CNeditor( document.querySelector('#editorIframe'), cb )
