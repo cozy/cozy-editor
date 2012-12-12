@@ -11,12 +11,14 @@
 #           ./templates/content-shortlines-marker
 #           (there are some empty lines around)
  
+md2cozy = {}
+
 ### ------------------------------------------------------------------------
 #  _cozy2md
 # Read a string of editor html code format and turns it into a string in
 #  markdown format
 ###
-exports.cozy2md = (text) ->
+md2cozy.cozy2md = (text) ->
     
     # Writes the string into a jQuery object
     htmlCode = $(document.createElement 'div').html text
@@ -115,7 +117,7 @@ exports.cozy2md = (text) ->
 # Read a string of html code given by showdown and turns it into a string
 # of editor html code
 ###
-exports.md2cozy = (text) ->
+md2cozy.md2cozy = (text) ->
     conv = new Showdown.converter()
     text = conv.makeHtml text
    
@@ -197,3 +199,5 @@ exports.md2cozy = (text) ->
         cozyCode = cozyTurn("Tu", 1, null)
 
     return cozyCode
+
+exports.md2cozy = md2cozy

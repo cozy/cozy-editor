@@ -49,3 +49,14 @@ exports.config =
         templates:
             defaultExtension: 'jade'
             joinTo: 'javascripts/app.js'
+
+    modules:
+        wrapper: false
+        definition:  (path, data) ->
+            if path == "public/CNeditor.js"
+                """
+                md2cozy = require('./md2cozy').md2cozy;
+
+                selection = require('./selection').selection;
+                """
+
