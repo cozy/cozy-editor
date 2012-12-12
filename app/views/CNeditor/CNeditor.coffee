@@ -36,7 +36,9 @@ class exports.CNeditor
 
             # methods to deal selection on an iframe
             @getEditorSelection = () ->
-                return rangy.getIframeSelection @editorTarget
+                # sel = rangy.getSelection()
+                sel = rangy.getIframeSelection @editorTarget
+                return sel
             @saveEditorSelection = () ->
                 return rangy.saveSelection(rangy.dom.getIframeWindow @editorTarget)
             
@@ -386,7 +388,7 @@ class exports.CNeditor
 
             # 1.2 caret is in the middle of the line : nothing to do
 
-        # 2- Case of a selection contained in a line
+        # 2- Case of a selection contained in a line : let the browser do the job
         else if @currentSel.endLine == startLine
 
         # 3- Case of a multi lines selection
@@ -1154,6 +1156,8 @@ class exports.CNeditor
     #     targetLineDepthRel : relative depth of the line to add
     ###
     _insertLineAfter : (p) ->
+        
+        # 1 - creation of the element of the line (newLine$)
         @_highestId += 1
         lineID          = 'CNID_' + @_highestId
         if p.fragment?
@@ -1170,7 +1174,15 @@ class exports.CNeditor
             newLine$ = $("<div id='#{lineID}' class='#{p.targetLineType}-#{p.targetLineDepthAbs}'></div>")
             newLine$.append( $('<span></span><br>') )
         sourceLine = p.sourceLine
-        newLine$   = newLine$.insertAfter(sourceLine.line$)
+        
+        # 2 - insertion of newLine$ in the fragment
+        nextSibling = sourceLine.line$[0].nextSibling
+        if nextSibling == null
+            sourceLine.line$[0].parentNode.appendChild(newLine$[0])
+        else
+            newLine$ = $(sourceLine.line$[0].parentNode.insertBefore(newLine$[0], nextSibling))
+        
+        # 3 - update references in _lines[], lineNext and linePrev
         newLine    =
             line$        : newLine$
             lineID       : lineID
@@ -1183,6 +1195,7 @@ class exports.CNeditor
         if sourceLine.lineNext != null
             sourceLine.lineNext.linePrev = newLine
         sourceLine.lineNext = newLine
+
         return newLine
 
 
@@ -2060,16 +2073,25 @@ class exports.CNeditor
         # what is incorrect when styles will be taken into account.
         targetNode   = currSel.range.startContainer
         startOffset  = currSel.range.startOffset
-        if targetNode.length
+        # if startContainer is a linediv, set targetNode to the inside text node
+        if targetNode.nodeName == 'DIV' and targetNode.id.substr(0,5)=='CNID_'
+            targetNode = targetNode.firstChild.firstChild
+            if startOffset > 0
+                startOffset = targetNode.length
+            else
+                startOffset = 0
             endOffset = targetNode.length - startOffset
-        else
-            endOffset = targetNode.childNodes.length - startOffset
-        i=0
-        
+        # if startContainer is a span, set targetNode to the inside text node
+        if targetNode.nodeName == 'SPAN'
+            targetNode = targetNode.firstChild
+            endOffset = targetNode.length - startOffset
+        # prepare lineElements
         if frag.childNodes.length > 0
             lineElements = frag.firstChild.childNodes
         else
             lineElements = [frag]
+        # loop on each element to insert (only one for now)
+        i=0
         nbElements = lineElements.length
         while i < nbElements-1
             elToInsert = lineElements[i]
@@ -2099,15 +2121,17 @@ class exports.CNeditor
                 frag.lastChild,                    # last line of frag
                 frag.lastChild.children.length-1,  # penultimate node of last line
                 endTargetLineFrag)                 # the frag to insert
+            # TODO : the next 3 lines are required for firebug to detect
+            # breakpoints ! ! !   ????????
             parendDiv = targetNode
             while parendDiv.tagName != 'DIV'
                 parendDiv = parendDiv.parentElement
 
         # remove the firstAddedLine from the fragment
-        #firstAddedLine = dummyLine.lineNext
-        #secondAddedLine = firstAddedLine.lineNext
-        #frag.removeChild(frag.firstChild)
-        #delete this._lines[firstAddedLine.lineID]
+        firstAddedLine = dummyLine.lineNext
+        secondAddedLine = firstAddedLine.lineNext
+        frag.removeChild(frag.firstChild)
+        delete this._lines[firstAddedLine.lineID]
 
         # 7- updates nextLine and prevLines, insert frag in the editor
         if secondAddedLine?
@@ -2217,7 +2241,7 @@ class exports.CNeditor
                     console.log txtNode
                     
                     
-                    @_appendCurrentLineFrag(context,absDepth,absDepth)
+                    # @_appendCurrentLineFrag(context,absDepth,absDepth)
                     context.isCurrentLineBeingPopulated = true
 
                 when 'P', 'UL', 'OL'
@@ -2351,7 +2375,7 @@ class exports.CNeditor
             fragment           : context.currentLineFrag
             targetLineType     : "Tu"
             targetLineDepthAbs : absDepth
-            targetLineDepthRel : absDepth
+            targetLineDepthRel : relDepth
         context.lastAddedLine = @_insertLineAfter(p)
         console.log context.currentLineEl
         console.log "context.frag = "
