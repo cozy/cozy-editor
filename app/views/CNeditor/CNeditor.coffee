@@ -1021,8 +1021,10 @@ class exports.CNeditor
             startOffset = range.startOffset
             startLine = @currentSel.startLine
             endLine = @currentSel.endLine
-            prevStartLine = startLine.linePrev if startLine?
-            nextEndLine = endLine.lineNext if endLine?
+            if startLine?
+                prevStartLine = startLine.linePrev
+            if endLine?
+                nextEndLine = endLine.lineNext
             replaceCaret = true
             
         # Calculate depth for start and end line
@@ -1040,8 +1042,8 @@ class exports.CNeditor
         #startContainer = newStartContainer if newStartContainer?
         @_removeEndLine startLine, endLine
         #@_adaptDepth startLine, startLineDepth, endLineDepth, deltaDepth
-        if replaceCaret
-            @_setCaret(startContainer, startOffset, startLine, nextEndLine)
+        #if replaceCaret
+            #@_setCaret(startContainer, startOffset, startLine, nextEndLine)
  
     #  adapt the depth of the children and following siblings of end line
     #    in case the depth delta between start and end line is
