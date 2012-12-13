@@ -426,10 +426,10 @@ class exports.CNeditor
                 # if there is no previous line : backspace at the beginning of 
                 # firs line : no effect, nothing to do.
                 else
-                    console.log '_backspace 4 - test ok'
+                    console.log '_backspace 4 - test ok2'
             # 1.2 caret is in the middle of the line : delete one caracter
             else
-                console.log '_backspace 5 - deletion of one caracter - test ok'
+                console.log '_backspace 5 - deletion of one caracter - test ok2'
                 # we consider that we are in a text node
                 textNode = sel.range.startContainer
                 startOffset = sel.range.startOffset
@@ -441,7 +441,7 @@ class exports.CNeditor
                 @currentSel = null
         # 2- Case of a selection contained in a line
         else if sel.endLine == startLine
-            console.log '_backspace 6 - test ok'
+            console.log '_backspace 6 - test ok2'
             sel.range.deleteContents()
             # e.preventDefault()
 
@@ -1033,12 +1033,12 @@ class exports.CNeditor
             selection.cleanSelection startLine, endLine, range
             replaceCaret = false
         else
-            @_findLines()
-            range = @currentSel.range
+            curSel = @_findLines()
+            range = curSel.range
             startContainer = range.startContainer
             startOffset = range.startOffset
-            startLine = @currentSel.startLine
-            endLine = @currentSel.endLine
+            startLine = curSel.startLine
+            endLine = curSel.endLine
             prevStartLine = startLine.linePrev if startLine?
             nextEndLine = endLine.lineNext if endLine?
             replaceCaret = true
@@ -1061,6 +1061,7 @@ class exports.CNeditor
         if replaceCaret
             @_setCaret(startContainer, startOffset, startLine, nextEndLine)
  
+
     #  adapt the depth of the children and following siblings of end line
     #    in case the depth delta between start and end line is
     #    greater than 0, then the structure is not correct : we reduce
