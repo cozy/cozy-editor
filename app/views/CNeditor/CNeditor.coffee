@@ -431,6 +431,7 @@ class exports.CNeditor
                     text = prevLine.lastChild.previousSibling.firstChild
                     range.collapseToPoint text, offset
                     @currentSel.sel.setSingleRange range
+                    e.preventDefault()
 
                     # e.preventDefault()
                 # if there is no previous line : backspace at the beginning of 
@@ -452,16 +453,18 @@ class exports.CNeditor
         # 2- Case of a selection contained in a line
         else if sel.endLine == startLine
             console.log '_backspace 6 - test ok2'
-            sel.range.deleteContents()
-            # e.preventDefault()
+            text = startLine.line$[0].lastChild.previousSibling.firstChild
+            range = rangy.createRange()
+            range.collapseToPoint text, text.length - 1
+            @currentSel.sel.setSingleRange range
+            #@currentSel.sel.range.deleteContents()
 
         # 3- Case of a multi lines selection
         else
             console.log '_backspace 7'
             @_deleteMultiLinesSelections()
-            # e.preventDefault()
+            e.preventDefault()
 
-        e.preventDefault()
         return false
 
 
@@ -1070,7 +1073,6 @@ class exports.CNeditor
         
         @_deleteSelectedLines range
         @_addMissingFragment startLine, endOfLineFragment
-        #startContainer = newStartContainer if newStartContainer?
         @_removeEndLine startLine, endLine
         @_adaptDepth startLine, startLineDepth, endLineDepth, deltaDepth
         if replaceCaret
@@ -2182,9 +2184,11 @@ class exports.CNeditor
 
         # remove the firstAddedLine from the fragment
         firstAddedLine = dummyLine.lineNext
-        secondAddedLine = firstAddedLine.lineNext
-        frag.removeChild(frag.firstChild)
-        delete this._lines[firstAddedLine.lineID]
+        secondAddedLine = firstAddedLine?.lineNext
+        if frag.firstChild?
+            frag.removeChild(frag.firstChild)
+        if firstAddedLine?
+            delete this._lines[firstAddedLine.lineID]
 
         # 7- updates nextLine and prevLines, insert frag in the editor
         if secondAddedLine?
@@ -2278,21 +2282,11 @@ class exports.CNeditor
                     txtNode = document.createTextNode(child.textContent)
                     
                     if context.currentLineEl.nodeName in ['SPAN','A']
-                        console.log "span"
                         context.currentLineEl.appendChild txtNode
                     else
-                        console.log "no span"
                         spanEl = document.createElement('span')
                         spanEl.appendChild txtNode
-                        console.log spanEl
-                        context.currentLineEl = spanEl
-
-                        console.log context.currentLineEl
-
-                    console.log "lineEl"
-                    console.log context.currentLineEl
-                    console.log txtNode
-                    
+                        context.currentLineEl.appendChild spanEl
                     
                     # @_appendCurrentLineFrag(context,absDepth,absDepth)
                     context.isCurrentLineBeingPopulated = true
