@@ -8,7 +8,9 @@
 # note: with google chrome, it seems that non visible elements
 #       cannot be selected with rangy (that's where 'blank' comes in)
 ###
-exports.putStartOnStart = (range, elt) ->
+
+selection = {}
+selection.putStartOnStart = (range, elt) ->
     if elt?.firstChild?
         offset = elt.firstChild.textContent.length
         if offset == 0 then elt.firstChild.data = " "
@@ -18,7 +20,7 @@ exports.putStartOnStart = (range, elt) ->
         elt.appendChild blank
         range.setStart blank, 0
 
-exports.putStartOnEnd = (range, elt) ->
+selection.putStartOnEnd = (range, elt) ->
     if elt?.lastChild?
         offset = elt.lastChild.textContent.length
         if offset == 0
@@ -30,7 +32,7 @@ exports.putStartOnEnd = (range, elt) ->
         elt.appendChild blank
         range.setStart(blank, 0)
         
-exports.putEndOnStart = (range, elt) ->
+selection.putEndOnStart = (range, elt) ->
     if elt?.firstChild?
         offset = elt.firstChild.textContent.length
         if offset == 0 then elt.firstChild.data = " "
@@ -40,13 +42,13 @@ exports.putEndOnStart = (range, elt) ->
         elt.appendChild blank
         range.setEnd(blank, 0)
         
-exports.putEndOnEnd = (range, elt) ->
+selection.putEndOnEnd = (range, elt) ->
     if elt?.lastChild?
         offset = elt.lastChild.textContent.length
         if offset == 0
             elt.lastChild.data = " "
             offset = 1
-        range.setEnd(elt.lastChild, offset)
+        range.setEnd(elt.lastChild, 0)
     else if elt?
         blank = document.createTextNode " "
         elt.appendChild blank
@@ -54,7 +56,7 @@ exports.putEndOnEnd = (range, elt) ->
 
 # Determine selection start div even if selection start in the body element or
 # inside a div child element.
-exports.getStartDiv = (range) ->
+selection.getStartDiv = (range) ->
     if range.startContainer.nodeName == 'BODY'
         startDiv = range.startContainer.children[range.startOffset]
     else
@@ -66,7 +68,7 @@ exports.getStartDiv = (range) ->
 
 # Determine selection end div even if selection ends in the body element or
 # inside a div child element.
-exports.getEndDiv = (range, startDiv) ->
+selection.getEndDiv = (range, startDiv) ->
     if range.endContainer.nodeName == "BODY"
         endDiv = range.endContainer.children[range.endOffset - 1]
     else
@@ -78,7 +80,7 @@ exports.getEndDiv = (range, startDiv) ->
         endDiv = startDiv
     endDiv
 
-exports.getLineDiv = (container)->
+selection.getLineDiv = (container)->
     parent = container
     while parent.nodeName != 'DIV' \
           and ((parent.id? and parent.id.substr(0,5) != 'CNID_') \
@@ -87,6 +89,11 @@ exports.getLineDiv = (container)->
         parent = parent.parentNode
     return parent
 
+selection.getFirstLineFromBody = (body) ->
+    body.children[1].firstChild
+
+selection.getLastLineFromBody = (body) ->
+    body.children[1].lastChild
 
 ### ------------------------------------------------------------------------
 #  _normalize(range)
@@ -98,9 +105,9 @@ exports.getLineDiv = (container)->
 #  so further suppr ~ backspace work properly.
 # 
 ###
-exports.normalize = (range) =>
-    startDiv = exports.getStartDiv range
-    endDiv = exports.getEndDiv range, startDiv
+selection.normalize = (range) =>
+    startDiv = selection.getStartDiv range
+    endDiv = selection.getEndDiv range, startDiv
 
     isEmptyLine = startDiv == endDiv and startDiv.innerHTML == '<span></span><br>'
 
@@ -108,8 +115,8 @@ exports.normalize = (range) =>
 
     # 0. if start is the body
     if startContainer.nodeName == "BODY"
-        elt = startContainer.children[range.startOffset]
-        exports.putStartOnStart range, elt
+        elt = selection.getFirstLineFromBody startContainer
+        selection.putStartOnStart range, elt
 
     # 1. if startC is a div
     else if startContainer.nodeName == "DIV"
@@ -117,24 +124,24 @@ exports.normalize = (range) =>
         if isEmptyLine
             # empty line are filled with a en empty span
             elt = startContainer.childNodes[0]
-            exports.putStartOnStart range, elt
+            selection.putStartOnStart range, elt
         # 1.1 if caret is between two children <div>|<></>|<></> <br> </div>
         else if range.startOffset < startContainer.childNodes.length - 1
             # place caret at the beginning of the next child
             elt = startContainer.childNodes[range.startOffset]
-            exports.putStartOnStart range, elt
+            selection.putStartOnStart range, elt
         # 1.2 if caret is around <br>          <div> <></> <></>|<br>|</div>
         else
             # place caret at the end of the last child (before br)
             elt = startContainer.lastChild.previousElementSibling
             if elt?
-                exports.putStartOnEnd range, elt
+                selection.putStartOnEnd range, elt
            
     # 2. if startC is a span, a, img
     else if startContainer.nodeName in ["SPAN","IMG","A"]
         # 2.0 if startC is empty
         if startContainer.firstChild == null || startContainer.textContent.length == 0
-            exports.putStartOnEnd range, startContainer
+            selection.putStartOnEnd range, startContainer
         # 2.1 if caret is between two textNode children
         else if range.startOffset < startContainer.childNodes.length
             # place caret at the beginning of the next child
@@ -152,29 +159,33 @@ exports.normalize = (range) =>
     endContainer = range.endContainer
     # 0. if endC is the body
     if endContainer.nodeName == "BODY"
-        elt = endContainer.children[range.endOffset-1].lastChild
-        if elt.previousElementSibling.lastChild.nodeName == "BR"
-            elt.previousElementSibling.removeChild elt.previousElementSibling.lastChild
-            range.endOffset = 0
-        exports.putEndOnEnd range, elt.previousElementSibling
+        elt = selection.getLastLineFromBody endContainer
+        if elt.lastChild.nodeName = "BR"
+            br =  elt.lastChild
+            elt.removeChild br
+            range.endOffset = elt.lastChild.data.length - 2
+            
+        selection.putEndOnEnd range, elt
+        elt.appendChild br if br?
+
     # 1. if endC is a div
     if endContainer.nodeName == "DIV"
         # 1.1 if caret is between two children <div>|<></>|<></> <br> </div>
         if range.endOffset < endContainer.childNodes.length - 1
             # place caret at the beginning of the next child
             elt = endContainer.childNodes[range.endOffset]
-            exports.putEndOnStart range, elt
+            selection.putEndOnStart range, elt
         # 1.2 if caret is around <br>          <div> <></> <></>|<br>|</div>
         else
             # place caret at the end of the last child (before br)
             elt = endContainer.lastChild.previousElementSibling
-            exports.putEndOnEnd range, elt
+            selection.putEndOnEnd range, elt
             
     # 2. if endC is a span, a, img
     else if endContainer.nodeName in ["SPAN","IMG","A"]
         # 2.0 if endC is empty
         if endContainer.firstChild == null || endContainer.textContent.length == 0
-            exports.putEndOnEnd range, endContainer
+            selection.putEndOnEnd range, endContainer
         # 2.1 if caret is between two textNode children
         if range.endOffset < endContainer.childNodes.length
             # place caret at the beginning of the next child
@@ -190,7 +201,7 @@ exports.normalize = (range) =>
 
     return range
 
-exports.cleanSelection = (startLine, endLine, range) ->
+selection.cleanSelection = (startLine, endLine, range) ->
     if startLine is null
         startLine = endLine
         endLine = endLine.lineNext
@@ -203,7 +214,7 @@ exports.cleanSelection = (startLine, endLine, range) ->
         range.setStartAfter startNode, 0
         range.setEndAfter endNode, 0
 
-exports.cloneEndFragment = (range, endLine) ->
+selection.cloneEndFragment = (range, endLine) ->
     range4fragment = rangy.createRangyRange()
     if range.endContainer.length >= range.endOffset
         range.endOffset = range.endOffset - 1
@@ -211,3 +222,6 @@ exports.cloneEndFragment = (range, endLine) ->
     range4fragment.setStart range.endContainer, range.endOffset
     range4fragment.setEndAfter endLine.line$[0].lastChild
     range4fragment.cloneContents()
+
+
+exports.selection = selection
