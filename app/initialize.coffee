@@ -232,7 +232,7 @@ cb = () ->
 
     playButton = $ "#play-button"
     playButton.click ->
-        recorder.play()
+        recorder.slowPlay()
 
         
 

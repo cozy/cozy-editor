@@ -14,7 +14,7 @@ class exports.AutoTest
     #    <> a note must  have at least one line --------------------- (todo)
     # BUG? un Tu-6 qui suit un Th-1 n'est pas détecté
     ###
-    checkLines : (CNEditor) ->
+    checkLines : (editor) ->
         
         console.log 'Detecting incoherences...'
         # We represent the lines architecture with a tree to depth-first
@@ -66,7 +66,7 @@ class exports.AutoTest
         rootLine =
             lineType: "root"
             lineID: "CNID_0"
-            lineNext: CNEditor._lines["CNID_1"] # should be _firstLine instead
+            lineNext: editor._lines["CNID_1"] # should be _firstLine instead
             linePrev: null
             lineDepthAbs: 0
 
@@ -83,6 +83,7 @@ class exports.AutoTest
         prevLine = null
         currentLine = rootLine
         nextLine = rootLine.lineNext
+        divLines$ = $(editor.editorBody$[0].children[1])
         
         # Reads all the way through lines and tests their structure's legacy
         # While doing this, it also builds a tree from the DIVs list by
@@ -94,8 +95,7 @@ class exports.AutoTest
             depth = nextLine.lineDepthAbs
             
             # First we check the line's legacy
-                
-            element = CNEditor.editorBody$.children("#"+nextLine.lineID)
+            element = divLines$.children("#"+nextLine.lineID)
                         
             if element == null
                 console.log "ERROR: invalid line #{nextLine.lineID}\n (#{nextLine.lineType}-#{nextLine.lineDepthAbs} has no matching DIV)"
@@ -170,12 +170,12 @@ class exports.AutoTest
             nextLine = currentLine.lineNext
         
         # Is there a line object corresponding to each DIV ? ----------- (OK)
-        objDiv = CNEditor.editorBody$.children("div")
+        objDiv = divLines$.children("div")
         objDiv.each () ->
             if $(@).attr('id')?
                 myId = $(@).attr('id')
                 if /CNID_[0-9]+/.test myId
-                    if ! CNEditor._lines[myId]?
+                    if ! editor._lines[myId]?
                         console.log "ERROR: missing line " + myId
                         return
         

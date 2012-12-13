@@ -12,6 +12,7 @@ class exports.Recorder
     restoreInitialState: ->
         $(@editorBody).html @initialState
         @editor._readHtml()
+        @_slowPlayingSession = @recordingSession.slice(0)
 
     recordEvent: (serializedEvent) ->
         @saveInitialState()
@@ -29,14 +30,15 @@ class exports.Recorder
     slowPlay: =>
         $(@editorBody).focus()
         @restoreInitialState()
-        if @recordingSession.length > 0
-            action = @recordingSession.shift()
-            @playAction action
+        @_slowPlayLoop()
 
-            setTimeout @slowPlay, 200
+    _slowPlayLoop: =>
+        if @_slowPlayingSession.length > 0
+            action = @_slowPlayingSession.shift()
+            @playAction action
+            setTimeout @_slowPlayLoop, 300
         else
             console.log "finished"
-            
 
     playAction: (action) ->
         if action.mouse?
@@ -45,6 +47,7 @@ class exports.Recorder
             event = jQuery.Event "keydown", action.keyboard
             sel = @editor.getEditorSelection()
             $(@editorBody).trigger event
+            toto = 2
 
 
     ### Listeners ###
