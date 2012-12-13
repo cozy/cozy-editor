@@ -290,8 +290,7 @@ class exports.CNeditor
             normalizedRange = selection.normalize range
 
             # update window selection so it is normalized
-            normalizedSel = @getEditorSelection()
-            normalizedSel.setSingleRange normalizedRange
+            sel.setSingleRange normalizedRange
 
         
         # 2.1- Set a flag if the user moved the caret with keyboard
@@ -375,10 +374,14 @@ class exports.CNeditor
                     @currentSel.endLine = startLine.lineNext
                     @_deleteMultiLinesSelections()
                     event.preventDefault()
+                    event.cancelBubble = true
+                    false
                 # if there is no next line :
                 # no modification, just prevent default action
                 else
                     event.preventDefault()
+                    event.cancelBubble = true
+                    false
 
             # 1.2 caret is in the middle of the line : nothing to do
 
@@ -389,6 +392,7 @@ class exports.CNeditor
         else
             @_deleteMultiLinesSelections()
             event.preventDefault()
+            false
 
 
     ### ------------------------------------------------------------------------
@@ -419,7 +423,15 @@ class exports.CNeditor
                     console.log '_backspace 3'
                     sel.range.setStartBefore(startLine.linePrev.line$[0].lastChild)
                     sel.startLine = startLine.linePrev
+                    prevLine = startLine.linePrev.line$[0]
+                    text = prevLine.lastChild.previousSibling.firstChild
+                    offset = text.length
                     @_deleteMultiLinesSelections()
+                    range = rangy.createRange()
+                    text = prevLine.lastChild.previousSibling.firstChild
+                    range.collapseToPoint text, offset
+                    @currentSel.sel.setSingleRange range
+
                     # e.preventDefault()
                 # if there is no previous line : backspace at the beginning of 
                 # firs line : no effect, nothing to do.
@@ -1021,6 +1033,8 @@ class exports.CNeditor
     # @return {[none]}           [nothing]
     ###
     _deleteMultiLinesSelections : (startLine, endLine) ->
+        console.log "multi line deletion"
+        
         unless @currentSel?
             console.log "no selection, can't delete multi lines"
             return null
@@ -1053,14 +1067,17 @@ class exports.CNeditor
 
         # Perform deletion on selection and adapt remaining parts consequently.
         @_adaptEndLineType startLine, endLine # adapt end line type if needed.
+        
         @_deleteSelectedLines range
         @_addMissingFragment startLine, endOfLineFragment
         #startContainer = newStartContainer if newStartContainer?
         @_removeEndLine startLine, endLine
-        #@_adaptDepth startLine, startLineDepth, endLineDepth, deltaDepth
+        @_adaptDepth startLine, startLineDepth, endLineDepth, deltaDepth
         if replaceCaret
             @_setCaret(startContainer, startOffset, startLine, nextEndLine)
  
+    _trimLine: (startLine) ->
+
     #  adapt the depth of the children and following siblings of end line
     #    in case the depth delta between start and end line is
     #    greater than 0, then the structure is not correct : we reduce
@@ -1171,7 +1188,7 @@ class exports.CNeditor
         range = rangy.createRange()
         range.collapseToPoint startContainer, startOffset
         @currentSel.sel.setSingleRange range
-        @currentSel = null
+        #@currentSel = null
                 
 
     ### ------------------------------------------------------------------------
