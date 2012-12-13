@@ -62,7 +62,6 @@ class exports.Recorder
         console.log this
         
         @recordingSession.push serializedEvent
-        #recordEvent JSON.stringify(serializedEvent)
         @refreshRecorder()
 
     keyboardRecorder: (event) =>
@@ -74,5 +73,4 @@ class exports.Recorder
                 keyCode: event.which
 
         @recordingSession.push serializedEvent
-        #recordEvent JSON.stringify(serializedEvent)
         @refreshRecorder()
