@@ -20,8 +20,11 @@
 #   _firstLine        : points the first line : TODO : not taken into account 
 ###
 
-md2cozy = require './md2cozy'
-selection = require './selection'
+if require?
+    if not md2cozy?
+        md2cozy = require('./md2cozy').md2cozy
+    if not selection?
+        selection = require('./selection').selection
 
 class exports.CNeditor
 
@@ -43,7 +46,6 @@ class exports.CNeditor
             iframe$ = $(@editorTarget)
             
             iframe$.on 'load', () =>
-
                 # preparation of the iframe
                 editor_html$ = iframe$.contents().find("html")
                 @editorBody$ = editor_html$.find("body")
@@ -1003,6 +1005,9 @@ class exports.CNeditor
     # @return {[none]}           [nothing]
     ###
     _deleteMultiLinesSelections : (startLine, endLine) ->
+        unless @currentSel?
+            console.log "no selection, can't delete multi lines"
+            return null
 
         # Get start and end positions of the selection.
         if startLine?
@@ -2502,3 +2507,5 @@ class exports.CNeditor
         console.log "ctrl #{e.ctrlKey}; Alt #{e.altKey}; Shift #{e.shiftKey}; "
         console.log "which #{e.which}; keyCode #{e.keyCode}"
         console.log "metaKeyStrokesCode:'#{metaKeyStrokesCode}' keyStrokesCode:'#{keyStrokesCode}'"
+
+CNeditor = exports.CNeditor

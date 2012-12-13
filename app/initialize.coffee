@@ -234,9 +234,61 @@ cb = () ->
     playButton.click ->
         recorder.play()
 
+    slowPlayButton = $ "#slow-play-button"
+    slowPlayButton.click ->
+        recorder.slowPlay()
+
+    # Record list
+    recordList = $ '#record-list'
+    recordSaveButton = $ '#record-save-button'
+    recordSaveInput = $ '#record-name'
+
+    appendRecord = (record) ->
+        recordList.append """
+            <div id="#{record.title}">
+                <button class="play btn btn-primary">play</button>
+                <button class="delete btn">X</button>
+                <span>#{record.title}</span>
+            </div>
+            """
+        line = recordList.find('div').last()
+        line.find('.play').click ->
+            $('#resultText').val JSON.stringify record.sequence
+            recorder.recordingSession = record.sequence.slice(0)
+            recorder.slowPlay()
+
+        line.find('.delete').click ->
+            line.remove()
+            $.ajax
+                type: "PUT"
+                url: "/records/"
+                data:
+                    title: record.title
+
+    recordSaveButton.click ->
+        title = recordSaveInput.val()
+        if title.length > 0
+            record =
+                title: title
+                sequence: recorder.recordingSession
+
+            $.ajax
+                type: "POST"
+                url: "/records/"
+                data: record
+
+            appendRecord record
+
+    # Load records
+    $.get '/records/', (data) ->
+        for record in data
+            appendRecord record
+
         
 
 ###****************************************************
  * 3 - creation of the editor
 ###
-editor = new CNeditor( document.querySelector('#editorIframe'), cb )
+
+$ ->
+    editor = new CNeditor( document.querySelector('#editorIframe'), cb )
