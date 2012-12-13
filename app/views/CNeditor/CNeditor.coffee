@@ -39,9 +39,7 @@ class exports.CNeditor
 
             # methods to deal selection on an iframe
             @getEditorSelection = () ->
-                # sel = rangy.getSelection()
-                sel = rangy.getIframeSelection @editorTarget
-                return sel
+                return rangy.getIframeSelection @editorTarget
             @saveEditorSelection = () ->
                 return rangy.saveSelection(rangy.dom.getIframeWindow @editorTarget)
             
@@ -1039,8 +1037,10 @@ class exports.CNeditor
             startOffset = range.startOffset
             startLine = curSel.startLine
             endLine = curSel.endLine
-            prevStartLine = startLine.linePrev if startLine?
-            nextEndLine = endLine.lineNext if endLine?
+            if startLine?
+                prevStartLine = startLine.linePrev
+            if endLine?
+                nextEndLine = endLine.lineNext
             replaceCaret = true
             
         # Calculate depth for start and end line
@@ -1061,7 +1061,6 @@ class exports.CNeditor
         if replaceCaret
             @_setCaret(startContainer, startOffset, startLine, nextEndLine)
  
-
     #  adapt the depth of the children and following siblings of end line
     #    in case the depth delta between start and end line is
     #    greater than 0, then the structure is not correct : we reduce
