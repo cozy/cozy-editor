@@ -22,6 +22,12 @@ exports.config =
                 './CNeditor.js': /^app\/views\/CNeditor\/.*\.coffee$/
                 'javascripts/tests.js': /^test/
 
+            order:
+                before: [
+                    'app/views/CNeditor/md2cozy.coffee'
+                    'app/views/CNeditor/selection.coffee'
+                ]
+
         stylesheets:
             joinTo:
                 './CNeditor.css': /^app\/views\/CNeditor/
