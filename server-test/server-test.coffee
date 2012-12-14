@@ -24,17 +24,19 @@ app.post '/records/', (req, res) ->
     console.log newFileNum
     console.log newFileNum.length
     zeros = newFilledArray(4-newFileNum.length,'0')
-    console.log zeros
-    fileName = zeros.join('') + newFileNum + '-' + req.body.title
+    zeros = zeros.join('')
+    fileName = zeros + newFileNum + '-' + req.body.title
     console.log req.body
     data = 
-        title    : req.body.title
-        sequence : req.body.sequence
+        id          : newFileNum
+        title       : req.body.title
+        description : req.body.description
+        sequence    : req.body.sequence
     path = '../test/test-cases/' +  fileName
     fs.writeFileSync(path, JSON.stringify(data))
     
     # client.set "sequence-#{title}", JSON.stringify(sequence), ->
-    res.send 'ok'
+    res.send newFileNum
 
 newFileNumber = () ->
     # list test files
