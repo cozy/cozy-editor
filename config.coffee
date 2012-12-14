@@ -21,6 +21,7 @@ exports.config =
             joinTo:
                 'javascripts/app.js'     : /^app/
                 'javascripts/vendor.js'  : /^vendor/
+                'javascripts/tests.js'   : /^test/
             order:
                 before: [
                     'vendor/scripts/jquery-1.8.2.js'

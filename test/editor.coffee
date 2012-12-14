@@ -2,10 +2,15 @@
 describe 'Editor', ->
 
     before (done) ->
-        $("body").append '<iframe id="editor"></iframe>'
-
-        @editor = new CNeditor $("#editor")[0], ->
+        $.get 'ajax/test.html', (data) ->
+            $('#result').html(data)
+            alert('Load was performed.')
             done()
+
+        # $("body").append '<iframe id="editor"></iframe>'
+
+        # @editor = new CNeditor $("#editor")[0], ->
+        #     done()
 
     it "_initClipBoard", ->
         @editor._initClipBoard()

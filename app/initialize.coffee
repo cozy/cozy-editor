@@ -253,8 +253,8 @@ cb = () ->
             """
         line = recordList.find('div').last()
         line.find('.play').click ->
-            $('#resultText').val JSON.stringify record.sequence
-            recorder.recordingSession = record.sequence.slice(0)
+            $('#resultText').val record.sequence
+            recorder.recordingSession = JSON.parse (record.sequence)
             recorder.slowPlay()
 
         line.find('.delete').click ->
@@ -265,23 +265,34 @@ cb = () ->
                 data:
                     title: record.title
 
+
     recordSaveButton.click ->
         title = recordSaveInput.val()
-        if title.length > 0
-            record =
-                title: title
-                sequence: recorder.recordingSession
+        if !(title.length > 0)
+            alert "Please enter a title for this test"
+            return
+        if !(recorder.recordingSession.length >0)
+            alert "No test recorded ready for saving"
+            return
 
-            $.ajax
-                type: "POST"
-                url: "/records/"
-                data: record
+        record =
+            title: title
+            sequence: JSON.stringify(recorder.recordingSession)
 
-            appendRecord record
+        $.ajax
+            type: "POST"
+            url: "/records/"
+            data: record
+
+        appendRecord record
+
 
     # Load records
     $.get '/records/', (data) ->
+        data = JSON.parse(data)
+        console.log data
         for record in data
+            console.log record
             appendRecord record
 
         
