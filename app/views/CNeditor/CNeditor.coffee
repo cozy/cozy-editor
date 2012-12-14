@@ -414,13 +414,13 @@ class exports.CNeditor
         # 1- Case of a caret "alone" (no selection)
         if sel.range.collapsed
             # 1.1 caret is at the beginning of the line
-            console.log '_backspace 1'
+            #console.log '_backspace 1'
             if sel.rangeIsStartLine
                 # if there is a previous line : modify the selection to make
                 # a multiline deletion
-                console.log '_backspace 2'
+                #console.log '_backspace 2'
                 if startLine.linePrev != null
-                    console.log '_backspace 3'
+                    #console.log '_backspace 3'
                     sel.range.setStartBefore(startLine.linePrev.line$[0].lastChild)
                     sel.startLine = startLine.linePrev
                     prevLine = startLine.linePrev.line$[0]
@@ -436,12 +436,12 @@ class exports.CNeditor
                     # e.preventDefault()
                 # if there is no previous line : backspace at the beginning of 
                 # firs line : no effect, nothing to do.
-                else
-                    console.log '_backspace 4 - test ok2'
+                #else
+                    #console.log '_backspace 4 - test ok2'
 
             # 1.2 caret is in the middle of the line : delete one caracter
             else
-                console.log '_backspace 5 - deletion of one caracter - test ok2'
+                #console.log '_backspace 5 - deletion of one caracter - test ok2'
                 # we consider that we are in a text node
                 textNode = sel.range.startContainer
                 startOffset = sel.range.startOffset
@@ -454,7 +454,7 @@ class exports.CNeditor
 
         # 2- Case of a selection contained in a line
         else if sel.endLine == startLine
-            console.log '_backspace 6 - test ok2'
+            #console.log '_backspace 6 - test ok2'
             text = startLine.line$[0].lastChild.previousSibling.firstChild
             range = rangy.createRange()
             range.collapseToPoint text, text.length
@@ -465,7 +465,7 @@ class exports.CNeditor
 
         # 3- Case of a multi lines selection
         else
-            console.log '_backspace 7'
+            #console.log '_backspace 7'
             @_deleteMultiLinesSelections()
             e.preventDefault()
 
@@ -2033,9 +2033,6 @@ class exports.CNeditor
     _processPaste : () =>
         sandbox = @.clipboard
         currSel = @currentSel
-        console.log currSel
-        
-
         
         # 1- Sanitize clipboard content with node-validator 
         # (https://github.com/chriso/node-validator)
@@ -2428,11 +2425,6 @@ class exports.CNeditor
             targetLineDepthAbs : absDepth
             targetLineDepthRel : relDepth
         context.lastAddedLine = @_insertLineAfter(p)
-        console.log context.currentLineEl
-        console.log "context.frag = "
-        
-        console.log context.frag
-        context.frag.appendChild context.currentLineEl
         # prepare the new lingFrag & lineEl
         context.currentLineFrag = document.createDocumentFragment()
         context.currentLineEl = context.currentLineFrag
@@ -2557,10 +2549,10 @@ class exports.CNeditor
     # Debug purpose only
     logKeyPress: (e) ->
         console.clear()
-        console.log '__keyPressListener____________________________'
-        console.log e
-        console.log "ctrl #{e.ctrlKey}; Alt #{e.altKey}; Shift #{e.shiftKey}; "
-        console.log "which #{e.which}; keyCode #{e.keyCode}"
-        console.log "metaKeyStrokesCode:'#{metaKeyStrokesCode}' keyStrokesCode:'#{keyStrokesCode}'"
+        #console.log '__keyPressListener____________________________'
+        #console.log e
+        #console.log "ctrl #{e.ctrlKey}; Alt #{e.altKey}; Shift #{e.shiftKey}; "
+        #console.log "which #{e.which}; keyCode #{e.keyCode}"
+        #console.log "metaKeyStrokesCode:'#{metaKeyStrokesCode}' keyStrokesCode:'#{keyStrokesCode}'"
 
 CNeditor = exports.CNeditor
