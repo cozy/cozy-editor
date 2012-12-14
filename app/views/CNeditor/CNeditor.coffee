@@ -414,13 +414,13 @@ class exports.CNeditor
         # 1- Case of a caret "alone" (no selection)
         if sel.range.collapsed
             # 1.1 caret is at the beginning of the line
-            console.log '_backspace 1'
+            #console.log '_backspace 1'
             if sel.rangeIsStartLine
                 # if there is a previous line : modify the selection to make
                 # a multiline deletion
-                console.log '_backspace 2'
+                #console.log '_backspace 2'
                 if startLine.linePrev != null
-                    console.log '_backspace 3'
+                    #console.log '_backspace 3'
                     sel.range.setStartBefore(startLine.linePrev.line$[0].lastChild)
                     sel.startLine = startLine.linePrev
                     prevLine = startLine.linePrev.line$[0]
@@ -436,11 +436,12 @@ class exports.CNeditor
                     # e.preventDefault()
                 # if there is no previous line : backspace at the beginning of 
                 # firs line : no effect, nothing to do.
-                else
-                    console.log '_backspace 4 - test ok2'
+                #else
+                    #console.log '_backspace 4 - test ok2'
+
             # 1.2 caret is in the middle of the line : delete one caracter
             else
-                console.log '_backspace 5 - deletion of one caracter - test ok2'
+                #console.log '_backspace 5 - deletion of one caracter - test ok2'
                 # we consider that we are in a text node
                 textNode = sel.range.startContainer
                 startOffset = sel.range.startOffset
@@ -450,18 +451,21 @@ class exports.CNeditor
                 range.collapseToPoint textNode, startOffset-1
                 @currentSel.sel.setSingleRange range
                 @currentSel = null
+
         # 2- Case of a selection contained in a line
         else if sel.endLine == startLine
-            console.log '_backspace 6 - test ok2'
+            #console.log '_backspace 6 - test ok2'
             text = startLine.line$[0].lastChild.previousSibling.firstChild
             range = rangy.createRange()
-            range.collapseToPoint text, text.length - 1
+            range.collapseToPoint text, text.length
             @currentSel.sel.setSingleRange range
             #@currentSel.sel.range.deleteContents()
+            return true
+            #@_backspace(e)
 
         # 3- Case of a multi lines selection
         else
-            console.log '_backspace 7'
+            #console.log '_backspace 7'
             @_deleteMultiLinesSelections()
             e.preventDefault()
 
@@ -879,7 +883,7 @@ class exports.CNeditor
                         # if lineNext is a Lx, then it must be turned in a Tx
                         if line.lineNext? and line.lineNext.lineType[0]=='L'
                             nextL = line.lineNext
-                            nextL.lineType = 'T'+nextL.lineType[1] 
+                            nextL.lineType = 'T'+nextL.lineType[1]
                             nextL.line$.prop('class',"#{nextL.lineType}-#{nextL.lineDepthAbs}")
                     else
                         isTabAllowed = false
@@ -1036,8 +1040,6 @@ class exports.CNeditor
     # @return {[none]}           [nothing]
     ###
     _deleteMultiLinesSelections : (startLine, endLine) ->
-        console.log "multi line deletion"
-        
         unless @currentSel?
             console.log "no selection, can't delete multi lines"
             return null
@@ -1178,19 +1180,22 @@ class exports.CNeditor
 
 
     # Put caret at given position. Regitser current selection.
-    _setCaret: (startContainer, startOffset, startLine, nextEndLine) ->
+    _setCaret: (startContainer, startOffset, startLine, nextEndLine, prevStartLine) ->
         if startOffset is 0
-            if startLine?
-                startContainer = startLine.line$[0].firstChild.firstChild
+            if prevStartLine? or nextEndLine?
+                if startLine?
+                    startContainer = startLine.line$[0].firstChild.firstChild
+                else
+                    startContainer = nextEndLine.line$[0]
             else
-                startContainer = nextEndLine.line$[0]
+                # full selection case (ctrl+A)
+                startContainer = startLine.line$[0].lastChild
         else
             startContainer = startLine.line$[0].firstChild.firstChild
         
         range = rangy.createRange()
         range.collapseToPoint startContainer, startOffset
         @currentSel.sel.setSingleRange range
-        #@currentSel = null
                 
 
     ### ------------------------------------------------------------------------
@@ -1359,100 +1364,98 @@ class exports.CNeditor
     #   rangeIsStartLine : true if the range starts at the start of 1st line
     ###
     _findLinesAndIsStartIsEnd : () ->
-        if this.currentSel == null
+        # if this.currentSel == null
             
-            # 1- Variables
-            sel                = @getEditorSelection()
-            range              = sel.getRangeAt(0)
-            startContainer     = range.startContainer
-            endContainer       = range.endContainer
-            initialStartOffset = range.startOffset
-            initialEndOffset   = range.endOffset
+        # 1- Variables
+        sel                = @getEditorSelection()
+        range              = sel.getRangeAt(0)
+        startContainer     = range.startContainer
+        endContainer       = range.endContainer
+        initialStartOffset = range.startOffset
+        initialEndOffset   = range.endOffset
 
-            # 2- find endLine and the rangeIsEndLine
-            # endContainer refers to a div of a line
-            if endContainer.id? and endContainer.id.substr(0,5) == 'CNID_'
-                endLine = @_lines[ endContainer.id ]
-                # rangeIsEndLine if endOffset points on the last node of the div
-                # or on the one before the last which is a <br>
-                rangeIsEndLine = endContainer.children.length < initialEndOffset or endContainer.children[initialEndOffset].nodeName=="BR"
-            # means the range ends inside a div (span, textNode...)
-            else if $(endContainer).parents("div").length > 0
-                endLineDiv = selection.getLineDiv(endContainer)
-                endLine = @_lines[endLineDiv.id]
-                # rangeIsEndLine if the selection is at the end of the
-                # endContainer and of each of its parents (this approach is more
-                # robust than just considering that the line is a flat
-                # succession of span : maybe one day there will be a table for
-                # instance...)
-                rangeIsEndLine = false
-                # case of a textNode: it must have no nextSibling
-                # and offset must be its length
-                if endContainer.nodeType == Node.TEXT_NODE
-                    rangeIsEndLine = endContainer.nextSibling == null and
-                                     initialEndOffset == endContainer.textContent.length
-                # case of another node : it must be a br;
-                # or be followed by a br and have maximal offset.
-                else
-                    rangeIsEndLine = endContainer.nodeName=='BR' or
-                                     (endContainer.nextSibling.nodeName=='BR' and
-                                     endContainer.childNodes.length==initialEndOffset)
-                    #nextSibling    = endContainer.nextSibling
-                    #rangeIsEndLine = (nextSibling == null or nextSibling.nodeName=='BR')
-                    #(nextSibling == null or (initialEndOffset==parentEndContainer.textContent.length and nextSibling.nodeName=='BR'))
-                parentEndContainer = endContainer.parentNode
-                while rangeIsEndLine and parentEndContainer.nodeName != "DIV"
-                    nextSibling = parentEndContainer.nextSibling
-                    rangeIsEndLine = (nextSibling == null or nextSibling.nodeName=='BR')
-                    # rangeIsEndLine = endContainer.nodeName=='BR' or
-                    #                  (nextSibling.nodeName=='BR' and
-                    #                  endContainer.childNodes.length==initialEndOffset)
-                    parentEndContainer = parentEndContainer.parentNode
+        # 2- find endLine and the rangeIsEndLine
+        # endContainer refers to a div of a line
+        if endContainer.id? and endContainer.id.substr(0,5) == 'CNID_'
+            endLine = @_lines[ endContainer.id ]
+            # rangeIsEndLine if endOffset points on the last node of the div
+            # or on the one before the last which is a <br>
+            rangeIsEndLine = endContainer.children.length < initialEndOffset or endContainer.children[initialEndOffset].nodeName=="BR"
+        # means the range ends inside a div (span, textNode...)
+        else if $(endContainer).parents("div").length > 0
+            endLineDiv = selection.getLineDiv(endContainer)
+            endLine = @_lines[endLineDiv.id]
+            # rangeIsEndLine if the selection is at the end of the
+            # endContainer and of each of its parents (this approach is more
+            # robust than just considering that the line is a flat
+            # succession of span : maybe one day there will be a table for
+            # instance...)
+            rangeIsEndLine = false
+            # case of a textNode: it must have no nextSibling
+            # and offset must be its length
+            if endContainer.nodeType == Node.TEXT_NODE
+                rangeIsEndLine = endContainer.nextSibling == null and
+                                 initialEndOffset == endContainer.textContent.length
+            # case of another node : it must be a br;
+            # or be followed by a br and have maximal offset.
             else
-                endLine = @_lines["CNID_1"]
+                rangeIsEndLine = endContainer.nodeName=='BR' or
+                                 (endContainer.nextSibling.nodeName=='BR' and
+                                 endContainer.childNodes.length==initialEndOffset)
+                #nextSibling    = endContainer.nextSibling
+                #rangeIsEndLine = (nextSibling == null or nextSibling.nodeName=='BR')
+                #(nextSibling == null or (initialEndOffset==parentEndContainer.textContent.length and nextSibling.nodeName=='BR'))
+            parentEndContainer = endContainer.parentNode
+            while rangeIsEndLine and parentEndContainer.nodeName != "DIV"
+                nextSibling = parentEndContainer.nextSibling
+                rangeIsEndLine = (nextSibling == null or nextSibling.nodeName=='BR')
+                # rangeIsEndLine = endContainer.nodeName=='BR' or
+                #                  (nextSibling.nodeName=='BR' and
+                #                  endContainer.childNodes.length==initialEndOffset)
+                parentEndContainer = parentEndContainer.parentNode
+        else
+            endLine = @_lines["CNID_1"]
+        
+        # 3- find startLine and rangeIsStartLine
+        if startContainer.nodeName == 'DIV' # startContainer refers to a div of a line
+            startLine = @_lines[ startContainer.id ]
+            rangeIsStartLine = initialStartOffset == 0
             
-            # 3- find startLine and rangeIsStartLine
-            if startContainer.nodeName == 'DIV' # startContainer refers to a div of a line
-                startLine = @_lines[ startContainer.id ]
+        else if $(startContainer).parents("div").length > 0
+            # means the range starts inside a div (span, textNode...)
+        
+            startLine = @_lines[selection.getLineDiv(startContainer).id]
+            # case of a textNode: it must have no previousSibling nor offset
+            if startContainer.nodeType == Node.TEXT_NODE
+                rangeIsStartLine = endContainer.previousSibling == null and
+                                   initialStartOffset == 0
+            else
                 rangeIsStartLine = initialStartOffset == 0
-                
-            else if $(startContainer).parents("div").length > 0
-                # means the range starts inside a div (span, textNode...)
             
-                startLine = @_lines[selection.getLineDiv(startContainer).id]
-                # case of a textNode: it must have no previousSibling nor offset
-                if startContainer.nodeType == Node.TEXT_NODE
-                    rangeIsStartLine = endContainer.previousSibling == null and
-                                       initialStartOffset == 0
-                else
-                    rangeIsStartLine = initialStartOffset == 0
-                
-                parentStartContainer = startContainer.parentNode
-                while rangeIsStartLine && parentStartContainer.nodeName != "DIV"
-                    rangeIsStartLine = parentStartContainer.previousSibling == null
-                    parentStartContainer = parentStartContainer.parentNode
-            else
-                startLine = @_lines["CNID_1"]
+            parentStartContainer = startContainer.parentNode
+            while rangeIsStartLine && parentStartContainer.nodeName != "DIV"
+                rangeIsStartLine = parentStartContainer.previousSibling == null
+                parentStartContainer = parentStartContainer.parentNode
+        else
+            startLine = @_lines["CNID_1"]
 
-            # Special case of an "empty" line (<span><""></span><br>)
-            if endLine?.line$[0].innerHTML == "<span></span><br>"
-                rangeIsEndLine = true
-            if startLine?.line$[0].innerHTML == "<span></span><br>"
-                rangeIsStartLine = true
+        # Special case of an "empty" line (<span><""></span><br>)
+        if endLine?.line$[0].innerHTML == "<span></span><br>"
+            rangeIsEndLine = true
+        if startLine?.line$[0].innerHTML == "<span></span><br>"
+            rangeIsStartLine = true
 
-            # 4- build result
-            @currentSel =
-                sel              : sel
-                range            : range
-                startLine        : startLine
-                endLine          : endLine
-                rangeIsStartLine : rangeIsStartLine
-                rangeIsEndLine   : rangeIsEndLine
+        # 4- build result
+        @currentSel =
+            sel              : sel
+            range            : range
+            startLine        : startLine
+            endLine          : endLine
+            rangeIsStartLine : rangeIsStartLine
+            rangeIsEndLine   : rangeIsEndLine
 
-
-            console.log @currentSel
-            
-            @currrentSel
+        @currrentSel
+        
 
 
     ###  -----------------------------------------------------------------------
@@ -2030,7 +2033,6 @@ class exports.CNeditor
     _processPaste : () =>
         sandbox = @.clipboard
         currSel = @currentSel
-
         
         # 1- Sanitize clipboard content with node-validator 
         # (https://github.com/chriso/node-validator)
@@ -2091,10 +2093,6 @@ class exports.CNeditor
         # delete dummy line from the fragment
         frag.removeChild(frag.firstChild)
 
-        console.log "htmlStr"
-        console.log frag
-        
-
         ###
         # TODO : the following steps removes all the styles of the lines in frag
         # Later this will be removed in order to take into account styles.
@@ -2119,7 +2117,8 @@ class exports.CNeditor
             currSel.range.deleteContents()
         else
             @_deleteMultiLinesSelections()
-            currSel   = @_findLinesAndIsStartIsEnd()
+            @_findLinesAndIsStartIsEnd()
+            currSel = @currentSel
             startLine = currSel.startLine
 
         # 5- insert first line of the frag in the target line
@@ -2345,8 +2344,10 @@ class exports.CNeditor
                     if lastInsertedEl != null and lastInsertedEl.nodeName=='SPAN'
                         lastInsertedEl.textContent += '[[' + child.textContent + '|'+ child.href+']]'
                     else
-                        spanNode = document.createElement('span')
-                        spanNode.textContent = child.textContent + ' [[' + child.href+']] '
+                        spanNode = document.createElement('a')
+                        spanNode.href = child.href
+                        spanNode.textContent = child.textContent
+                        #spanNode.textContent = child.textContent + ' [[' + child.href+']] '
                         context.currentLineEl.appendChild(spanNode)
                     context.isCurrentLineBeingPopulated = true
                 
@@ -2424,11 +2425,6 @@ class exports.CNeditor
             targetLineDepthAbs : absDepth
             targetLineDepthRel : relDepth
         context.lastAddedLine = @_insertLineAfter(p)
-        console.log context.currentLineEl
-        console.log "context.frag = "
-        
-        console.log context.frag
-        context.frag.appendChild context.currentLineEl
         # prepare the new lingFrag & lineEl
         context.currentLineFrag = document.createDocumentFragment()
         context.currentLineEl = context.currentLineFrag
@@ -2553,10 +2549,10 @@ class exports.CNeditor
     # Debug purpose only
     logKeyPress: (e) ->
         console.clear()
-        console.log '__keyPressListener____________________________'
-        console.log e
-        console.log "ctrl #{e.ctrlKey}; Alt #{e.altKey}; Shift #{e.shiftKey}; "
-        console.log "which #{e.which}; keyCode #{e.keyCode}"
-        console.log "metaKeyStrokesCode:'#{metaKeyStrokesCode}' keyStrokesCode:'#{keyStrokesCode}'"
+        #console.log '__keyPressListener____________________________'
+        #console.log e
+        #console.log "ctrl #{e.ctrlKey}; Alt #{e.altKey}; Shift #{e.shiftKey}; "
+        #console.log "which #{e.which}; keyCode #{e.keyCode}"
+        #console.log "metaKeyStrokesCode:'#{metaKeyStrokesCode}' keyStrokesCode:'#{keyStrokesCode}'"
 
 CNeditor = exports.CNeditor
