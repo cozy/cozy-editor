@@ -249,10 +249,12 @@ cb = () ->
     recordButton      = $ "#record-button"
     serializerDisplay = $ "#resultText"
     playButton        = $ "#play-button"
+    playAllButton     = $ "#play-all-button"
     slowPlayButton    = $ "#slow-play-button"
     recordList        = $ '#record-list'
     recordSaveButton  = $ '#record-save-button'
     recordSaveInput   = $ '#record-name'
+
 
     Recorder = require('./recorder').Recorder
     recorder = new Recorder editorCtrler, editorBody$[0], serializerDisplay
@@ -271,50 +273,62 @@ cb = () ->
             editorBody$.off 'mouseup', recorder.mouseRecorder
             editorBody$.off 'keyup', recorder.keyboardRecorder
 
-    # Record list
-
     appendRecord = (record) ->
         recordList.append """
-            <div id="#{record.title}">
-                <button class="play btn btn-primary">play</button>
-                <button class="delete btn">X</button>
-                <span>#{record.title}</span>
+            <div id="#{record.id}">
+                <div style="display: inline">
+                    <button class="play btn btn-primary">play</button>
+                    <button class="delete btn">X</button>
+                <div style="display: inline-block">
+                    <div style="display: inline-block">#{record.fileName}</div>
+                </div>
             </div>
             """
-        line = recordList.find('div').last()
-        line.find('.play').click ->
-            $('#resultText').val JSON.stringify record.sequence
-            recorder.recordingSession = record.sequence.slice(0)
-            recorder.slowPlay()
+        element = recordList.children().last()
+        record.element = element
+        recorder.add(record)
 
-        line.find('.delete').click ->
-            line.remove()
+        element.find('.play').click ->
+            $('#resultText').val JSON.stringify record.sequence
+            # recorder.recordingSession = record.sequence.slice(0)
+            recorder.slowPlay(record)
+
+        element.find('.delete').click ->
+            element.remove()
             $.ajax
                 type: "PUT"
                 url: "/records/"
                 data:
-                    title: record.title
+                    id: record.id
 
     saveCurrentRecordedTest = () ->
         title = recordSaveInput.val()
-        if title.length > 0
-            record =
-                title: title
-                description:"description du test"
-                sequence: recorder.recordingSession
-
-            $.ajax
-                type: "POST"
-                url: "/records/"
-                data: record
-                success:(resp)->
-                    console.log resp
-                    # record.
-                    appendRecord record
+        if !(title.length > 0)
+            alert "Please enter a title for this test"
+            return
+        if !(recorder.recordingSession.length >0)
+            alert "No test recorded ready for saving"
+            return
+        record =
+            title       : title
+            description : "description du test"
+            sequence    : recorder.recordingSession
+        $.ajax
+            type: "POST"
+            url: "/records/"
+            data: record
+            success:(resp)->
+                console.log resp
+                record.id       = resp.id
+                record.title    = resp.title
+                record.fileName = resp.fileName
+                appendRecord(record)
 
 
     playButton.click ->
         recorder.slowPlay()
+    playAllButton.click ->
+        recorder.slowPlayAll()
     slowPlayButton.click ->
         recorder.slowPlay()
     recordButton.click recordTest

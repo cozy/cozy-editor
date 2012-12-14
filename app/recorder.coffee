@@ -1,7 +1,8 @@
 class exports.Recorder
 
-    constructor: (@editor, @editorBody, @serializerDisplay) ->
+    constructor: (@editor, @editorBody, @serializerDisplay, @_slowPlayingSession) ->
         @recordingSession = []
+        @records = []
 
 
     ### Functionalities ###
@@ -12,7 +13,6 @@ class exports.Recorder
     restoreInitialState: ->
         $(@editorBody).html @initialState
         @editor._readHtml()
-        @_slowPlayingSession = @recordingSession.slice(0)
 
     recordEvent: (serializedEvent) ->
         @saveInitialState()
@@ -22,14 +22,36 @@ class exports.Recorder
     refreshRecorder: ->
         @serializerDisplay.val JSON.stringify(@recordingSession)
 
-    play: ->
+    playAll: ->
+        for record in @records
+            @play record
+
+    slowPlayAll: ->
+        @slowPlayRecords = @records.slice(0)
+        @_slowPlayAllLoop()
+
+    _slowPlayAllLoop: ->
+        if @slowPlayRecords.length > 0
+            record = @slowPlayRecords.shift()
+            @slowPlay record, true
+        else
+            console.log 'slowPlayAll finished'
+
+    play: (record) ->
         @restoreInitialState()
         for action in @recordingSession
             @playAction action
 
-    slowPlay: =>
+    slowPlay: (record, isAll) =>
+        if record?
+            @_slowPlayingSession = record.sequence.slice(0)
+        else
+            @_slowPlayingSession = @recordingSession.slice(0)
         $(@editorBody).focus()
         @restoreInitialState()
+        @slowPlayRecords
+        if !isAll
+            @slowPlayRecords=[]
         @_slowPlayLoop()
 
     _slowPlayLoop: =>
@@ -38,6 +60,7 @@ class exports.Recorder
             @playAction action
             setTimeout @_slowPlayLoop, 300
         else
+            @_slowPlayAllLoop()
             console.log "finished"
             
 
@@ -53,6 +76,10 @@ class exports.Recorder
             $(@editorBody).trigger pressEvent
             $(@editorBody).trigger upEvent
 
+    add: (record) ->
+        # id = @records.push(record) - 1
+        @records.push record
+        # return
 
     ### Listeners ###
     
@@ -62,8 +89,6 @@ class exports.Recorder
         serializedEvent =
             mouse: serializedSelection
 
-        console.log this
-        
         @recordingSession.push serializedEvent
         @refreshRecorder()
 
