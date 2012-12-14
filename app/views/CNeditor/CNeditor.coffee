@@ -2120,7 +2120,8 @@ class exports.CNeditor
             currSel.range.deleteContents()
         else
             @_deleteMultiLinesSelections()
-            currSel   = @_findLinesAndIsStartIsEnd()
+            @_findLinesAndIsStartIsEnd()
+            currSel = @currentSel
             startLine = currSel.startLine
 
         # 5- insert first line of the frag in the target line
