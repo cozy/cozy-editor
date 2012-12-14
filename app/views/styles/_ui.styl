@@ -4,20 +4,16 @@
 #main
   background-color: #EEEEEE
 
-.table-ly-wrpr
-  display: table
-  width: 100%
-  height: 100%
-  table-layout: fixed
+#main-div
+  background-color: #EEEEEE
+  display: block
+  position: absolute
+  top:50px
+  right:0
+  left:0
+  bottom:0
 
-.table-ly-hder
-  display: table-row
-  width: 100%
-  border-spacing: 0px
 
-.table-ly-ctnt
-  display: table-cell
-  height: 100%
 
 .monWell
   border: 1px solid rgba(0, 0, 0, 0.12)
@@ -25,43 +21,61 @@
   box-shadow: 0 1px 1px rgba(0, 0, 0, 0.05) inset
   padding: 0px
   margin: 0px
-  height: 100%
+  // height: 100%
+  position:absolute
+  top:0px
+  right:0
+  left:0
+  bottom:7px
+
 
 #well-editor
   background-color: #333333
+  left:7px
 
 #well-result
   background-color: #ffffff
+  right:7px
 
 #col-wrap
-  display: table
-  border-spacing:10px
+  // display: table
+  // border-spacing:10px
   width: 100%
   height: 100%
 
-#editor-col
-  display: table-cell
-  width: 50%
-  height:100%
-  padding-right: 0px
+#generalBtnBarDiv
+  width:600px
+  display:inline-block
+  padding-left: 7px
 
-#result-col
-  display: table-cell
-  vertical-align: top
+#contentSelectDiv
+  position: relative
+  top:-15px
+  display:inline-block
 
-#generalBtnBar
-  padding: 0px 7px 0px 10px
-  position:relative
-  top:10px
+//#generalBtnBar
+//   padding: 0px 7px 0px 10px
+//   position:relative
+//   top:10px
 
 #editorDiv
-  height: 100%
-  border-spacing: 7px
+  // height: 100%
+  position: absolute
+  top:0px
+  right:0
+  left:0
+  bottom:0
+  // border-spacing: 7px
 
 #editorContent
-  padding: 0px
-  overflow: hidden
-  word-wrap: break-word
+  // padding: 0px
+  // overflow: hidden
+  // word-wrap: break-word
+  position: absolute
+  top:40px
+  right:0
+  left:0
+  bottom:15px
 
 #editorIframe
   width: 100%
@@ -74,28 +88,60 @@
   height:100%
   margin-bottom: 9px
 
+// #well-result
+//   border-spacing: 7px
+//   width:100%
+//   height:100%
+
 #resultDiv
-  border-spacing: 7px
+  // border-spacing: 7px
+  width:100%
+  height:100%
 
 #resultContent
+  position: absolute
+  top:50px
+  right:8px
+  left:8px
+  bottom:15px
 
 #resultText
   background-color: #E9EEF2
-  width: 100%
-  height: 100%
-  padding:0px
-  margin: 0
-  position:relative
-  top:-2px
-  left:-1px
+  // width: 100%
+  // height: 100%
+  // padding:0px
+  // margin: 0
+  // position:relative
+  // top:-2px
+  // left:-1px
 
 #editorBtnBar
-  padding: 7px 7px 0px 7px
+  padding-left: 10px
 
 #resultBtnBar
-  padding: 7px 7px 0px 7px
+  // padding: 7px 7px 0px 7px
+  position:absolute
+  left:8px
 
-#divMainBtn *
-  display: inline-block
-  vertical-align: middle
+  
+.ui-layout-resizer-open:hover
+  background white
 
+#col-wrap > .ui-layout-resizer
+  background-color: #eeeeee
+  border-right: 1px solid #eeeeee
+  border-left: 1px solid #eeeeee
+
+.ui-layout-resizer
+  background-color: white
+  border-right: 1px solid white
+  border-left: 1px solid white
+  
+.ui-layout-toggler
+  background-color: white
+  border: 0px
+  position: absolute
+  right: 0px
+
+.ui-layout-resizer-open:hover .ui-layout-toggler
+    background-color: #BFBFBF

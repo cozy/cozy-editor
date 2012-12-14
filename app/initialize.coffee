@@ -20,6 +20,41 @@ editorIframe$ = $("iframe")
     # console.log "history not updated"
 
 
+# Use jquery layout to set main layout of current window.
+drag = $("#drag")
+
+initialSize = Math.round(window.innerWidth/1.66)
+
+$("#col-wrap").layout
+    east__size: initialSize
+    spacing_open: 8
+    spacing_closed: 8
+    resizable: true
+    slidable:false
+    togglerLength_closed: "100%"
+    onresize_end: ->
+        console.log "resize end"
+        drag.css("z-index","-1")
+
+# we detect the start of resize with the on mousedown instead of 
+# the onresize_start because this one happens a bit latter what may be a pb.
+$(".ui-layout-resizer").bind 'mousedown', (e)->
+    console.log "resize start"
+    drag.css("z-index","1")
+
+initialSize2 = Math.round(window.innerWidth/3)
+$("#resultContent").layout
+    west__size: initialSize2
+    spacing_open: 8
+    spacing_closed: 8
+    resizable: true
+    slidable:false
+    togglerLength_closed: "100%"
+    onresize_end: ->
+        console.log "resize end"
+        drag.css("z-index","-1")
+
+
 ###****************************************************
  * 1 - EDITOR CALL BACK
  * 
@@ -211,14 +246,20 @@ cb = () ->
     #### -------------------------------------------------------------------
     # Recording stuff
 
-    recordButton = $ "#record-button"
+    recordButton      = $ "#record-button"
     serializerDisplay = $ "#resultText"
+    playButton        = $ "#play-button"
+    slowPlayButton    = $ "#slow-play-button"
+    recordList        = $ '#record-list'
+    recordSaveButton  = $ '#record-save-button'
+    recordSaveInput   = $ '#record-name'
 
     Recorder = require('./recorder').Recorder
     recorder = new Recorder editorCtrler, editorBody$[0], serializerDisplay
     recorder.saveInitialState()
 
-    recordButton.click ->
+
+    recordTest = ->
         if not recordButton.hasClass "btn-warning"
             recordButton.addClass "btn-warning"
             recorder.recordingSession = []
@@ -230,18 +271,7 @@ cb = () ->
             editorBody$.off 'mouseup', recorder.mouseRecorder
             editorBody$.off 'keyup', recorder.keyboardRecorder
 
-    playButton = $ "#play-button"
-    playButton.click ->
-        recorder.slowPlay()
-
-    slowPlayButton = $ "#slow-play-button"
-    slowPlayButton.click ->
-        recorder.slowPlay()
-
     # Record list
-    recordList = $ '#record-list'
-    recordSaveButton = $ '#record-save-button'
-    recordSaveInput = $ '#record-name'
 
     appendRecord = (record) ->
         recordList.append """
@@ -265,22 +295,34 @@ cb = () ->
                 data:
                     title: record.title
 
-    recordSaveButton.click ->
+    saveCurrentRecordedTest = () ->
         title = recordSaveInput.val()
         if title.length > 0
             record =
                 title: title
+                description:"description du test"
                 sequence: recorder.recordingSession
 
             $.ajax
                 type: "POST"
                 url: "/records/"
                 data: record
+                success:(resp)->
+                    console.log resp
+                    # record.
+                    appendRecord record
 
-            appendRecord record
 
+    playButton.click ->
+        recorder.slowPlay()
+    slowPlayButton.click ->
+        recorder.slowPlay()
+    recordButton.click recordTest
+    recordSaveButton.click saveCurrentRecordedTest
+    
     # Load records
     $.get '/records/', (data) ->
+        data = JSON.parse(data)
         for record in data
             appendRecord record
 
