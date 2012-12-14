@@ -438,6 +438,7 @@ class exports.CNeditor
                 # firs line : no effect, nothing to do.
                 else
                     console.log '_backspace 4 - test ok2'
+
             # 1.2 caret is in the middle of the line : delete one caracter
             else
                 console.log '_backspace 5 - deletion of one caracter - test ok2'
@@ -450,14 +451,17 @@ class exports.CNeditor
                 range.collapseToPoint textNode, startOffset-1
                 @currentSel.sel.setSingleRange range
                 @currentSel = null
+
         # 2- Case of a selection contained in a line
         else if sel.endLine == startLine
             console.log '_backspace 6 - test ok2'
             text = startLine.line$[0].lastChild.previousSibling.firstChild
             range = rangy.createRange()
-            range.collapseToPoint text, text.length - 1
+            range.collapseToPoint text, text.length
             @currentSel.sel.setSingleRange range
             #@currentSel.sel.range.deleteContents()
+            return true
+            #@_backspace(e)
 
         # 3- Case of a multi lines selection
         else
@@ -1178,12 +1182,15 @@ class exports.CNeditor
 
 
     # Put caret at given position. Regitser current selection.
-    _setCaret: (startContainer, startOffset, startLine, nextEndLine) ->
+    _setCaret: (startContainer, startOffset, startLine, nextEndLine, prevStartLine) ->
         if startOffset is 0
-            if startLine?
-                startContainer = startLine.line$[0].firstChild.firstChild
+            if prevStartLine? and nextEndLine?
+                if startLine?
+                    startContainer = startLine.line$[0].firstChild.firstChild
+                else
+                    startContainer = nextEndLine.line$[0]
             else
-                startContainer = nextEndLine.line$[0]
+                startContainer = startLine.line$[0].lastChild
         else
             startContainer = startLine.line$[0].firstChild.firstChild
         
@@ -2345,8 +2352,10 @@ class exports.CNeditor
                     if lastInsertedEl != null and lastInsertedEl.nodeName=='SPAN'
                         lastInsertedEl.textContent += '[[' + child.textContent + '|'+ child.href+']]'
                     else
-                        spanNode = document.createElement('span')
-                        spanNode.textContent = child.textContent + ' [[' + child.href+']] '
+                        spanNode = document.createElement('a')
+                        spanNode.href = child.href
+                        spanNode.textContent = child.textContent
+                        #spanNode.textContent = child.textContent + ' [[' + child.href+']] '
                         context.currentLineEl.appendChild(spanNode)
                     context.isCurrentLineBeingPopulated = true
                 

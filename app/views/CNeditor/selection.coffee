@@ -227,7 +227,7 @@ selection.putStartOnEnd = (range, elt) ->
         blank = document.createTextNode " "
         elt.appendChild blank
         range.setStart(blank, 0)
-        
+ 
 selection.putEndOnStart = (range, elt) ->
     if elt?.firstChild?
         offset = elt.firstChild.textContent.length
@@ -237,18 +237,22 @@ selection.putEndOnStart = (range, elt) ->
         blank = document.createTextNode " "
         elt.appendChild blank
         range.setEnd(blank, 0)
-        
+
 selection.putEndOnEnd = (range, elt) ->
-    if elt?.lastChild?
-        offset = elt.lastChild.textContent.length
-        elt.lastChild.data += " "
-        #offset = offset - 1 if offset > 0
-        range.setEnd(elt.lastChild, offset)
-        #elt.lastChild.data = elt.lastChild.data.substring(0, elt.lastChild.data.length - 1)
-    else if elt?
-        blank = document.createTextNode " "
-        elt.appendChild blank
-        range.setEnd(blank, 1)
+    if elt?
+        range.setEnd elt.nextSibling, 0
+    #if elt?.lastChild?
+        #range.setEnd elt.nextSibling, 0
+        ##offset = elt.lastChild.textContent.length
+        ##elt.lastChild.data += " "
+
+        ## offset = offset - 1 if offset > 0
+        ##range.setEnd elt.lastChild, offset
+        ## elt.lastChild.data = elt.lastChild.data.substring(0, elt.lastChild.data.length - 1)
+    #else if elt?
+        #blank = document.createTextNode " "
+        #elt.appendChild blank
+        #range.setEnd(blank, 1)
     range
 
 # Determine selection start div even if selection start in the body element or
