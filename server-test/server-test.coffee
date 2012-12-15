@@ -5,45 +5,66 @@ app = express()
 app.use(express.bodyParser())
 app.use(express.methodOverride())
 app.use(app.router)
-
 app.use("/", express.static(__dirname + '/../public'))
 
-app.get '/records/', (req, res) ->
-    # list test files
+
+getAllRecords = (req, res) ->
     files = fs.readdirSync('../test/test-cases/')
-    result = ''
+    fileList = []
     for fileName in files
-        filePath = '../test/test-cases/'+fileName
-        result += ',' + fs.readFileSync(filePath, 'utf8')
+        filePath = '../test/test-cases/' + fileName
+        fileList.push
+            filePath   : filePath
+            fileName   : fileName
+            recordStrg : fs.readFileSync(filePath, 'utf8')
+    
+    fileList.sort (a,b)->
+        return a.fileName > b.fileName
+
+    result = ''
+    for file in fileList
+        result += ',' + file.recordStrg
     result = '[' + result.substr(1) + ']'
     res.send result
 
-app.post '/records/', (req, res) ->
-    console.log "SAVE records"
+
+saveToFile = (req, res) ->
     newFileNum = newFileNumber()+''
-    console.log newFileNum
-    console.log newFileNum.length
     zeros = newFilledArray(4-newFileNum.length,'0')
     zeros = zeros.join('')
     fileName = zeros + newFileNum + '-' + req.body.title
-    console.log req.body
     data = 
         id          : newFileNum
+        fileName    : fileName
         title       : req.body.title
         description : req.body.description
         sequence    : req.body.sequence
     path = '../test/test-cases/' +  fileName
     fs.writeFileSync(path, JSON.stringify(data))
-    
-    # client.set "sequence-#{title}", JSON.stringify(sequence), ->
-    res.send newFileNum
+    res.send
+        id          : newFileNum
+        title       : req.body.title
+        fileName    : fileName
+
+deleteRecord = (req,res) ->
+    console.log "start delete " + req.body.fileName
+    path = '../test/test-cases/' + req.body.fileName
+    fs.unlink path,(err)->
+        if err
+            res.send 'ko'
+        else
+            res.send 'ok'
 
 newFileNumber = () ->
     # list test files
+    console.log "newFileNumber start"
     files = fs.readdirSync('../test/test-cases/')
     lastFileNumber = 0
     for fileName in files
-        lastFileNumber = Math.max(lastFileNumber,parseInt(fileName.substr(0,4)))
+        console.log fileName
+        console.log fileName.substr(0,4)
+        console.log parseInt(fileName.substr(0,4),10)
+        lastFileNumber = Math.max(lastFileNumber,parseInt(fileName.substr(0,4),10))
     console.log lastFileNumber
     return lastFileNumber + 1
 
@@ -55,4 +76,7 @@ newFilledArray = (length, val) ->
         i++
     return array
 
+app.put '/records/', deleteRecord
+app.get '/records/', getAllRecords
+app.post '/records/', saveToFile
 app.listen 3000

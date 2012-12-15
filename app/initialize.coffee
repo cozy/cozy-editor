@@ -8,17 +8,11 @@ require '../lib/app_helpers'
 
 
 ###****************************************************
- * 0 - INITIALIZE APP
+ * 0 - INITIALIZE APP UI
 ###
 
 $("body").html require './views/templates/editor'
 editorIframe$ = $("iframe")
-
-# $("iframe").on "onHistoryChanged", (e) ->
-    # console.log "history updated"
-# $("iframe").on "onKeyUp", (e) ->
-    # console.log "history not updated"
-
 
 # Use jquery layout to set main layout of current window.
 drag = $("#drag")
@@ -43,7 +37,8 @@ $(".ui-layout-resizer").bind 'mousedown', (e)->
     drag.css("z-index","1")
 
 initialSize2 = Math.round(window.innerWidth/3)
-$("#resultContent").layout
+
+$("#well-result").layout
     west__size: initialSize2
     spacing_open: 8
     spacing_closed: 8
@@ -248,83 +243,54 @@ cb = () ->
 
     recordButton      = $ "#record-button"
     serializerDisplay = $ "#resultText"
-    playButton        = $ "#play-button"
+    playAllButton     = $ "#play-all-button"
+    playAllSlowButton = $ "#play-all-slow-button"
     slowPlayButton    = $ "#slow-play-button"
     recordList        = $ '#record-list'
     recordSaveButton  = $ '#record-save-button'
     recordSaveInput   = $ '#record-name'
 
     Recorder = require('./recorder').Recorder
-    recorder = new Recorder editorCtrler, editorBody$[0], serializerDisplay
+    recorder = new Recorder editorCtrler, editorBody$, serializerDisplay, recordList
     recorder.saveInitialState()
-
 
     recordTest = ->
         if not recordButton.hasClass "btn-warning"
             recordButton.addClass "btn-warning"
-            recorder.recordingSession = []
-            serializerDisplay.val null
-            editorBody$.mouseup recorder.mouseRecorder
-            editorBody$.keyup recorder.keyboardRecorder
+            recorder.startRecordSession()
+            # recorder.recordingSession = []
+            # serializerDisplay.val null
+            # editorBody$.mouseup recorder.mouseRecorder
+            # editorBody$.keyup recorder.keyboardRecorder
         else
             recordButton.removeClass "btn-warning"
-            editorBody$.off 'mouseup', recorder.mouseRecorder
-            editorBody$.off 'keyup', recorder.keyboardRecorder
-
-    # Record list
-
-    appendRecord = (record) ->
-        recordList.append """
-            <div id="#{record.title}">
-                <button class="play btn btn-primary">play</button>
-                <button class="delete btn">X</button>
-                <span>#{record.title}</span>
-            </div>
-            """
-        line = recordList.find('div').last()
-        line.find('.play').click ->
-            $('#resultText').val JSON.stringify record.sequence
-            recorder.recordingSession = record.sequence.slice(0)
-            recorder.slowPlay()
-
-        line.find('.delete').click ->
-            line.remove()
-            $.ajax
-                type: "PUT"
-                url: "/records/"
-                data:
-                    title: record.title
+            recorder.stopRecordSession()
+            # editorBody$.off 'mouseup', recorder.mouseRecorder
+            # editorBody$.off 'keyup', recorder.keyboardRecorder
 
     saveCurrentRecordedTest = () ->
         title = recordSaveInput.val()
-        if title.length > 0
-            record =
-                title: title
-                description:"description du test"
-                sequence: recorder.recordingSession
-
-            $.ajax
-                type: "POST"
-                url: "/records/"
-                data: record
-                success:(resp)->
-                    console.log resp
-                    # record.
-                    appendRecord record
+        recorder.saveCurrentRecordedTest(title)
 
 
-    playButton.click ->
-        recorder.slowPlay()
+    # Recorder boutons
+    
+    playAllButton.click ->
+        recorder.playAll()
+
+    playAllSlowButton.click ->
+        recorder.slowPlayAll()
+
     slowPlayButton.click ->
         recorder.slowPlay()
+
     recordButton.click recordTest
+
     recordSaveButton.click saveCurrentRecordedTest
     
     # Load records
-    $.get '/records/', (data) ->
-        data = JSON.parse(data)
-        for record in data
-            appendRecord record
+    
+    recorder.load()
 
         
 

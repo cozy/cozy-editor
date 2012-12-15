@@ -8,9 +8,6 @@
         button#printRangeBtn.btn.btn-small.btn-primary Print Range
         button#addClass.btn.btn-small.btn-primary Class of selected Lines
         button#addClass2LineBtn.btn.btn-small.btn-primary Show Class on Lines
-        button#record-button.btn.btn-small Record
-        button#play-button.btn.btn-small Play
-        button#slow-play-button.btn.btn-small Slow Play
     //- div.btn-group
     //-   button.btn.dropdown-toggle(data-toggle="dropdown",href="#") Change content
     //-     span.caret
@@ -53,34 +50,37 @@
         #well-editor.monWell
           // boutons for the editor
           #editorBtnBar.btn-group
-            button#indentBtn.btn.btn-small.btn-primary Indent
-            button#unIndentBtn.btn.btn-small.btn-primary Un-indent
-            button#markerListBtn.btn.btn-small.btn-primary - Marker list
-            button#titleBtn.btn.btn-small.btn-primary 1.1.2 Title
-            button#clearBtn.btn.btn-small.btn-primary Clear
-            button#undoBtn.btn.btn-small.btn-primary undo
-            button#redoBtn.btn.btn-small.btn-primary redo
+            button#indentBtn.btn.btn-small.btn-inverse Indent
+            button#unIndentBtn.btn.btn-small.btn-inverse Un-indent
+            button#markerListBtn.btn.btn-small.btn-inverse - Marker list
+            button#titleBtn.btn.btn-small.btn-inverse 1.1.2 Title
+            button#clearBtn.btn.btn-small.btn-inverse Clear
+            button#undoBtn.btn.btn-small.btn-inverse undo
+            button#redoBtn.btn.btn-small.btn-inverse redo
           // text for the editor
           #editorContent
             iframe#editorIframe()
       #result-col.ui-layout-east
-        #well-result.monWell
-          //- #resultDiv
-          //-   div
-          #resultBtnBar.btn-group
-            button#resultBtnBar_coller.btn.btn-small.btn-primary Coller
-            button#markdownBtn.btn.btn-small.btn-primary Convert to Markdown
-            button#cozyBtn.btn.btn-small.btn-primary Convert to Cozy
-            button#checkBtn.btn.btn-small.btn-primary Run syntax test
-            button#summaryBtn.btn.btn-small.btn-primary Display Summary
-
+        #well-result.monWell.ui-layout-container
           // text for the resulting html
-          #resultContent.ui-layout-container
-            textarea#resultText.ui-layout-west
-            #recordings.pane.ui-layout-center.ui-layout-pane.ui-layout-pane-center
-              #record-form
-                  p
-                      input#record-name
-                  p
-                      button#record-save-button.btn.btn-small.btn-success save current record
-              #record-list
+          #resultContent.ui-layout-west
+            #resultBtnBar.btn-group
+              button#resultBtnBar_coller.btn.btn-small Coller
+              button#markdownBtn.btn.btn-small Convert to Markdown
+              button#cozyBtn.btn.btn-small Convert to Cozy
+              button#checkBtn.btn.btn-small Run syntax test
+              button#summaryBtn.btn.btn-small Display Summary
+            div#resultTextDiv
+              textarea#resultText
+          #recordings.ui-layout-center
+            #recordBtnBar.btn-group
+              button#record-button.btn.btn-small Record
+              button#slow-play-button.btn.btn-small Play last recorded
+              button#play-all-slow-button.btn.btn-small Play all slow
+              button#play-all-button.btn.btn-small Play all
+            #record-form
+                div
+                input#record-name
+                button#record-save-button.btn.btn-small.btn-success save current record
+                p
+            #record-list
