@@ -77,9 +77,13 @@ class exports.Recorder
             $(@editorBody).trigger upEvent
 
     add: (record) ->
-        # id = @records.push(record) - 1
         @records.push record
-        # return
+
+    remove: (record) ->
+        i     = @records.indexOf(record)
+        front = @records.slice(0,i)
+        end   = @records.slice(i+1)
+        @records = front.concat end
 
     ### Listeners ###
     

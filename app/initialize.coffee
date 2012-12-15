@@ -295,11 +295,12 @@ cb = () ->
 
         element.find('.delete').click ->
             element.remove()
+            recorder.remove(record)
             $.ajax
                 type: "PUT"
                 url: "/records/"
                 data:
-                    id: record.id
+                    fileName: record.fileName
 
     saveCurrentRecordedTest = () ->
         title = recordSaveInput.val()

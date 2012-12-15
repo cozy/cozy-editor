@@ -9,7 +9,6 @@ app.use("/", express.static(__dirname + '/../public'))
 
 
 getAllRecords = (req, res) ->
-    console.log 'getAllRecords start'
     files = fs.readdirSync('../test/test-cases/')
     fileList = []
     for fileName in files
@@ -22,8 +21,6 @@ getAllRecords = (req, res) ->
     fileList.sort (a,b)->
         return a.fileName > b.fileName
 
-    console.log fileList
-
     result = ''
     for file in fileList
         result += ',' + file.recordStrg
@@ -32,14 +29,10 @@ getAllRecords = (req, res) ->
 
 
 saveToFile = (req, res) ->
-    console.log "SAVE records"
     newFileNum = newFileNumber()+''
-    console.log newFileNum
-    console.log newFileNum.length
     zeros = newFilledArray(4-newFileNum.length,'0')
     zeros = zeros.join('')
     fileName = zeros + newFileNum + '-' + req.body.title
-    console.log req.body
     data = 
         id          : newFileNum
         fileName    : fileName
@@ -48,13 +41,19 @@ saveToFile = (req, res) ->
         sequence    : req.body.sequence
     path = '../test/test-cases/' +  fileName
     fs.writeFileSync(path, JSON.stringify(data))
-    
-    # client.set "sequence-#{title}", JSON.stringify(sequence), ->
     res.send
         id          : newFileNum
         title       : req.body.title
-        fileName   : fileName
+        fileName    : fileName
 
+deleteRecord = (req,res) ->
+    console.log "start delete " + req.body.fileName
+    path = '../test/test-cases/' + req.body.fileName
+    fs.unlink path,(err)->
+        if err
+            res.send 'ko'
+        else
+            res.send 'ok'
 
 newFileNumber = () ->
     # list test files
@@ -73,7 +72,7 @@ newFilledArray = (length, val) ->
         i++
     return array
 
-
+app.put '/records/', deleteRecord
 app.get '/records/', getAllRecords
 app.post '/records/', saveToFile
 app.listen 3000
