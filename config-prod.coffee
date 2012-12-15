@@ -40,24 +40,6 @@ exports.config =
                 exports = {};
                 """
 
-                #data = data.replace(/exports\.CNeditor.*/g, "CNeditor")
-                #data = data.replace(/exports\.md2cozy.*/g, "md2cozy")
-                #data = data.replace(/exports\.cozy2md.*/g, "cozy2md")
-                #data = data.replace("md2cozy = require('./md2cozy').md2cozy;", "")
-                #data = data.replace("selection = require('./selection').selection;", "")
-                #data = data.replace(/^CNeditor$/, "")
-                #data = data.replace("})();", "")
-
-                #data = data.replace("exports.CNeditor = (function() {", "")
-                #data = data.replace("return CNeditor;", "")
-                #data = data.replace("exports.md2cozy = md2cozy;", "")
-                #data = data.replace("exports.selection = selection;", "")
-                #data = data.replace("md2cozy = require('./md2cozy').md2cozy;")
-                #data = data.replace("selection = require('./selection').selection;")
-
-                #data = data.replace(new RegExp("exports.", "g"), "")
-                #data = data.replace(/^require.*/, "")
-
     # minify: true
     # optimize: true
     # none of those syntax work, there is a pb in the documentation : 
