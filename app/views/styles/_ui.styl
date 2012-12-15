@@ -55,7 +55,7 @@ body
 
 #editorContent
   position: absolute
-  top:50px
+  top:48px
   right:8px
   left:8px
   bottom:15px
@@ -82,16 +82,61 @@ body
   left:8px
   bottom:15px
 
+#resultTextDiv
+  position: absolute
+  top:48px
+  right:8px
+  left:8px
+  bottom:15px
+
 #resultText
   background-color: #E9EEF2
+  width:100%
+  height:100%
+  padding:0
+  margin:0
+
+#recordings
+  padding:0px 7px 7px 7px 
 
 #editorBtnBar
   padding-left: 10px
 
+#record-form
+  // border:1px 1px 0px 0px 
+  border-bottom:1px
+  border-top:1px
+  border-right:0px
+  border-left:0px
+  border-style: solid
+  border-color:#EEEEEE
+  padding-top:10px
+  padding-bottom:0px
+  margin-bottom:7px
+  
+.btnDiv-RecordLine
+  width:44px
+  height:20px
+  top:-6px
+  display:inline-block
+  position:relative
+
+
+#record-name
+  margin:0
+  width:100%
+
+.resultActionOK
+  color:green
+
+.resultActionNOK
+  color:red
+
 #resultBtnBar
   position:absolute
   left:8px
-  
+
+
 .ui-layout-resizer-open:hover
   background white
 
@@ -102,8 +147,8 @@ body
 
 .ui-layout-resizer
   background-color: white
-  border-right: 1px solid white
-  border-left: 1px solid white
+  border-right: 1px solid #eeeeee
+  border-left: 1px solid #eeeeee
   
 .ui-layout-toggler
   background-color: white

@@ -57,10 +57,14 @@ deleteRecord = (req,res) ->
 
 newFileNumber = () ->
     # list test files
+    console.log "newFileNumber start"
     files = fs.readdirSync('../test/test-cases/')
     lastFileNumber = 0
     for fileName in files
-        lastFileNumber = Math.max(lastFileNumber,parseInt(fileName.substr(0,4)))
+        console.log fileName
+        console.log fileName.substr(0,4)
+        console.log parseInt(fileName.substr(0,4),10)
+        lastFileNumber = Math.max(lastFileNumber,parseInt(fileName.substr(0,4),10))
     console.log lastFileNumber
     return lastFileNumber + 1
 
