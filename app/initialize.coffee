@@ -252,7 +252,6 @@ cb = () ->
 
     Recorder = require('./recorder').Recorder
     recorder = new Recorder editorCtrler, editorBody$, serializerDisplay, recordList
-    recorder.saveInitialState()
 
     recordTest = ->
         if not recordButton.hasClass "btn-warning"
