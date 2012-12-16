@@ -87,6 +87,7 @@ class exports.CNeditor
 
                 # Create div that will contains line
                 @linesDiv = document.createElement 'div'
+                @linesDiv.setAttribute('id','editor-lineDiv')
                 @editorBody$.append @linesDiv
 
                 # init clipboard div
@@ -441,7 +442,7 @@ class exports.CNeditor
 
             # 1.2 caret is in the middle of the line : delete one caracter
             else
-                #console.log '_backspace 5 - deletion of one caracter - test ok2'
+                console.log '_backspace 5 - deletion of one caracter - test ok2'
                 # we consider that we are in a text node
                 textNode = sel.range.startContainer
                 startOffset = sel.range.startOffset

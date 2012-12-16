@@ -29,25 +29,37 @@ getAllRecords = (req, res) ->
 
 
 saveToFile = (req, res) ->
+    console.log "START SAVE"
+    console.log req.body
+    reqData = JSON.parse(req.body)
+    console.log "reqData"
+    console.log reqData
     newFileNum = newFileNumber()+''
     zeros = newFilledArray(4-newFileNum.length,'0')
     zeros = zeros.join('')
-    fileName = zeros + newFileNum + '-' + req.body.title
+    fileName = zeros + newFileNum + '-' + reqData.title
+    console.log "fileName = " + fileName
     data = 
-        id          : newFileNum
-        fileName    : fileName
-        title       : req.body.title
-        description : req.body.description
-        sequence    : req.body.sequence
+        id           : newFileNum
+        fileName     : fileName
+        title        : reqData.title
+        description  : reqData.description
+        sequence     : reqData.sequence
+        initialState : reqData.initialState
+        finalState   : reqData.finalState
     path = '../test/test-cases/' +  fileName
-    fs.writeFileSync(path, JSON.stringify(data))
+    console.log 'raw data ='
+    console.log data
+    console.log 'stringified data string ='
+    console.log JSON.stringify(data)
+    # fs.writeFileSync(path, JSON.stringify(data))
+    fs.writeFileSync(path, data)
     res.send
         id          : newFileNum
-        title       : req.body.title
+        title       : reqData.title
         fileName    : fileName
 
 deleteRecord = (req,res) ->
-    console.log "start delete " + req.body.fileName
     path = '../test/test-cases/' + req.body.fileName
     fs.unlink path,(err)->
         if err
@@ -57,15 +69,10 @@ deleteRecord = (req,res) ->
 
 newFileNumber = () ->
     # list test files
-    console.log "newFileNumber start"
     files = fs.readdirSync('../test/test-cases/')
     lastFileNumber = 0
     for fileName in files
-        console.log fileName
-        console.log fileName.substr(0,4)
-        console.log parseInt(fileName.substr(0,4),10)
         lastFileNumber = Math.max(lastFileNumber,parseInt(fileName.substr(0,4),10))
-    console.log lastFileNumber
     return lastFileNumber + 1
 
 newFilledArray = (length, val) ->
@@ -76,7 +83,7 @@ newFilledArray = (length, val) ->
         i++
     return array
 
-app.put '/records/', deleteRecord
-app.get '/records/', getAllRecords
+app.put '/records/' , deleteRecord
+app.get '/records/' , getAllRecords
 app.post '/records/', saveToFile
 app.listen 3000
