@@ -124,17 +124,17 @@ cb = () ->
         date = new Date()
         st = date.getHours()+":"+date.getMinutes()+":"+date.getSeconds()+" - "
         if res
-            $("#resultText").val(st+"Syntax test success")
+            $("#resultText").val(st + "Syntax test success")
         else
-            $("#resultText").val(st+"Syntax test FAILLURE : cf logs")
+            $("#resultText").val(st + "Syntax test FAILLURE : cf logs")
     #  > translate cozy code into markdown and markdown to cozy code
     #    Note: in the markdown code there should be two \n between each line
     $("#markdownBtn").on "click", () ->
-        console.log editorCtrler.getEditorContent()
-    $("#cozyBtn").on "click", ->
-        $("#resultText").val(md2cozy.md2cozy $("#resultText").val())
-        
-        $("#resultText").val(editorCtrler.getEditorContent())
+        content = editorCtrler.getEditorContent()
+        $("#resultText").val content
+        true
+    $("#cozyBtn").on "click", () ->
+        $("#resultText").val(editorCtrler.setEditorContent $("#resultText").val())
     $("#addClass").toggle(
         () ->
             addClassToLines("sel")
@@ -252,20 +252,13 @@ cb = () ->
         if not recordButton.hasClass "btn-warning"
             recordButton.addClass "btn-warning"
             recorder.startRecordSession()
-            # recorder.recordingSession = []
-            # serializerDisplay.val null
-            # editorBody$.mouseup recorder.mouseRecorder
-            # editorBody$.keyup recorder.keyboardRecorder
         else
             recordButton.removeClass "btn-warning"
             recorder.stopRecordSession()
-            # editorBody$.off 'mouseup', recorder.mouseRecorder
-            # editorBody$.off 'keyup', recorder.keyboardRecorder
 
     saveCurrentRecordedTest = () ->
         title = recordSaveInput.val()
         recorder.saveCurrentRecordedTest(title)
-
 
     # Recorder boutons
     
@@ -287,10 +280,5 @@ cb = () ->
     recorder.load()
 
         
-
-###****************************************************
- * 3 - creation of the editor
-###
-
 $ ->
     editor = new CNeditor( document.querySelector('#editorIframe'), cb )

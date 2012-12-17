@@ -103,7 +103,6 @@ selection.handleDivStart = (range, startContainer, isEmptyLine) ->
 selection.handleDivEnd = (range, endContainer) ->
     if range.endOffset < endContainer.childNodes.length - 1
         selection.putEndOnOffset range, endContainer, range.endOffset
-
     else
         selection.putEndAtEndOfLine range, endContainer
 
@@ -160,7 +159,7 @@ selection.putStartOnOffset = (range, container, offset) ->
     selection.putStartOnStart range, elt
 
 selection.putEndOnOffset = (range, container, offset) ->
-    elt = endContainer.childNodes[offset]
+    elt = container.childNodes[offset]
     selection.putEndOnStart range, elt
 
 # Put selection start at the en of given line. 
@@ -226,33 +225,21 @@ selection.putStartOnEnd = (range, elt) ->
     else if elt?
         blank = document.createTextNode " "
         elt.appendChild blank
-        range.setStart(blank, 0)
+        range.setStart blank, 0
  
 selection.putEndOnStart = (range, elt) ->
     if elt?.firstChild?
         offset = elt.firstChild.textContent.length
         elt.firstChild.data = " " if offset == 0
-        range.setEnd(elt.firstChild, 0)
+        range.setEnd elt.firstChild, 0
     else if elt?
         blank = document.createTextNode " "
         elt.appendChild blank
-        range.setEnd(blank, 0)
+        range.setEnd blank, 0
 
 selection.putEndOnEnd = (range, elt) ->
     if elt?
         range.setEnd elt.nextSibling, 0
-    #if elt?.lastChild?
-        #range.setEnd elt.nextSibling, 0
-        ##offset = elt.lastChild.textContent.length
-        ##elt.lastChild.data += " "
-
-        ## offset = offset - 1 if offset > 0
-        ##range.setEnd elt.lastChild, offset
-        ## elt.lastChild.data = elt.lastChild.data.substring(0, elt.lastChild.data.length - 1)
-    #else if elt?
-        #blank = document.createTextNode " "
-        #elt.appendChild blank
-        #range.setEnd(blank, 1)
     range
 
 # Determine selection start div even if selection start in the body element or
