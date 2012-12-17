@@ -31,9 +31,12 @@ getAllRecords = (req, res) ->
 saveToFile = (req, res) ->
     console.log "START SAVE"
     console.log req.body
-    reqData = JSON.parse(req.body)
+    reqData = req.body
     console.log "reqData"
     console.log reqData
+    console.log "reqData.sequence[1]"
+    console.log reqData.sequence[1]
+
     newFileNum = newFileNumber()+''
     zeros = newFilledArray(4-newFileNum.length,'0')
     zeros = zeros.join('')
@@ -53,7 +56,7 @@ saveToFile = (req, res) ->
     console.log 'stringified data string ='
     console.log JSON.stringify(data)
     # fs.writeFileSync(path, JSON.stringify(data))
-    fs.writeFileSync(path, data)
+    fs.writeFileSync(path, JSON.stringify(data))
     res.send
         id          : newFileNum
         title       : reqData.title

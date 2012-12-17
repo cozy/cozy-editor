@@ -137,9 +137,9 @@ cb = () ->
     #  > translate cozy code into markdown and markdown to cozy code
     #    Note: in the markdown code there should be two \n between each line
     $("#markdownBtn").on "click", () ->
-        $("#resultText").val(editorCtrler._cozy2md $("#resultText").val())
+        $("#resultText").val(editorCtrler.getEditorContent())
     $("#cozyBtn").on "click", () ->
-        $("#resultText").val(editorCtrler._md2cozy $("#resultText").val())
+        $("#resultText").val(editorCtrler.setEditorContent $("#resultText").val())
     $("#addClass").toggle(
         () ->
             addClassToLines("sel")
