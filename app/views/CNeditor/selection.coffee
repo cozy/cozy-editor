@@ -122,13 +122,13 @@ selection.handleTextEltStart = (range, startContainer) ->
 # 2.0 if endC is empty
 # 2.1 if caret is between two textNode children
 # 2.2 if caret is after last textNode
-selection.handleTextEltEnd = (range, startContainer) ->
+selection.handleTextEltEnd = (range, endContainer) ->
     if endContainer.firstChild == null || endContainer.textContent.length == 0
         selection.putEndOnEnd range, endContainer
     if range.endOffset < endContainer.childNodes.length
         selection.putEndOnNextChild range, endContainer
     else
-        selection.putEndOnLastChildEnd range, startContainer
+        selection.putEndOnLastChildEnd range, endContainer
 
 
 # Get line that contains given element.

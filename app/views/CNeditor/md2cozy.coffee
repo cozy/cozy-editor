@@ -22,6 +22,7 @@ md2cozy.cozy2md = (text) ->
     
     # Writes the string into a jQuery object
     htmlCode = $(document.createElement 'div').html text
+    htmlCode = htmlCode.find('#editor-lines') if htmlCode.id != 'editor-lines'
     
     # The future converted line
     markCode = ''
@@ -30,7 +31,7 @@ md2cozy.cozy2md = (text) ->
     currDepth = 0
     
     # converts a fragment of a line
-    converter = {
+    converter =
         'A': (obj) ->
             title = if obj.attr('title')? then obj.attr('title') else ""
             href  = if obj.attr('href')? then obj.attr('href') else ""
@@ -44,55 +45,55 @@ md2cozy.cozy2md = (text) ->
             
         'SPAN': (obj) ->
             return obj.text()
-        }
-
     
     # markup symbols
-    markup = {
+    # Th = title
+    # Tu = bullet point
+    # Lh = simple line
+    # Lu = simple line
+    markup =
         'Th' : (blanks, depth) ->
-            # a title is a section rupture
             currDepth = depth
             dieses = ''
             i = 0
             while i < depth
                 dieses += '#'
                 i++
-            return "\n" + dieses + ' '
+            "\n\n" + dieses + ' '
         'Lh' : (blanks, depth) ->
-            return "\n"
-        'Tu' : (blanks, depth) ->
-            return "\n" + blanks + "+   "
+            "\n\n"
+        'Tu' : (blanks, depth, changeDepth) ->
+            "\n" + blanks + "+   "
         'Lu' : (blanks, depth) ->
-            return "\n" + blanks + "    "
+            "\n\n" + blanks + "    "
         'To' : (blanks, depth) ->
-            return "\n" + blanks + "1.   "
+            "\n\n" + blanks + "1.   "
         'Lo' : (blanks, depth) ->
-            return "\n" + blanks + "    "
-        }
+            "\n\n" + blanks + "    "
 
+    previousDepth = 0
     # adds structure depending of the line's class
     classType = (className) ->
         tab   = className.split "-"
         type  = tab[0]               # type of class (Tu,Lu,Th,Lh,To,Lo)
         depth = parseInt(tab[1], 10) # depth (1,2,3...)
+        changeDepth = depth != previousDepth
+        previousDepth = depth
         blanks = ''
         i = 1
         while i < depth - currDepth
             blanks += '    '
             i++
-        return markup[type](blanks, depth)
+        return markup[type](blanks, depth, changeDepth)
     
-    # iterate on direct children
-    children = htmlCode.children()
-    for i in [0..children.length-1]
-        
-        # fetch the i-th line of the text
-        lineCode = $ children.get i
+    lines = []
+    for child in htmlCode.children()
+        markCode = ''
+        lineCode = $ child
         
         # indent and structure the line
-        if lineCode.attr('class')?
-            # console.log classType lineCode.attr 'class'
-            markCode += classType lineCode.attr 'class'
+        lineClass = lineCode.attr 'class'
+        markCode += classType(lineClass) if lineClass?
 
         # completes the text depending of the line's content
         l = lineCode.children().length
@@ -100,17 +101,17 @@ md2cozy.cozy2md = (text) ->
         space = ' '
         while j < l
             lineElt = lineCode.children().get j
-            if (j+2==l) then space='' #be sure not to insert spaces after BR
+            # be sure not to insert spaces after BR
+            if (j + 2 == l) then space = ''
             if lineElt.nodeType == 1 && converter[lineElt.nodeName]?
                 markCode += converter[lineElt.nodeName]($ lineElt) + space
             else
                 markCode += $(lineElt).text() + space
             j++
-            
-        # adds a new line at the end
-        markCode += "\n"
+
+        lines.push markCode
     
-    return markCode
+    lines.join ''
 
 
 ### ------------------------------------------------------------------------

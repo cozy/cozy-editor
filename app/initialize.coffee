@@ -4,6 +4,7 @@ require '../lib/app_helpers'
 {beautify} = require('views/beautify')
 {CNeditor} = require('views/CNeditor/CNeditor')
 {AutoTest} = require('views/autoTest')
+{md2cozy} = require 'views/CNeditor/md2cozy'
 
 
 
@@ -66,19 +67,17 @@ cb = () ->
     this.replaceContent( require('views/templates/content-shortlines-marker') )
     this.replaceContent( require('views/templates/content-full-relative-indent') )
     this.replaceContent( require('views/templates/content-shortlines-all-hacked') )
-    this.deleteContent()
+
     ###
     content = require('views/templates/content-shortlines-all')
-    this.replaceContent content()
+    @replaceContent content()
+
     #### -------------------------------------------------------------------
     # buttons init, beautify actions
     editorCtrler = this
-    editorBody$  = this.editorBody$
+    editorBody$  = @editorBody$
 
     beautify(editorBody$)
-    
-    #editorBody$.on 'keyup' , ->
-        #beautify(editorBody$)
         
     $("#resultBtnBar_coller").on  'click' , ->
         beautify(editorBody$)
@@ -88,21 +87,15 @@ cb = () ->
         i = 0
         l = sel.rangeCount
         while i<l
-            console.log "Range N°#{i}"
+            console.log "Range N° #{i}"
             range = sel.getRangeAt(i)
             console.log range
             console.log "content : #{range.toHtml()}"
             i++
             
-    # Allows user to load a file in the Cozy format
-    #$('#contentSelect').on "change" , (e) ->
-        #console.log "views/templates/#{e.currentTarget.value}"
-        #editorCtrler.replaceContent( require("views/templates/#{e.currentTarget.value}") )
-        #beautify(editorBody$)
-
     # Allows user to load a style sheet for the page
     $('#cssSelect').on "change" , (e) ->
-        editorCtrler.replaceCSS( e.currentTarget.value )
+        editorCtrler.replaceCSS e.currentTarget.value
 
     #### -------------------------------------------------------------------
     # Buttons for the editor
@@ -137,9 +130,11 @@ cb = () ->
     #  > translate cozy code into markdown and markdown to cozy code
     #    Note: in the markdown code there should be two \n between each line
     $("#markdownBtn").on "click", () ->
-        $("#resultText").val(editorCtrler._cozy2md $("#resultText").val())
-    $("#cozyBtn").on "click", () ->
-        $("#resultText").val(editorCtrler._md2cozy $("#resultText").val())
+        console.log editorCtrler.getEditorContent()
+    $("#cozyBtn").on "click", ->
+        $("#resultText").val(md2cozy.md2cozy $("#resultText").val())
+        
+        $("#resultText").val(editorCtrler.getEditorContent())
     $("#addClass").toggle(
         () ->
             addClassToLines("sel")
