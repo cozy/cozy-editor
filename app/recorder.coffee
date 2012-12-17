@@ -25,12 +25,12 @@ class exports.Recorder
             sequence     : @._recordingSession
             initialState : @.initialState
             finalState   : @.finalState
-        record = JSON.stringify(record)
         $.ajax
             type: "POST"
             url: "/records/"
-            data: record
+            data: JSON.stringify(record)
             dataType:'json'
+            contentType : "application/json"
             success:(resp)=>
                 record.id       = resp.id
                 record.title    = resp.title
@@ -56,12 +56,12 @@ class exports.Recorder
         @finalState = @getState()
 
     getState: () ->
-        # state =
-        #     html: @.editorBody$.find('#editor-lineDiv').html()
-        #     md  : @.editor.getEditorContent()
         state =
-            html: "html2"
-            md  : "md"
+            html: @.editorBody$.find('#editor-lineDiv').html()
+            md  : @.editor.getEditorContent()
+        # state =
+        #     html: "html2"
+        #     md  : "md"
         return state
 
     restoreState: (state) ->
@@ -148,6 +148,7 @@ class exports.Recorder
                 @slowPlayRecord.finalStateOK = true
             else
                 @slowPlayRecord.finalStateOK = false
+                debugger
             @_slowPlayAllLoop()
             
     _appendRecordElement: (record) ->
