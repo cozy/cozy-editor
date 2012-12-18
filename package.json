@@ -32,7 +32,6 @@
     "devDependencies": {
         "mocha": "0.14.0",
         "chai": "1.0.4",
-        "jquery": ">= 0",
-        "ws": "0.4.21"
+        "jquery": ">= 0"
     }
 }
