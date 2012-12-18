@@ -11,19 +11,25 @@ selection = {}
 #       cannot be selected with rangy (that's where 'blank' comes in)
 ###
 
+###*
+ * Called only once from the editor - TODO : role to be verified 
+###
 selection.cleanSelection = (startLine, endLine, range) ->
     if startLine is null
         startLine = endLine
-        endLine = endLine.lineNext
+        endLine   = endLine.lineNext
         selection.putStartOnStart range, startLine.line$[0].firstElementChild
         endLine.line$.prepend '<span></span>'
         selection.putEndOnStart range, endLine.line$[0].firstElementChild
     else
         startNode = startLine.line$[0].lastElementChild.previousElementSibling
-        endNode = endLine.line$[0].lastElementChild.previousElementSibling
+        endNode   = endLine.line$[0].lastElementChild.previousElementSibling
         range.setStartAfter startNode, 0
         range.setEndAfter endNode, 0
 
+###*
+ * Called only once from the editor - TODO : role to be verified 
+###
 selection.cloneEndFragment = (range, endLine) ->
     range4fragment = rangy.createRangyRange()
     range4fragment.setStart range.endContainer, range.endOffset
@@ -42,7 +48,7 @@ selection.cloneEndFragment = (range, endLine) ->
 ###
 selection.normalize = (range) =>
     startDiv = selection.getStartDiv range
-    endDiv = selection.getEndDiv range, startDiv
+    endDiv   = selection.getEndDiv range, startDiv
 
     isEmptyLine = startDiv == endDiv and startDiv.innerHTML == '<span></span><br>'
 

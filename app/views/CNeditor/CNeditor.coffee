@@ -405,7 +405,7 @@ class exports.CNeditor
             console.log '_suppr 5 - test '
             @_deleteMultiLinesSelections()
 
-        e.preventDefault()
+        event.preventDefault()
         return false
 
     ### ------------------------------------------------------------------------

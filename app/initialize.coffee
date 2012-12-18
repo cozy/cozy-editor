@@ -96,7 +96,6 @@ cb = () ->
             
     # Allows user to load a file in the Cozy format
     $('#contentSelect').on "change" , (e) ->
-        console.log "views/templates/#{e.currentTarget.value}"
         editorCtrler.replaceContent( require("views/templates/#{e.currentTarget.value}")() )
         beautify(editorBody$)
 

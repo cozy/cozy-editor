@@ -187,7 +187,6 @@ class exports.Recorder
         if action.mouse?
             rangy.deserializeSelection action.mouse, @editorBody$[0]
         else
-            # action.keyboard.keyCode = action.keyboard.keyCode*1 # BJA
             downEvent = jQuery.Event "keydown", action.keyboard
             pressEvent = jQuery.Event "keypress", action.keyboard
             upEvent = jQuery.Event "keyup", action.keyboard
