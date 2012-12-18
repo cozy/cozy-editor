@@ -463,7 +463,7 @@ class exports.CNeditor
 
         # 2- Case of a selection contained in a line
         else if sel.endLine == startLine
-            # console.log '_backspace 6 - test ok'
+                # console.log '_backspace 6 - test ok'
             # sel can be safely deleted thanks to normalization that have set
             # the selection correctly within the line.
             sel.range.deleteContents()

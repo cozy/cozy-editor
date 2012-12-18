@@ -12,7 +12,9 @@
 #           (there are some empty lines around)
  
 md2cozy = {}
- 
+
+if !String::trim
+    String::trim = -> this.replace(/^\s+|\s+$/g, '')
 
 ### ------------------------------------------------------------------------
 #  _cozy2md
@@ -114,6 +116,8 @@ md2cozy.md2cozy = (text) ->
     conv = new Showdown.converter()
     htmlCode = $(conv.makeHtml text)
    
+    console.log htmlCode
+    
     cozyCode = ''
     md2cozy.currentId = 0
     md2cozy.editorDepth = 0
@@ -136,7 +140,7 @@ md2cozy.parseLine = (obj) ->
     else if tag? and tag is "P"
         return md2cozy.buildEditorLine "Lh", md2cozy.editorDepth, obj
     else
-        return md2cozy.parseList obj, "u"
+        return md2cozy.parseList obj
 
 # build an editor line from given data: its type, its depth and normalize
 # its content to fit well with cozy stylesheet.
@@ -154,7 +158,7 @@ md2cozy.buildEditorLine = (type, depth, obj) ->
                 $(@).unwrap()
                 
     code = "<span></span>" if code is ""
-    return "<div id=CNID_#{ md2cozy.currentId} class=#{type}-#{depth}>" + code +
+    return "<div id=CNID_#{md2cozy.currentId} class=#{type}-#{depth}>" + code +
         "<br></div>"
 
 md2cozy.parseList = (obj) ->
@@ -170,13 +174,19 @@ md2cozy.parseList = (obj) ->
 
     else if tag? and tag is "LI" and obj.contents().get(0)?
 
-        if obj.contents().get(0).nodeName == "#text"
-            obj = obj.clone().wrap('<p></p>').parent()
-
-        for i in [0..obj.children().length-1]
-            child = $ obj.children().get i
-            if i == 0
-                cozyCode += md2cozy.buildEditorLine "Tu", md2cozy.editorDepth, child
+        for child, i in obj[0].childNodes
+            child = $ child
+            type = "Lu"
+            type = "Tu" if i is 0
+            nodeName = child[0].nodeName
+        
+            if nodeName is "#text" and child.text().trim() != ""
+                child = child.clone().wrap('<p></p>').parent()
+                cozyCode +=
+                    md2cozy.buildEditorLine type, md2cozy.editorDepth, child
+            else if nodeName is "P"
+                cozyCode +=
+                    md2cozy.buildEditorLine type, md2cozy.editorDepth, child
             else
                 cozyCode += md2cozy.parseList child
 
