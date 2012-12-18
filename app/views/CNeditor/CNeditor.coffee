@@ -154,11 +154,7 @@ class exports.CNeditor
     # Returns a markdown string representing the editor content
     ###
     getEditorContent : () ->
-        cozyContent = @linesDiv.innerHTML
-
-        console.log cozyContent
-        
-        md2cozy.cozy2md cozyContent
+        md2cozy.cozy2md $(@linesDiv)
 
     ### ------------------------------------------------------------------------
     # Sets the editor content from a markdown string
@@ -166,7 +162,6 @@ class exports.CNeditor
     setEditorContent : (mdContent) ->
         cozyContent = md2cozy.md2cozy mdContent
         @linesDiv.innerHTML = cozyContent
-
         @_readHtml()
                   
     ###
@@ -377,46 +372,40 @@ class exports.CNeditor
                 # if there is a next line : modify the selection to make
                 # a multiline deletion
                 if startLine.lineNext != null
-                    @currentSel.range.setEndBefore startLine.lineNext.line$[0].firstChild
+                    @currentSel.range.setEndBefore(startLine.lineNext.line$[0].firstChild)
                     @currentSel.endLine = startLine.lineNext
                     @_deleteMultiLinesSelections()
-                    event.preventDefault()
-                    event.cancelBubble = true
-                    false
+                    
                 # if there is no next line :
                 # no modification, just prevent default action
                 else
-                    event.preventDefault()
-                    event.cancelBubble = true
-                    false
+                    console.log '_suppr 2 - test '
 
             # 1.2 caret is in the middle of the line : delete one caracter
             else
-                console.log '_suppr 5 - deletion of one caracter'
+                console.log '_suppr 3 - test '
                 # we consider that we are in a text node
                 textNode = @currentSel.range.startContainer
                 startOffset = @currentSel.range.startOffset
                 txt = textNode.textContent
                 textNode.textContent = txt.substr(0,startOffset) + txt.substr(startOffset+1)
                 range = rangy.createRange()
-                range.collapseToPoint textNode, startOffset-1
+                range.collapseToPoint textNode, startOffset
                 @currentSel.sel.setSingleRange range
-                @currentSel = null
-                # event.preventDefault()
-                # event.cancelBubble = true
-                # false
 
-        # 2- Case of a selection contained in a line : let the browser do the job
+        # 2- Case of a selection contained in a line
         else if @currentSel.endLine == startLine
+            # sel can be safely deleted thanks to normalization that have set
+            # the selection correctly within the line.
+            console.log '_suppr 4 - test '
+            @currentSel.sel.range.deleteContents()
 
         # 3- Case of a multi lines selection
         else
+            console.log '_suppr 5 - test '
             @_deleteMultiLinesSelections()
-            event.preventDefault()
-            false
 
-
-        event.preventDefault()
+        e.preventDefault()
         return false
 
     ### ------------------------------------------------------------------------
@@ -438,13 +427,11 @@ class exports.CNeditor
         # 1- Case of a caret "alone" (no selection)
         if sel.range.collapsed
             # 1.1 caret is at the beginning of the line
-            #console.log '_backspace 1'
             if sel.rangeIsStartLine
                 # if there is a previous line : modify the selection to make
                 # a multiline deletion
-                #console.log '_backspace 2'
                 if startLine.linePrev != null
-                    #console.log '_backspace 3'
+                    # console.log '_backspace 3 - test ok'
                     sel.range.setStartBefore(startLine.linePrev.line$[0].lastChild)
                     sel.startLine = startLine.linePrev
                     prevLine = startLine.linePrev.line$[0]
@@ -454,18 +441,16 @@ class exports.CNeditor
                     range = rangy.createRange()
                     text = prevLine.lastChild.previousSibling.firstChild
                     range.collapseToPoint text, offset
-                    sel.setSingleRange range
-                    e.preventDefault()
+                    @currentSel.sel.setSingleRange range
 
-                    # e.preventDefault()
-                # if there is no previous line : backspace at the beginning of 
-                # firs line : no effect, nothing to do.
-                #else
-                    #console.log '_backspace 4 - test ok2'
+                # if there is no previous line = backspace at the beginning of 
+                # first line : no effect, nothing to do.
+                # else
+                #     console.log '_backspace 4 - test ok'
 
             # 1.2 caret is in the middle of the line : delete one caracter
             else
-                # console.log '_backspace 5 - deletion of one caracter - test ok2'
+                # console.log '_backspace 5 - deletion of one caracter - test ok'
                 # we consider that we are in a text node
                 textNode = sel.range.startContainer
                 startOffset = sel.range.startOffset
@@ -473,26 +458,21 @@ class exports.CNeditor
                 textNode.textContent = txt.substr(0,startOffset-1) + txt.substr(startOffset)
                 range = rangy.createRange()
                 range.collapseToPoint textNode, startOffset-1
-                sel.setSingleRange range
+                @currentSel.sel.setSingleRange range
                 @currentSel = null
 
         # 2- Case of a selection contained in a line
         else if sel.endLine == startLine
-            #console.log '_backspace 6 - test ok2'
-            text = startLine.line$[0].lastChild.previousSibling.firstChild
-            range = rangy.createRange()
-            range.collapseToPoint text, text.length
-            sel.setSingleRange range
-            #sel.range.deleteContents()
-            return true
-            #@_backspace(e)
+            # console.log '_backspace 6 - test ok'
+            # sel can be safely deleted thanks to normalization that have set
+            # the selection correctly within the line.
+            sel.range.deleteContents()
 
         # 3- Case of a multi lines selection
-        else if startLine?
-            #console.log '_backspace 7'
+        else
             @_deleteMultiLinesSelections()
-            e.preventDefault()
 
+        e.preventDefault()
         return false
 
 

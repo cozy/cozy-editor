@@ -12,107 +12,99 @@
 #           (there are some empty lines around)
  
 md2cozy = {}
+ 
 
 ### ------------------------------------------------------------------------
 #  _cozy2md
-# Read a string of editor html code format and turns it into a string in
-#  markdown format
+# Turns line elements form editor into a string in markdown format
 ###
-md2cozy.cozy2md = (text) ->
-    
-    # Writes the string into a jQuery object
-    htmlCode = $(document.createElement 'div').html text
-    htmlCode = htmlCode.find('#editor-lines') if htmlCode.id != 'editor-lines'
-    
-    # The future converted line
-    markCode = ''
+md2cozy.cozy2md = (linesDiv) ->
 
-    # current depth
-    currDepth = 0
-    
-    # converts a fragment of a line
-    converter =
-        'A': (obj) ->
-            title = if obj.attr('title')? then obj.attr('title') else ""
-            href  = if obj.attr('href')? then obj.attr('href') else ""
-            return '[' + obj.html() + '](' + href + ' "' + title + '")'
-                
-        'IMG': (obj) ->
-            title = if obj.attr('title')? then obj.attr('title') else ""
-            alt   = if obj.attr('alt')? then obj.attr('alt') else ""
-            src   = if obj.attr('src')? then obj.attr('src') else ""
-            return '![' + alt + '](' + src + ' "' + title + '")'
-            
-        'SPAN': (obj) ->
-            return obj.text()
-    
-    # markup symbols
-    # Th = title
-    # Tu = bullet point
-    # Lh = simple line
-    # Lu = simple line
-    markup =
-        'Th' : (blanks, depth) ->
-            currDepth = depth
-            dieses = ''
-            i = 0
-            while i < depth
-                dieses += '#'
-                i++
-            "\n\n" + dieses + ' '
-        'Lh' : (blanks, depth) ->
-            "\n\n"
-        'Tu' : (blanks, depth, changeDepth) ->
-            "\n" + blanks + "+   "
-        'Lu' : (blanks, depth) ->
-            "\n\n" + blanks + "    "
-        'To' : (blanks, depth) ->
-            "\n\n" + blanks + "1.   "
-        'Lo' : (blanks, depth) ->
-            "\n\n" + blanks + "    "
+    md2cozy.currentDepth = 0
 
-    previousDepth = 0
-    # adds structure depending of the line's class
-    classType = (className) ->
-        tab   = className.split "-"
-        type  = tab[0]               # type of class (Tu,Lu,Th,Lh,To,Lo)
-        depth = parseInt(tab[1], 10) # depth (1,2,3...)
-        changeDepth = depth != previousDepth
-        previousDepth = depth
-        blanks = ''
-        i = 1
-        while i < depth - currDepth
-            blanks += '    '
-            i++
-        return markup[type](blanks, depth, changeDepth)
-    
     lines = []
-    for child in htmlCode.children()
-        markCode = ''
-        lineCode = $ child
-        
-        # indent and structure the line
-        lineClass = lineCode.attr 'class'
-        markCode += classType(lineClass) if lineClass?
+    prevLineMetaData = null
 
-        # completes the text depending of the line's content
-        l = lineCode.children().length
-        j = 0
-        space = ' '
-        while j < l
-            lineElt = lineCode.children().get j
-            # be sure not to insert spaces after BR
-            if (j + 2 == l) then space = ''
-            if lineElt.nodeType == 1 && converter[lineElt.nodeName]?
-                markCode += converter[lineElt.nodeName]($ lineElt) + space
+    for line in linesDiv.children()
+        line = $ line
+        lineMetaData = md2cozy.getLineMetadata(line.attr 'class')
+        markCode = md2cozy.buildMarkdownPrefix lineMetaData, prevLineMetaData
+        prevLineMetaData = lineMetaData
+
+        for lineElt in line.children()
+            if lineElt.nodeType == 1
+                markCode += md2cozy.convertInlineEltToMarkdown($ lineElt)
             else
-                markCode += $(lineElt).text() + space
-            j++
+                markCode += $(lineElt).text()
 
         lines.push markCode
     
     lines.join ''
 
+
+# Get metadata from line class name
+md2cozy.getLineMetadata = (name) ->
+    if name?
+        data = name.split "-"
+        type = data[0] # type of class (Tu,Lu,Th,Lh,To,Lo)
+        depth = parseInt(data[1], 10) # depth (1,2,3...)
+
+        type: type, depth: depth
+    else
+        type: null, depth: null
+
+# Build markdown prefix corresponding to line type.
+# Th = title => ###
+# Lh = simple line => nothing
+# Tu = bullet point => blank spaces + *
+# Lu = simple line => blank spaces
+md2cozy.buildMarkdownPrefix = (metadata, prevMetadata) ->
+
+    blanks= ""
+    switch metadata.type
+        when 'Th'
+            dieses = ''
+            dieses += '#' for i in [1..metadata.depth]
+            md2cozy.currentDepth = metadata.depth
+            prefix = "#{dieses} "
+            prefix = "\n\n" + prefix if prevMetadata?
+            prefix
+        when 'Lh'
+            "\n\n"
+        when 'Tu'
+            nbBlanks = (metadata.depth - md2cozy.currentDepth - 1)
+            if nbBlanks > 0
+                blanks += '    ' for i in [0..nbBlanks - 1]
+            prefix = "#{blanks}* "
+            if prevMetadata?.type is "Tu" or prevMetadata?.type is "Lu"
+                prefix = "\n" + prefix
+            else if prevMetadata?
+                prefix = "\n\n" + prefix
+            prefix
+        when 'Lu'
+            nbBlanks = (metadata.depth - md2cozy.currentDepth - 1)
+            if nbBlanks > 0
+                blanks += '    ' for i in [0..nbBlanks - 1]
+            "\n\n#{blanks} "
+        else
+            ''
+
+# Convert inline element (a, img, span) to HTML.
+md2cozy.convertInlineEltToMarkdown = (obj) ->
+    switch obj[0].nodeName
+        when 'A'
+            title = if obj.attr('title')? then obj.attr('title') else ""
+            href  = if obj.attr('href')? then obj.attr('href') else ""
+            return '[' + obj.html() + '](' + href + ' "' + title + '")'
+        when 'IMG'
+            title = if obj.attr('title')? then obj.attr('title') else ""
+            alt   = if obj.attr('alt')? then obj.attr('alt') else ""
+            src   = if obj.attr('src')? then obj.attr('src') else ""
+            return '![' + alt + '](' + src + ' "' + title + '")'
+        when 'SPAN'
+            return obj.text()
+        else
+            return ''
 
 ### ------------------------------------------------------------------------
 # Read a string of html code given by showdown and turns it into a string
@@ -120,84 +112,77 @@ md2cozy.cozy2md = (text) ->
 ###
 md2cozy.md2cozy = (text) ->
     conv = new Showdown.converter()
-    text = conv.makeHtml text
+    htmlCode = $(conv.makeHtml text)
    
-    # Writes the string into a jQuery object
-    htmlCode = $(document.createElement 'ul').html text
-
-    # final string
     cozyCode = ''
+    md2cozy.currentId = 0
+    md2cozy.editorDepth = 0
     
-    # current line
-    id = 0
-
-    # Returns the corresponding fragment of cozy Code
-    cozyTurn = (type, depth, p) ->
-        # p is a (jquery) object that looks like this :
-        # <p> some text <a>some link</a> again <img>some img</img> poof </p>
-        # OR like this:  <li> some text <a>some link</a> ...
-        # We are treating a line again, thus id must be increased
-        id++
-        code = ''
-        if p?
-            p.contents().each () ->
-                name = @nodeName
-                if name == "#text"
-                    code += "<span>#{$(@).text()}</span>"
-                else if @tagName?
-                    $(@).wrap('<div></div>')
-                    code += "#{$(@).parent().html()}"
-                    $(@).unwrap()
-        else
-            code = "<span></span>"
-        return "<div id=CNID_#{id} class=#{type}-#{depth}>" + code +
-            "<br></div>"
-            
-    # current depth
-    depth = 0
-    
-    # Read sections sequentially
-    readHtml = (obj) ->
-        tag = obj[0].tagName
-        if tag[0] == "H"       # c'est un titre (h1...h6)
-            depth = parseInt(tag[1],10)
-            cozyCode += cozyTurn("Th", depth, obj)
-        else if tag == "P"     # ligne de titre
-            cozyCode += cozyTurn("Lh", depth, obj)
-        else
-            recRead(obj, "u")
-            
     # Reads recursively through the lists
-    recRead = (obj, status) ->
-        tag = obj[0].tagName
-        if tag == "UL"
-            depth++
-            obj.children().each () ->
-                recRead($(@), "u")
-            depth--
-        else if tag == "OL"
-            depth++
-            obj.children().each () ->
-                recRead($(@), "o")
-            depth--
-        else if tag == "LI" && obj.contents().get(0)?
-            # cas du <li>Un seul titre sans lignes en-dessous</li>
-            if obj.contents().get(0).nodeName == "#text"
-                obj = obj.clone().wrap('<p></p>').parent()
-            for i in [0..obj.children().length-1]
-                child = $ obj.children().get i
-                if i == 0
-                    cozyCode += cozyTurn("T#{status}", depth, child)
-                else
-                    recRead(child, status)
-        else if tag == "P"
-            cozyCode += cozyTurn("L#{status}", depth, obj)
-
-    htmlCode.children().each () ->
-        readHtml $ @
+    htmlCode.each () ->
+        cozyCode += md2cozy.parseLine $ @
 
     if cozyCode.length == 0
-        cozyCode = cozyTurn("Tu", 1, null)
+        cozyCode = md2cozy.buildEditorLine("Tu", 1, null)
+
+    return cozyCode
+
+# Read sections sequentially
+md2cozy.parseLine = (obj) ->
+    tag = obj[0].tagName
+    if tag? and tag[0] is "H" # that's a title (h1...h6)
+        md2cozy.editorDepth = parseInt tag[1], 10
+        return md2cozy.buildEditorLine "Th", md2cozy.editorDepth, obj
+    else if tag? and tag is "P"
+        return md2cozy.buildEditorLine "Lh", md2cozy.editorDepth, obj
+    else
+        return md2cozy.parseList obj, "u"
+
+# build an editor line from given data: its type, its depth and normalize
+# its content to fit well with cozy stylesheet.
+md2cozy.buildEditorLine = (type, depth, obj) ->
+    md2cozy.currentId++
+    code = ''
+    if obj?
+        obj.contents().each () ->
+            name = @nodeName
+            if name == "#text"
+                code += "<span>#{$(@).text()}</span>"
+            else if @tagName?
+                $(@).wrap('<div></div>')
+                code += "#{$(@).parent().html()}"
+                $(@).unwrap()
+                
+    code = "<span></span>" if code is ""
+    return "<div id=CNID_#{ md2cozy.currentId} class=#{type}-#{depth}>" + code +
+        "<br></div>"
+
+md2cozy.parseList = (obj) ->
+    tag = obj[0].tagName
+    cozyCode = ""
+
+    if tag? and tag is "UL"
+
+        md2cozy.editorDepth++
+        obj.children().each () ->
+            cozyCode += md2cozy.parseList $(@)
+        md2cozy.editorDepth--
+
+    else if tag? and tag is "LI" and obj.contents().get(0)?
+
+        if obj.contents().get(0).nodeName == "#text"
+            obj = obj.clone().wrap('<p></p>').parent()
+
+        for i in [0..obj.children().length-1]
+            child = $ obj.children().get i
+            if i == 0
+                cozyCode += md2cozy.buildEditorLine "Tu", md2cozy.editorDepth, child
+            else
+                cozyCode += md2cozy.parseList child
+
+    else if tag? and tag is "P"
+
+        cozyCode += md2cozy.buildEditorLine "Lu", md2cozy.editorDepth, obj
 
     return cozyCode
 

@@ -92,7 +92,12 @@ cb = () ->
             console.log range
             console.log "content : #{range.toHtml()}"
             i++
-            
+    # Allows user to load a file in the Cozy format
+    $('#contentSelect').on "change" , (e) ->
+        console.log "views/templates/#{e.currentTarget.value}"
+        editorCtrler.replaceContent( require("views/templates/#{e.currentTarget.value}")() )
+        beautify(editorBody$)
+
     # Allows user to load a style sheet for the page
     $('#cssSelect').on "change" , (e) ->
         editorCtrler.replaceCSS e.currentTarget.value
