@@ -3,6 +3,7 @@
     "name": "CNeditor",
     "description": "An editor for Cozy Notes",
     "version": "0.0.1",
+    "license": "MIT",
     "homepage": "https://github.com/mycozycloud/cozy-note-editor",
     "repository": {
         "type": "git",
@@ -27,7 +28,6 @@
         "clean-css-brunch": "> 1.0 < 1.5",
 
         "coffeelint-brunch": "> 1.0 < 1.5"
-
     },
     "devDependencies": {
         "mocha": "0.14.0",
