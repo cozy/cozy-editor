@@ -61,7 +61,7 @@ class exports.CNeditor
             
                 # set the properties of the editor
                 @_lines       = {}            # contains every line
-                @newPosition  = true          # true only if cursor has moved
+                @newPosition  = true          # true if cursor has moved 
                 @_highestId   = 0             # last inserted line identifier
                 @_deepest     = 1             # current maximum indentation
                 @_firstLine   = null          # pointer to the first line
@@ -268,33 +268,19 @@ class exports.CNeditor
         #    newPosition == true if the position of caret or selection has been
         #    modified with keyboard or mouse.
         #    If newPosition == true and a character is typed or a suppression
-        #    key is pressed, then selection must be "normalized" before
-        #       - caret must be in a span
-        #       - selection must start and end in a span
-        # 
-        #    Note : in Google Chrome, normalization couldn't place the selection
-        #      inside an empty node, so whenever it happens, we create a " "
-        #      textNode at this location, then selection is adjusted.
-        #      I'm afraid this operation is not that safe.
-        
-        # If the previous action was a move then "normalize" the selection.
+        #    key is pressed, then selection must be "normalized" so that its
+        #    break points are in text nodes.
+        # 2.1- If the previous action was a move then "normalize" the selection.
         # Selection is normalized only if an alphanumeric character or
         # suppr/backspace/return is pressed on this new position
         if @newPosition and shortcut in ['-other', '-space',
                                          '-suppr', '-backspace', '-return']
-            # if @newPosition
             @newPosition = false
             # get the current range and normalize it
-            # (following code is redundant but helpful for debugging)
             sel = @getEditorSelection()
             range = sel.getRangeAt(0)
-            normalizedRange = selection.normalize range
-
-            # update window selection so it is normalized
-            sel.setSingleRange normalizedRange
-
-        
-        # 2.1- Set a flag if the user moved the caret with keyboard
+            selection.normalize range
+        # 2.2- Set a flag if the user moved the caret with keyboard
         if keyStrokesCode in ["left","up","right","down",
                               "pgUp","pgDwn","end", "home",
                               "return", "suppr", "backspace"] and
@@ -1300,22 +1286,22 @@ class exports.CNeditor
         return newLine
 
 
-    _findStartLine: (startContainer) ->
-        if startContainer.nodeName == 'DIV'
-            # startContainer refers to a div of a line
-            startLine = @_lines[ startContainer.id ]
-        else   # means the range starts inside a div (span, textNode...)
-            startLine = @_lines[selection.getLineDiv(startContainer).id]
+    # _findStartLine: (startContainer) ->
+    #     if startContainer.nodeName == 'DIV'
+    #         # startContainer refers to a div of a line
+    #         startLine = @_lines[ startContainer.id ]
+    #     else   # means the range starts inside a div (span, textNode...)
+    #         startLine = @_lines[selection.getLineDiv(startContainer).id]
         
 
-    _findEndLine: (endContainer) ->
-        # endContainer refers to a div of a line
-        if endContainer.id? and endContainer.id.substr(0,5) == 'CNID_'
-            endLine = @_lines[ endContainer.id ]
-        # means the range ends inside a div (span, textNode...)
-        else
-            endLine = @_lines[selection.getLineDiv(endContainer).id]
-        endLine
+    # _findEndLine: (endContainer) ->
+    #     # endContainer refers to a div of a line
+    #     if endContainer.id? and endContainer.id.substr(0,5) == 'CNID_'
+    #         endLine = @_lines[ endContainer.id ]
+    #     # means the range ends inside a div (span, textNode...)
+    #     else
+    #         endLine = @_lines[selection.getLineDiv(endContainer).id]
+    #     endLine
 
 
     ### ------------------------------------------------------------------------
@@ -1336,9 +1322,12 @@ class exports.CNeditor
             sel = @getEditorSelection()
             range = sel.getRangeAt(0)
             
-            endLine = @_findEndLine range.endContainer
-            startLine = @_findStartLine range.startContainer
+            # startLine = @_findStartLine range.startContainer
+            # endLine = @_findEndLine range.endContainer
             
+            startLine = @_lines[selection.getLineDiv(range.startContainer).id]
+            endLine   = @_lines[selection.getLineDiv(range.endContainer  ).id]
+
             @currentSel =
                 sel              : sel
                 range            : range
@@ -1346,7 +1335,7 @@ class exports.CNeditor
                 endLine          : endLine
                 rangeIsStartLine : null
                 rangeIsEndLine   : null
-        @currentSel
+        return @currentSel
 
 
     ### ------------------------------------------------------------------------

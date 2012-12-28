@@ -88,12 +88,38 @@ cb = () ->
         i = 0
         l = sel.rangeCount
         while i<l
-            console.log "Range N°#{i}"
             range = sel.getRangeAt(i)
+            console.log "------------"
+            console.log "  Range N°#{i}"
             console.log range
-            console.log "content : #{range.toHtml()}"
+            printBreakPoint(range.startContainer,range.startOffset, 'start :')
+            printBreakPoint(range.endContainer,range.endOffset, 'end   :')
+            console.log "range.toHtml= #{range.toHtml()}"
             i++
-            
+
+    printBreakPoint = (startCont,offset, prefix) ->
+        cont = startCont
+        res  = []
+        while cont.id != "editor-lineDiv" or cont.parentNode == null
+            contId = contClass = ''
+            if cont.id
+                contId = '#' + cont.id
+            if cont.className
+                contClass = '.'+ cont.className
+            # res.unshift(cont.nodeName + contId + contClass)
+            res.unshift(cont)
+            cont = cont.parentNode
+        # console.log prefix , res.join(" / "), '& offset='+offset , startCont
+        a = newFilledArray(9-res.length,' ')
+        res = res.concat a
+        console.log prefix , res[0], res[1], res[2], res[3], res[4], res[5], res[6], res[7], res[8], '& offset='+offset
+
+    newFilledArray = (length, val) ->
+        array = []
+        for i in [0..length] by 1
+            array[i] = val
+        return array
+
     # Allows user to load a file in the Cozy format
     $('#contentSelect').on "change" , (e) ->
         editorCtrler.replaceContent( require("views/templates/#{e.currentTarget.value}")() )
