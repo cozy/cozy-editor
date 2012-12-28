@@ -290,7 +290,6 @@ selection.handleDivStart = (range, startContainer, isEmptyLine) ->
 selection.handleDivEnd = (range, endContainer) ->
     if range.endOffset < endContainer.childNodes.length - 1
         selection.putEndOnOffset range, endContainer, range.endOffset
-
     else
         selection.putEndAtEndOfLine range, endContainer
 
@@ -309,19 +308,18 @@ selection.handleTextEltStart = (range, startContainer) ->
 # 2.0 if endC is empty
 # 2.1 if caret is between two textNode children
 # 2.2 if caret is after last textNode
-selection.handleTextEltEnd = (range, startContainer) ->
+selection.handleTextEltEnd = (range, endContainer) ->
     if endContainer.firstChild == null || endContainer.textContent.length == 0
         selection.putEndOnEnd range, endContainer
     if range.endOffset < endContainer.childNodes.length
         selection.putEndOnNextChild range, endContainer
     else
-        selection.putEndOnLastChildEnd range, startContainer
+        selection.putEndOnLastChildEnd range, endContainer
 
 
 # Get first line from given editor body.
 selection.getFirstLineFromBody = (body) ->
     body.children[1].firstChild
-
 
 # Get first line from given editor body.
 selection.getLastLineFromBody = (body) ->
@@ -338,7 +336,7 @@ selection.putStartOnOffset = (range, container, offset) ->
     selection.putStartOnStart range, elt
 
 selection.putEndOnOffset = (range, container, offset) ->
-    elt = endContainer.childNodes[offset]
+    elt = container.childNodes[offset]
     selection.putEndOnStart range, elt
 
 # Put selection start at the en of given line. 
@@ -400,18 +398,6 @@ selection.putStartOnEnd = (range, elt) ->
 selection.putEndOnEnd = (range, elt) ->
     if elt?
         range.setEnd elt.nextSibling, 0
-    #if elt?.lastChild?
-        #range.setEnd elt.nextSibling, 0
-        ##offset = elt.lastChild.textContent.length
-        ##elt.lastChild.data += " "
-
-        ## offset = offset - 1 if offset > 0
-        ##range.setEnd elt.lastChild, offset
-        ## elt.lastChild.data = elt.lastChild.data.substring(0, elt.lastChild.data.length - 1)
-    #else if elt?
-        #blank = document.createTextNode " "
-        #elt.appendChild blank
-        #range.setEnd(blank, 1)
     range
 
 

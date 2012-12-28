@@ -20,6 +20,9 @@
 #   _firstLine        : points the first line : TODO : not taken into account 
 ###
 
+
+# Require is use only in development mode. During production build, files are
+# concatenated.
 if require?
     if not md2cozy?
         md2cozy = require('./md2cozy').md2cozy
@@ -87,7 +90,7 @@ class exports.CNeditor
 
                 # Create div that will contains line
                 @linesDiv = document.createElement 'div'
-                @linesDiv.setAttribute('id','editor-lineDiv')
+                @linesDiv.setAttribute('id','editor-lines')
                 @editorBody$.append @linesDiv
 
                 # init clipboard div
@@ -151,16 +154,14 @@ class exports.CNeditor
     # Returns a markdown string representing the editor content
     ###
     getEditorContent : () ->
-        cozyContent = @linesDiv.innerHTML
-        md2cozy.cozy2md cozyContent
-        
+        md2cozy.cozy2md $(@linesDiv)
+
     ### ------------------------------------------------------------------------
     # Sets the editor content from a markdown string
     ###
     setEditorContent : (mdContent) ->
         cozyContent = md2cozy.md2cozy mdContent
         @linesDiv.innerHTML = cozyContent
-
         @_readHtml()
                   
     ###
@@ -254,12 +255,12 @@ class exports.CNeditor
         if shortcut in ["-A", "-S", "-V", "-Y", "-Z"] then shortcut = "-other"
 
             # Record last pressed shortcut and eventually update the history
-        #if @_lastKey != shortcut and \
-               #shortcut in ["-tab", "-return", "-backspace", "-suppr",
-                            #"CtrlShift-down", "CtrlShift-up",
-                            #"CtrlShift-left", "CtrlShift-right",
-                            #"Ctrl-V", "Shift-tab", "-space", "-other"]
-            #@_addHistory()
+        if @_lastKey != shortcut and \
+               shortcut in ["-tab", "-return", "-backspace", "-suppr",
+                            "CtrlShift-down", "CtrlShift-up",
+                            "CtrlShift-left", "CtrlShift-right",
+                            "Ctrl-V", "Shift-tab", "-space", "-other"]
+            @_addHistory()
            
         @_lastKey = shortcut
 
@@ -357,7 +358,6 @@ class exports.CNeditor
                 # if there is a next line : modify the selection to make
                 # a multiline deletion
                 if startLine.lineNext != null
-                    console.log '_suppr 1 - test '
                     @currentSel.range.setEndBefore(startLine.lineNext.line$[0].firstChild)
                     @currentSel.endLine = startLine.lineNext
                     @_deleteMultiLinesSelections()
@@ -402,7 +402,7 @@ class exports.CNeditor
     _backspace : (e) ->
         @_findLinesAndIsStartIsEnd()
 
-        sel = this.currentSel
+        sel = @currentSel
 
         if @isEmptyLine
             @isEmptyLine = false
@@ -449,14 +449,13 @@ class exports.CNeditor
 
         # 2- Case of a selection contained in a line
         else if sel.endLine == startLine
-            # console.log '_backspace 6 - test ok'
+                # console.log '_backspace 6 - test ok'
             # sel can be safely deleted thanks to normalization that have set
             # the selection correctly within the line.
             sel.range.deleteContents()
 
         # 3- Case of a multi lines selection
         else
-            # console.log '_backspace 7 - test ok'
             @_deleteMultiLinesSelections()
 
         e.preventDefault()
@@ -1180,7 +1179,11 @@ class exports.CNeditor
                     startContainer = nextEndLine.line$[0]
             else
                 # full selection case (ctrl+A)
+                console.log "ctrl a"
+                
                 startContainer = startLine.line$[0].lastChild
+                console.log startContainer
+                
         else
             startContainer = startLine.line$[0].firstChild.firstChild
         
@@ -1357,7 +1360,7 @@ class exports.CNeditor
     #   rangeIsEndLine   : true if the range ends at the end of the last line
     #   rangeIsStartLine : true if the range starts at the start of 1st line
     ###
-    _findLinesAndIsStartIsEnd : () ->
+    _findLinesAndIsStartIsEnd : ->
         # if this.currentSel == null
             
         # 1- Variables
@@ -1748,7 +1751,7 @@ class exports.CNeditor
                 if line.lineNext != null
                     line = line.lineNext
                 # select the block from first line to untab (lineNext)
-                #                    to last  line to untab (line)
+                # to last  line to untab (line)
                 myRange = rangy.createRange()
                 myRange.setStart(lineNext.line$[0], 0)
                 myRange.setEnd(line.line$[0], 0)
@@ -1788,7 +1791,7 @@ class exports.CNeditor
                     numOfUntab -= 1
 
 
-    ### ------------------------------------------------------------------------
+    ###
     #  HISTORY MANAGEMENT:
     # 1. _addHistory (Save html code, selection markers, positions...)
     # 2. undoPossible (Return true only if unDo can be called)
@@ -1803,7 +1806,7 @@ class exports.CNeditor
     #  - the boolean newPosition
     ###
 
-    ### -------------------------------------------------------------------------
+    ###
     #  _addHistory
     # 
     # Add html code and selection markers and scrollbar positions to the history
@@ -1850,7 +1853,7 @@ class exports.CNeditor
             # if we are in an unsaved state
             if @_history.index == @_history.history.length-1
                 # save current state
-                # @_addHistory()
+                @_addHistory()
                 # re-evaluate index
                 @_history.index -= 1
 
@@ -2542,7 +2545,7 @@ class exports.CNeditor
 
     # Debug purpose only
     logKeyPress: (e) ->
-        console.clear()
+        #console.clear()
         #console.log '__keyPressListener____________________________'
         #console.log e
         #console.log "ctrl #{e.ctrlKey}; Alt #{e.altKey}; Shift #{e.shiftKey}; "
