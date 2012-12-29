@@ -40,11 +40,6 @@ class exports.CNeditor
     constructor : (@editorTarget, callBack) ->
         if @editorTarget.nodeName == "IFRAME"
 
-            # methods to deal selection on an iframe
-            @getEditorSelection = () ->
-                return rangy.getIframeSelection @editorTarget
-            @saveEditorSelection = () ->
-                return rangy.saveSelection(rangy.dom.getIframeWindow @editorTarget)
             
             iframe$ = $(@editorTarget)
             
@@ -53,7 +48,6 @@ class exports.CNeditor
                 editor_html$ = iframe$.contents().find("html")
                 @editorBody$ = editor_html$.find("body")
                 @editorBody$.parent().attr('id','__ed-iframe-html')
-                @editorBody$.attr("contenteditable", "true")
                 @editorBody$.attr("id","__ed-iframe-body")
 
                 @document = @editorBody$[0].ownerDocument
@@ -61,7 +55,16 @@ class exports.CNeditor
                 cssLink = '<link id="editorCSS" '
                 cssLink += 'href="stylesheets/CNeditor.css" rel="stylesheet">'
                 editor_head$.html(cssLink)
+
+                # Create div that will contains line
+                @linesDiv = document.createElement 'div'
+                @linesDiv.setAttribute('id','editor-lines')
+                @linesDiv.setAttribute('contenteditable','true')
+                @editorBody$.append @linesDiv
             
+                # init clipboard div
+                @_initClipBoard()
+
                 # set the properties of the editor
                 @_lines       = {}            # contains every line
                 @newPosition  = true          # true if cursor has moved 
@@ -88,24 +91,24 @@ class exports.CNeditor
                 @editorBody$.on 'paste', (event) =>
                     @paste event
 
-                # Create div that will contains line
-                @linesDiv = document.createElement 'div'
-                @linesDiv.setAttribute('id','editor-lines')
-                @editorBody$.append @linesDiv
-
-                # init clipboard div
-                @_initClipBoard()
-
                 # return a ref to the editor's controler
                 callBack.call(this)
-                @
+                return this
 
-            # this line is a trick : 
-            # the load event is fired on chrome if the iframe src equals '#' but not in ff.
-            # and if src= '', it's the opposite : works in ff but not in chrome
-            # with this command we force the load on every browser...
+            # This line is a trick : 
+            # The load event is fired on chrome if the iframe src equals '#' but
+            # not in ff.
+            # And if src= '', it's the opposite : works in ff but not in chrome.
+            # With this command we force the load event on every browser...
             @editorTarget.src = ''
 
+
+    # methods to deal selection on an iframe
+    getEditorSelection : () ->
+        return rangy.getIframeSelection @editorTarget
+
+    saveEditorSelection : () ->
+        return rangy.saveSelection(rangy.dom.getIframeWindow @editorTarget)
 
     ### ------------------------------------------------------------------------
     # EXTENSION : _updateDeepest
@@ -254,13 +257,17 @@ class exports.CNeditor
         # a,s,v,y,z alone are simple characters
         if shortcut in ["-A", "-S", "-V", "-Y", "-Z"] then shortcut = "-other"
 
-            # Record last pressed shortcut and eventually update the history
-        if @_lastKey != shortcut and \
-               shortcut in ["-tab", "-return", "-backspace", "-suppr",
-                            "CtrlShift-down", "CtrlShift-up",
-                            "CtrlShift-left", "CtrlShift-right",
-                            "Ctrl-V", "Shift-tab", "-space", "-other"]
-            @_addHistory()
+        # 
+        # TODO BJA : activate history after using the serialization of range
+        # instead of insertions of markers (their deletions split text nodes...)
+        # 
+        # Record last pressed shortcut and eventually update the history
+        # if @_lastKey != shortcut and \
+        #        shortcut in ["-tab", "-return", "-backspace", "-suppr",
+        #                     "CtrlShift-down", "CtrlShift-up",
+        #                     "CtrlShift-left", "CtrlShift-right",
+        #                     "Ctrl-V", "Shift-tab", "-space", "-other"]
+        #     @_addHistory()
            
         @_lastKey = shortcut
 
@@ -331,13 +338,13 @@ class exports.CNeditor
                 $(@editorTarget).trigger jQuery.Event("saveRequest")
                 e.preventDefault()
             # UNDO (Ctrl + z)
-            when "Ctrl-Z"
-                e.preventDefault()
-                @unDo()
+            # when "Ctrl-Z"
+            #     e.preventDefault()
+            #     @unDo()
             # REDO (Ctrl + y)
-            when "Ctrl-Y"
-                e.preventDefault()
-                @reDo()
+            # when "Ctrl-Y"
+            #     e.preventDefault()
+            #     @reDo()
             
 
     ### ------------------------------------------------------------------------
@@ -404,9 +411,10 @@ class exports.CNeditor
 
         sel = @currentSel
 
-        if @isEmptyLine
-            @isEmptyLine = false
-            sel.range.deleteContents()
+        # TODO BJA : isEmptyLine seems obsolète - 28/12/2012
+        # if @isEmptyLine
+        #     @isEmptyLine = false
+        #     sel.range.deleteContents()
                     
         startLine = sel.startLine
 
@@ -473,8 +481,8 @@ class exports.CNeditor
         
         # find first and last div corresponding to the 1rst and
         # last selected lines
-        startDiv = selection.getStartDiv range
-        endDiv = selection.getEndDiv range, startDiv
+        startDiv = selection.getLineDiv range.startContainer, range.startOffset
+        endDiv = selection.getLineDiv range.endContainer, range.endOffset
         
         # loop on each line between the first and last line selected
         # TODO : deal the case of a multi range (multi selections). 
@@ -555,8 +563,8 @@ class exports.CNeditor
         else
             range = @getEditorSelection().getRangeAt(0)
 
-            startDiv = selection.getStartDiv range
-            endDiv = selection.getEndDiv range, startDiv
+            startDiv = selection.getLineDiv range.startContainer, range.startOffset
+            endDiv = selection.getLineDiv range.endContainer, range.endOffset
                 
             # 2- find first and last div corresponding to the 1rst and
             #    last selected lines
@@ -651,8 +659,8 @@ class exports.CNeditor
         sel   = @getEditorSelection()
         range = sel.getRangeAt(0)
         
-        startDiv = selection.getStartDiv range
-        endDiv = selection.getEndDiv range, startDiv
+        startDiv = selection.getLineDiv range.startContainer, range.startOffset
+        endDiv = selection.getLineDiv range.endContainer, range.endOffset
                 
         # 2- find first and last div corresponding to the 1rst and
         #    last selected lines
@@ -741,18 +749,12 @@ class exports.CNeditor
             sel   = @getEditorSelection()
             range = sel.getRangeAt(0)
 
-            startDiv = selection.getStartDiv range
-            endDiv = selection.getEndDiv range, startDiv
-                    
-        # 2- find first and last div corresponding to the 1rst and
-        #    last selected lines
-        if startDiv.nodeName != "DIV"
-            startDiv = $(startDiv).parents("div")[0]
-        if endDiv.nodeName != "DIV"
-            endDiv = $(endDiv).parents("div")[0]
+            startDiv = selection.getLineDiv range.startContainer, range.startOffset
+            endDiv = selection.getLineDiv range.endContainer, range.endOffset
+        
         endLineID = endDiv.id
 
-        # 3- loop on each line between the first and last line selected
+        # 2- loop on each line between the first and last line selected
         # TODO : deal the case of a multi range (multi selections). 
         #        Currently only the first range is taken into account.
         line = @_lines[startDiv.id]
@@ -848,14 +850,12 @@ class exports.CNeditor
             sel   = @getEditorSelection()
             range = sel.getRangeAt(0)
             
-        startDiv = selection.getStartDiv range
-        endDiv = selection.getEndDiv range, startDiv
+        startDiv = selection.getLineDiv range.startContainer, range.startOffset
+        endDiv = selection.getLineDiv range.endContainer, range.endOffset
         
-        # 2- find first and last div corresponding to the 1rst and
-        #    last selected lines
         endLineID = endDiv.id
         
-        # 3- loop on each line between the first and last line selected
+        # 2- loop on each line between the first and last line selected
         line = @_lines[startDiv.id]
         loop
             switch line.lineType
@@ -1093,10 +1093,14 @@ class exports.CNeditor
                     
         if line != null
             # if the line is a line (Lx), then make it "independant"
-            # by turning it in a Tx
+            # by turning it in a Tx, except if unecessary (previou is same
+            # type and same prof)
             if line.lineType[0] == 'L'
-                line.lineType = 'T' + line.lineType[1]
-                line.line$.prop("class","#{line.lineType}-#{line.lineDepthAbs}")
+                if !(     startLine.lineType[1]  == line.lineType[1]      \
+                      and startLine.lineDepthAbs == line.lineDepthAbs )
+                    line.lineType = 'T' + line.lineType[1]
+                    line.line$.prop('class',"#{line.lineType}-#{line.lineDepthAbs}")
+
 
             # find the previous sibling, adjust type to its type.
             firstLineAfterSiblingsOfDeleted = line
@@ -1360,6 +1364,44 @@ class exports.CNeditor
     #   rangeIsEndLine   : true if the range ends at the end of the last line
     #   rangeIsStartLine : true if the range starts at the start of 1st line
     ###
+    
+
+    _findLinesAndIsStartIsEnd : ->
+        
+        sel                = @getEditorSelection()
+        range              = sel.getRangeAt(0)
+        startContainer     = range.startContainer
+        endContainer       = range.endContainer
+        initialStartOffset = range.startOffset
+        initialEndOffset   = range.endOffset
+
+        # find endLine and the rangeIsEndLine
+        {div,isStart,noMatter} = selection.getLineDivIsStartIsEnd(
+                                            startContainer, initialStartOffset)
+        startLine = @_lines[div.id]
+        newHtml = 'startDiv=' + div.id   \
+                + ' isStart:' + isStart 
+        console.log newHtml
+
+        {div,noMatter,isEnd,} = selection.getLineDivIsStartIsEnd(
+                                            endContainer, initialEndOffset)
+        endLine = @_lines[div.id]
+        newHtml = 'startDiv=' + div.id   \
+                + ' isEnd:  ' + isEnd
+        console.log newHtml
+
+        # result
+        @currentSel =
+            sel              : sel
+            range            : range
+            startLine        : startLine
+            endLine          : endLine
+            rangeIsStartLine : isStart
+            rangeIsEndLine   : isEnd
+
+        return @currrentSel
+
+    ### OLD
     _findLinesAndIsStartIsEnd : ->
         # if this.currentSel == null
             
@@ -1452,6 +1494,7 @@ class exports.CNeditor
             rangeIsEndLine   : rangeIsEndLine
 
         @currrentSel
+    ###
         
 
 
@@ -1541,8 +1584,8 @@ class exports.CNeditor
         sel   = @getEditorSelection()
         range = sel.getRangeAt(0)
         
-        startDiv = selection.getStartDiv range
-        endDiv = selection.getEndDiv range, startDiv
+        startDiv = selection.getLineDiv range.startContainer, range.startOffset
+        endDiv = selection.getLineDiv range.endContainer, range.endOffset
         
         # Find first and last div corresponding to the first and last
         # selected lines
@@ -1674,8 +1717,8 @@ class exports.CNeditor
         sel   = @getEditorSelection()
         range = sel.getRangeAt(0)
         
-        startDiv = selection.getStartDiv range
-        endDiv = selection.getEndDiv range, startDiv
+        startDiv = selection.getLineDiv range.startContainer, range.startOffset
+        endDiv = selection.getLineDiv range.endContainer, range.endOffset
 
         # Find first and last div corresponding to the first and last
         # selected lines

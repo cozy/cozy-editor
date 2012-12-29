@@ -11,6 +11,7 @@ selection = {}
 #       cannot be selected with rangy (that's where 'blank' comes in)
 ###
 
+
 ###*
  * Called only once from the editor - TODO : role to be verified 
 ###
@@ -27,6 +28,7 @@ selection.cleanSelection = (startLine, endLine, range) ->
         range.setStartAfter startNode, 0
         range.setEndAfter endNode, 0
 
+
 ###*
  * Called only once from the editor - TODO : role to be verified 
 ###
@@ -35,6 +37,7 @@ selection.cloneEndFragment = (range, endLine) ->
     range4fragment.setStart range.endContainer, range.endOffset
     range4fragment.setEndAfter endLine.line$[0].lastChild
     range4fragment.cloneContents()
+
 
 ### ------------------------------------------------------------------------
 #  normalize(range)
@@ -141,7 +144,7 @@ selection.cloneEndFragment = (range, endLine) ->
         | offset = cont.length |                       |
 ###
 selection.normalize = (range) ->
-    isCollapsed = range.isCollapsed
+    isCollapsed = range.collapsed
     newStartBP = selection.normalizeBP(range.startContainer, range.startOffset)
     range.setStart(newStartBP.cont,newStartBP.offset)
     if isCollapsed
@@ -150,6 +153,7 @@ selection.normalize = (range) ->
         newEndBP = selection.normalizeBP(range.endContainer, range.endOffset)
         range.setEnd(newEndBP.cont,newEndBP.offset)
     return range
+
 
 ###*
  * returns a break point in the most pertinent text node given a random bp.
@@ -174,11 +178,11 @@ selection.normalizeBP = (cont, offset) ->
             newCont   = cont.firstChild
             newOffset = 0
         else
-            newCont   = document.createTextNode()
+            newCont   = document.createTextNode('')
             cont.appendChild(newCont)
             newOffset = 0
 
-    else if cont.nodeName == 'DIV' and cont.id != "editor-lineDiv"
+    else if cont.nodeName == 'DIV' and cont.id != "editor-lines"
         # <div>|<span>...</span>|<any>...</span>|</br>|</div>
         #     BP7              BP8             BP9    BP10
         # if offset = 0 put bp in 1st child
@@ -186,33 +190,33 @@ selection.normalizeBP = (cont, offset) ->
         # if offset before or after </br> put bp at the end of element
         # before </br>
         if offset == 0
-            res = normalizeBP(cont.firstChild,0)
+            res = selection.normalizeBP(cont.firstChild,0)
         else if offset < cont.children.length-1
             newCont   = cont.children[offset-1]
             newOffset = newCont.childNodes.length
-            res       = normalizeBP(newCont, newOffset)
+            res       = selection.normalizeBP(newCont, newOffset)
         else
             newCont   = cont.children[cont.children.length-2]
             newOffset = newCont.childNodes.length
-            res       = normalizeBP(newCont, newOffset)
+            res       = selection.normalizeBP(newCont, newOffset)
 
-    else if cont.nodeName ==  'DIV' and cont.id == "editor-lineDiv"
+    else if cont.nodeName ==  'DIV' and cont.id == "editor-lines"
         # if offset==0 put bp at begin of first node
         if offset == 0
             newCont   = cont.firstChild
             newOffset = 0
-            res       = normalizeBP(newCont, newOffset)
+            res       = selection.normalizeBP(newCont, newOffset)
         # if bp is at end of container, put bp at end of last node
         else if offset == cont.childNodes.length
             newCont   = cont.lastChild
             newOffset = newCont.childNodes.length
-            res       = normalizeBP(newCont, newOffset)
+            res       = selection.normalizeBP(newCont, newOffset)
         # if bp is in the middle of container, put bp at end of the node 
         # before current bp
         else
             newCont   = cont.children[offset-1]
             newOffset = newCont.childNodes.length
-            res       = normalizeBP(newCont, newOffset)
+            res       = selection.normalizeBP(newCont, newOffset)
 
     if !res
         res = {cont:newCont,offset:newOffset}
@@ -403,15 +407,70 @@ selection.putEndOnEnd = (range, elt) ->
 
 ###
 
+
 # Get line that contains given element.
-selection.getLineDiv = (elt)->
+# Prerequisite : elt must be in a div of a line.
+selection._getLineDiv = (elt)->
     parent = elt
-    while parent.nodeName != 'DIV' \
-          and ((parent.id? and parent.id.substr(0,5) != 'CNID_') \
-                or not parent.id?) \
-          and parent.parentNode != null
+    while !(parent.nodeName == 'DIV'              \
+            and parent.id?                        \
+            and parent.id.substr(0,5) == 'CNID_') \
+          or parent.parentNode == null
         parent = parent.parentNode
     return parent
+
+
+###*
+ * return the div corresponding to an element inside a line and tells wheter
+ * the breabk point is at the end or at the beginning of the line
+ * @param  {element} cont   the container of the break point
+ * @param  {number} offset offset of the break point
+ * @return {object}        {div[element], isStart[bool], isEnd[bool]}
+###
+selection.getLineDivIsStartIsEnd = (cont, offset)->
+    
+    parent = cont
+    isStart = true
+    isEnd = true
+
+    # 1- walk trew each parent of the container until reaching the div 
+    # on each parent check if breakpoint is still at the end or start
+    while !(parent.nodeName == 'DIV'              \
+            and parent.id?                        \
+            and parent.id.substr(0,5) == 'CNID_') \
+          and parent.parentNode != null
+
+        # 1.1 check isStart isEnd
+        isStart = isStart && (offset==0)
+        if parent.length?
+            isEnd = isEnd && (offset==parent.length)
+        else
+            isEnd = isEnd && (offset==parent.childNodes.length-1)
+        # 1.2 prepare next loop :
+        # 1.2.1 find offset of the current element among its siblings
+        if parent.previousSibling == null
+            offset = 0
+        else if parent.nextSibling == null
+            offset = parent.parentNode.childNodes.length - 1
+        else if parent.nextSibling.nextSibling == null
+            offset = parent.parentNode.childNodes.length - 2
+        else
+            # we are not at the beginning nor the end, we can set 1
+            # to the parent offset because it is not important to know the
+            # exact offset in this case
+            offset = 1
+        # 1.2.2 go up to the parent level
+        parent = parent.parentNode
+
+    # 2 check isStart isEnd for the div
+    nodesNum = parent.childNodes.length
+    isStart = isStart && (offset==0)
+    if parent.textContent == '' # case : <div><span>|</br></div>
+        isStart = true
+    isEnd = isEnd && (offset==nodesNum-1 or offset==nodesNum-2)
+
+    return div:parent, isStart:isStart, isEnd:isEnd
+
 
 # BJA : usage qu'interne, à voir.
 selection.putStartOnStart = (range, elt) ->
@@ -424,6 +483,7 @@ selection.putStartOnStart = (range, elt) ->
         elt.appendChild blank
         range.setStart blank, 0
  
+
 # BJA : usage qu'interne, à voir.
 selection.putEndOnStart = (range, elt) ->
     if elt?.firstChild?
@@ -435,30 +495,23 @@ selection.putEndOnStart = (range, elt) ->
         elt.appendChild blank
         range.setEnd(blank, 0)
 
-# Determine selection start div even if selection start in the body element or
-# inside a div child element.
-selection.getStartDiv = (range) ->
-    if range.startContainer.nodeName == 'BODY'
-        startDiv = range.startContainer.children[range.startOffset]
-    else
-        startDiv = range.startContainer
 
-    if startDiv.nodeName != "DIV"
-        startDiv = selection.getLineDiv startDiv
-    startDiv
 
-# Determine selection end div even if selection ends in the body element or
-# inside a div child element.
-selection.getEndDiv = (range, startDiv) ->
-    if range.endContainer.nodeName == "BODY"
-        endDiv = range.endContainer.children[range.endOffset - 1]
+###*
+ * Returns the DIV of the line where the break point is.
+ * @param  {element} cont   The contener of the break point
+ * @param  {number} offset Offset of the break point.
+ * @return {element}        The DIV of the line where the break point is.
+###
+selection.getLineDiv = (cont,offset) ->
+    if cont.nodeName == 'DIV' 
+        if cont.id == 'editor-lines'
+            startDiv = cont.children[offset]
+        else
+            startDiv = selection._getLineDiv(cont)
     else
-        endDiv = range.endContainer
+        startDiv = selection._getLineDiv(cont)
+    return startDiv
 
-    if endDiv?.nodeName != "DIV"
-        endDiv = selection.getLineDiv endDiv
-    else
-        endDiv = startDiv
-    endDiv
 
 exports.selection = selection

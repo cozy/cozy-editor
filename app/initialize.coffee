@@ -99,7 +99,7 @@ cb = () ->
     printBreakPoint = (startCont,offset, prefix) ->
         cont = startCont
         res  = []
-        while cont.id != "editor-lineDiv" or cont.parentNode == null
+        while cont.id != "editor-lines" or cont.parentNode == null
             contId = contClass = ''
             if cont.id
                 contId = '#' + cont.id
@@ -148,16 +148,34 @@ cb = () ->
         
     #### -------------------------------------------------------------------
     # Special buttons (to be removed later)
+    
     #  > tests the code structure
+    checkBtn = $ "#checkBtn"
     checker = new AutoTest()
-    $("#checkBtn").on "click", () ->
-        res = checker.checkLines(editorCtrler)
+
+    checkEditor=() ->
+        res = checker.checkLines(editorCtrler) 
         date = new Date()
         st = date.getHours()+":"+date.getMinutes()+":"+date.getSeconds()+" - "
         if res
             $("#resultText").val(st + "Syntax test success")
         else
             $("#resultText").val(st + "Syntax test FAILLURE : cf logs")
+            $('#well-editor').css('background-color','#c10000')
+
+    continuousCheck = () =>
+        if not checkBtn.hasClass "btn-warning"
+            checkBtn.addClass "btn-warning"
+            checkEditor()
+            $("iframe").on "onKeyUp", checkEditor
+        else
+            checkBtn.removeClass "btn-warning"
+            $("iframe").off "onKeyUp", checkEditor
+
+    continuousCheck() # by default activate continuous checking
+
+    checkBtn.click continuousCheck
+
     #  > translate cozy code into markdown and markdown to cozy code
     #    Note: in the markdown code there should be two \n between each line
     $("#markdownBtn").on "click", () ->
@@ -253,15 +271,7 @@ cb = () ->
     #### -------------------------------------------------------------------
     # auto check of the syntax after a paste
     editorBody$.on "paste", () ->
-        window.setTimeout( ()->
-            res = checker.checkLines(editorCtrler)
-            date = new Date()
-            st = date.getHours()+":"+date.getMinutes()+":"+date.getSeconds()+" - "
-            if res
-                $("#resultText").val(st+"Syntax test success")
-            else
-                $("#resultText").val(st+"Syntax test FAILLURE : cf logs")
-        , 400)
+        window.setTimeout(checkEditor, 400)
         
     
     #### -------------------------------------------------------------------

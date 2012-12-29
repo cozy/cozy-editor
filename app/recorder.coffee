@@ -57,7 +57,7 @@ class exports.Recorder
 
     getState: () ->
         state =
-            html: @.editorBody$.find('#editor-lineDiv').html()
+            html: @.editorBody$.find('#editor-lines').html()
             md  : @.editor.getEditorContent()
         # state =
         #     html: "html2"
