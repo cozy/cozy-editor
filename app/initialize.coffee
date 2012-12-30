@@ -67,9 +67,10 @@ cb = () ->
     this.replaceContent( require('views/templates/content-shortlines-marker') )
     this.replaceContent( require('views/templates/content-full-relative-indent') )
     this.replaceContent( require('views/templates/content-shortlines-all-hacked') )
+    content = require('views/templates/content-shortlines-large')
 
     ###
-    content = require('views/templates/content-shortlines-all')
+    content = require('views/templates/content-shortlines-small')
     @replaceContent content()
 
     #### -------------------------------------------------------------------
@@ -158,9 +159,9 @@ cb = () ->
         date = new Date()
         st = date.getHours()+":"+date.getMinutes()+":"+date.getSeconds()+" - "
         if res
-            $("#resultText").val(st + "Syntax test success")
+            $("#resultText").text(st + "Syntax test success")
         else
-            $("#resultText").val(st + "Syntax test FAILLURE : cf logs")
+            $("#resultText").text(st + "Syntax test FAILLURE : cf logs")
             $('#well-editor').css('background-color','#c10000')
 
     continuousCheck = () =>
@@ -172,7 +173,19 @@ cb = () ->
             checkBtn.removeClass "btn-warning"
             $("iframe").off "onKeyUp", checkEditor
 
-    continuousCheck() # by default activate continuous checking
+    continuousCheckOn = () ->
+        if not checkBtn.hasClass "btn-warning"
+            checkBtn.addClass "btn-warning"
+            checkEditor()
+            $("iframe").on "onKeyUp", checkEditor
+
+    continuousCheckOff = () ->
+        if checkBtn.hasClass "btn-warning"
+            checkBtn.removeClass "btn-warning"
+            $("iframe").off "onKeyUp", checkEditor
+
+
+    continuousCheckOn() # by default activate continuous checking
 
     checkBtn.click continuousCheck
 
@@ -180,10 +193,17 @@ cb = () ->
     #    Note: in the markdown code there should be two \n between each line
     $("#markdownBtn").on "click", () ->
         content = editorCtrler.getEditorContent()
-        $("#resultText").val content
+        res$ = $("#preResultText")
+        if res$[0]?
+          res$.text content
+        else
+          $("#resultText").html '<pre id="preResultText" contenteditable="true"></pre>'
+          $("#preResultText").text content
+        # $("#resultText").text content
         true
     $("#cozyBtn").on "click", () ->
-        $("#resultText").val(editorCtrler.setEditorContent $("#resultText").val())
+        editorCtrler.setEditorContent $("#preResultText").text()
+
     $("#addClass").toggle(
         () ->
             addClassToLines("sel")
@@ -286,10 +306,33 @@ cb = () ->
     recordSaveButton  = $ '#record-save-button'
     recordSaveInput   = $ '#record-name'
 
-    Recorder = require('./recorder').Recorder
-    recorder = new Recorder editorCtrler, editorBody$, serializerDisplay, recordList
+    recordStop = () ->
+        if recordButton.hasClass "btn-warning"
+            recordButton.removeClass "btn-warning"
+            recorder.stopRecordSession()
+    
+    ###*
+     * Load the string in the second editor
+     * @param  {string} strg An html or mark down string
+     * @param  {boolean} True if strg is html
+    ###
+    editor2Display = (strg,html) =>
+        $('#editorIframe').css('width','49%')
+        if html
+            @editor2.replaceContent strg
+        else
+            @editor2.setEditorContent strg
 
-    recordTest = ->
+    Recorder = require('./recorder').Recorder
+    recorder = new Recorder(editorCtrler, 
+                            editorBody$, 
+                            serializerDisplay, 
+                            recordList, 
+                            continuousCheckOff,
+                            recordStop,
+                            editor2Display)
+
+    recordTest = () ->
         if not recordButton.hasClass "btn-warning"
             recordButton.addClass "btn-warning"
             recorder.startRecordSession()
@@ -301,20 +344,29 @@ cb = () ->
         title = recordSaveInput.val()
         recorder.saveCurrentRecordedTest(title)
 
-    # Recorder boutons
+
+
+    # Recorder buttons
     
     playAllButton.click ->
+        continuousCheckOff()
         recorder.playAll()
 
     playAllSlowButton.click ->
+        continuousCheckOff()
         recorder.slowPlayAll()
 
     slowPlayButton.click ->
+        continuousCheckOff()
         recorder.slowPlay()
 
     recordButton.click recordTest
 
     recordSaveButton.click saveCurrentRecordedTest
+
+    recordSaveInput.on 'keypress', (e) ->
+        if e.keyCode == 13
+            saveCurrentRecordedTest()            
     
     # Load records
     
@@ -328,3 +380,5 @@ cb = () ->
 
 $ ->
     editor = new CNeditor( document.querySelector('#editorIframe'), cb )
+    editor2 = new CNeditor( document.querySelector('#editorIframe2'), -> )
+    editor.editor2 = editor2

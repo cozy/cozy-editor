@@ -172,9 +172,11 @@ class exports.AutoTest
      * @param  {line} line line where the element comes from
     ###
     checkTextNodes: (elmt, line) ->
-        if elmt.childNodes.length > 1
+        if elmt.childNodes.length > 1 
             @logErr(line,"a #{elmt.nodeName} should have only 1 child node")
-        else if elmt.childNodes.length != 0 && elmt.childNodes[0].nodeName != '#text'
+        else if elmt.childNodes.length == 0 
+            @logErr(line,"a #{elmt.nodeName} should have at least 1 child node")
+        else if elmt.childNodes[0].nodeName != '#text'
             @logErr(line,"element #{elmt.nodeName} should not have 
                 a #{elmt.childNodes[0].nodeName} as node child")
 

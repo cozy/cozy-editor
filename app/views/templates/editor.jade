@@ -18,10 +18,12 @@
     //-       a(href="#") another action
     #contentSelectDiv
       select#contentSelect
+        option(value="content-shortlines-small", style="display:block") Lignes courtes - Small
+        option(value="content-shortlines-medium", style="display:block") Lignes courtes - Medium
+        option(value="content-shortlines-large", style="display:block") Lignes courtes - Large
+        option(value="content-shortlines-marker", style="display:block") Lignes courtes - puces
         option(value="content-full", style="display:block") Full note
         option(value="content-full-marker", style="display:block") Tout en puces
-        option(value="content-shortlines-marker", style="display:block") Tout en puce, lignes courtes
-        option(value="content-shortlines-all", style="display:block") Puces et titres, lignes courtes
         option(value="content-empty", style="display:block") Empty note
         option(value="content-full-relative-indent", style="display:block") Avec sommaire
         option(value="test_1", style="display:block") Test numero 1
@@ -59,6 +61,7 @@
             button#redoBtn.btn.btn-small.btn-inverse redo
           // text for the editor
           #editorContent
+            iframe#editorIframe2()
             iframe#editorIframe()
       #result-col.ui-layout-east
         #well-result.monWell.ui-layout-container
@@ -71,7 +74,7 @@
               button#checkBtn.btn.btn-small Test syntax
               button#summaryBtn.btn.btn-small Display Summary
             div#resultTextDiv
-              textarea#resultText
+              div#resultText
           #recordings.ui-layout-center
             #recordBtnBar.btn-group
               button#record-button.btn.btn-small Record

@@ -2,7 +2,13 @@
 
 class exports.Recorder
 
-    constructor: (@editor, @editorBody$, @serializerDisplay, @recordList) ->
+    constructor: (@editor, 
+                  @editorBody$, 
+                  @serializerDisplay, 
+                  @recordList,
+                  @continuousCheckOff,
+                  @recordStop,
+                  @expectedResult) ->
         # list of actions being populated by the current recoding session
         # or of the actions of the last record.
         @_recordingSession = []
@@ -13,6 +19,7 @@ class exports.Recorder
     ### Functionalities ###
 
     saveCurrentRecordedTest: (title)->
+        @recordStop()
         if !(title.length > 0)
             alert "Please enter a title for this test"
             return
@@ -47,12 +54,12 @@ class exports.Recorder
         @._recordingSession = []
         @.serializerDisplay.val null
         @initialState = @getState()
-        @.editorBody$.mouseup(@.mouseRecorder)
+        @.editorBody$.mouseup(@.selectionRecorder)
         @.editorBody$.keyup(@.keyboardRecorder)
 
     stopRecordSession: () ->
-        @.editorBody$.off 'mouseup', @.mouseRecorder
-        @.editorBody$.off 'keyup', @.keyboardRecorder
+        @.editorBody$.off 'mouseup', @.selectionRecorder
+        @.editorBody$.off 'keyup'  , @.keyboardRecorder
         @finalState = @getState()
 
     getState: () ->
@@ -72,22 +79,40 @@ class exports.Recorder
 
     ### Listeners ###
     
-    mouseRecorder: =>
+    selectionRecorder: =>
         sel = @editor.getEditorSelection()
         serializedSelection = rangy.serializeSelection sel, true, @editorBody$[0]
         serializedEvent =
-            mouse: serializedSelection
+            selection: serializedSelection
 
         @_recordingSession.push serializedEvent
         @_refreshRecorder()
 
     keyboardRecorder: (event) =>
-        serializedEvent =
-            keyboard:
-                altKey: event.altKey
-                shiftKey: event.shiftKey
-                ctrlKey: event.ctrlKey
-                keyCode: event.which
+        [metaKeyCode,keyCode] = @editor.getShortCut(event)
+        serializedEvent = {}
+
+        if metaKeyCode+keyCode == 'other'
+            # don't insert caracters during recording since the recorder is not
+            # able to play them.
+            # This test doesn't fit all the insertions, but 80% cases, it's 
+            # enougth
+            throw new Error('No insertion during recording')
+        else if metaKeyCode != '' and keyCode == 'other'
+            # don't record if only a meta is stroken
+            return
+
+        if keyCode in ['up','down','right','left','home','pgUp','pgDwn']
+            sel = @editor.getEditorSelection()
+            serializedSelection = rangy.serializeSelection sel, true, @editorBody$[0]
+            serializedEvent.selection = serializedSelection
+
+        serializedEvent.keyboard =
+            altKey   : event.altKey
+            shiftKey : event.shiftKey
+            ctrlKey  : event.ctrlKey
+            keyCode  : event.which
+            which    : event.which
 
         @_recordingSession.push serializedEvent
         @_refreshRecorder()
@@ -119,10 +144,14 @@ class exports.Recorder
         for action in record.sequence
             @_playAction action
         finalState = @.getState()
-        if (finalState.md == record.finalState.md) and (finalState.html == record.finalState.html)
-            record.finalStateOK = true
-        else
+        if finalState.md != record.finalState.md
             record.finalStateOK = false
+            record.finalStateTxt = "md differs"
+        else if finalState.html != record.finalState.html
+            record.finalStateOK = false
+            record.finalStateTxt = "html differs"
+        else
+            record.finalStateOK = true
 
     slowPlay: (record, isAll) =>
         @restoreState(record.initialState)
@@ -156,7 +185,10 @@ class exports.Recorder
             <div id="record_#{record.id}">
                 <span class="btnDiv-RecordLine">
                     <div class="btn-group" >
-                        <button class="play btn btn-primary btn-mini">></button>
+                        <button class="slowPlay btn btn-primary btn-mini"> > </button>
+                        <button class="playQuick btn btn-primary btn-mini"> >> </button>
+                        <button class="md btn btn-mini">md</button>
+                        <button class="html btn btn-mini">html</button>
                         <button class="delete btn btn-mini">X</button>
                     </div>
                 </span>
@@ -168,9 +200,27 @@ class exports.Recorder
         record.element = element
         @.add(record)
 
-        element.find('.play').click =>
+        element.find('.md').click =>
+            @expectedResult(record.finalState.md)
+
+        element.find('.html').click =>
+            @expectedResult(record.finalState.html,true)
+
+        element.find('.slowPlay').click =>
+            @continuousCheckOff()
             @.serializerDisplay.val JSON.stringify record.sequence
             @.slowPlay(record)
+
+        element.find('.slowPlay').tooltip({title:'Slow play',delay:800})
+        element.find('.playQuick').tooltip({title:'Quick play',delay:800})
+        element.find('.md').tooltip({title:'Load md final state',delay:800})
+        element.find('.html').tooltip({title:'Load html final state',delay:800})
+        element.find('.delete').tooltip({title:'Delete',delay:800})
+        element.find('.playQuick').click =>
+            @continuousCheckOff()
+            @.serializerDisplay.val JSON.stringify record.sequence
+            @.play(record)
+            @_displayResults(record)
 
         element.find('.delete').click =>
             strconfirm = confirm("Do you want to delete ?")
@@ -184,25 +234,26 @@ class exports.Recorder
                         fileName: record.fileName
 
     _playAction: (action) ->
-        if action.mouse?
-            rangy.deserializeSelection action.mouse, @editorBody$[0]
-        else
+        if action.selection?
+            rangy.deserializeSelection action.selection, @editorBody$[0]
+        if action.keyboard?
             downEvent = jQuery.Event "keydown", action.keyboard
             pressEvent = jQuery.Event "keypress", action.keyboard
             upEvent = jQuery.Event "keyup", action.keyboard
-            sel = @editor.getEditorSelection()
             @editorBody$.trigger downEvent
             @editorBody$.trigger pressEvent
             @editorBody$.trigger upEvent
-        # test that editor structure is valid after the action
         action.result = @checker.checkLines(@editor)
 
 
     ###*
      * display result tests of each record in its corresponding line.
     ###
-    _displayResults: ()->
-            
+    _displayResults: (record)->
+        
+        if record?
+            @records = [record]
+
         for record in @records
             if !(record.finalStateOK == undefined) # check that the record has been played
                 actionsInError = []
@@ -216,15 +267,20 @@ class exports.Recorder
                 el = record.element.find('.resultAction')
                 if recordResult and record.finalStateOK
                     el.text('ok')
+                    @expectedResult(record.finalState.md)
                     el.addClass('resultActionOK')
                     el.removeClass('resultActionNOK')
                 else 
-                    if recordResult
+                    if recordResult and !record.finalStateOK
                         errorText = 'Actions went ok but unexpected final state - '
-                    else if record.finalStateOK
+                        errorText += record.finalStateTxt
+                        @expectedResult(record.finalState.md)
+                    else if !recordResult and record.finalStateOK
                         errorText = 'Actions #{actionsInError} went wrong, but final state is what was expected - '
                     else
                         errorText = 'Actions #{actionsInError} went wrong, and unexpected final state - '
+                        errorText += record.finalStateTxt
+                        @expectedResult(record.finalState.md)
                         
                     el = record.element.find('.resultAction')
                     el.text(errorText)

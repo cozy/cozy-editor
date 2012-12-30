@@ -28,6 +28,15 @@ selection.cleanSelection = (startLine, endLine, range) ->
         range.setStartAfter startNode, 0
         range.setEndAfter endNode, 0
 
+selection.selectAll = (editor) ->
+    range = document.createRange()
+    range.setStartBefore(editor.linesDiv.firstChild)
+    range.setEndAfter(editor.linesDiv.lastChild)
+    selection.normalize(range)
+    sel = editor.getEditorSelection()
+    sel.removeAllRanges()
+    sel.addRange(range)
+
 
 ###*
  * Called only once from the editor - TODO : role to be verified 
