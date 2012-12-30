@@ -40,11 +40,6 @@ class exports.CNeditor
     constructor : (@editorTarget, callBack) ->
         if @editorTarget.nodeName == "IFRAME"
 
-            # methods to deal selection on an iframe
-            @getEditorSelection = () ->
-                return rangy.getIframeSelection @editorTarget
-            @saveEditorSelection = () ->
-                return rangy.saveSelection(rangy.dom.getIframeWindow @editorTarget)
             
             iframe$ = $(@editorTarget)
             
@@ -53,7 +48,6 @@ class exports.CNeditor
                 editor_html$ = iframe$.contents().find("html")
                 @editorBody$ = editor_html$.find("body")
                 @editorBody$.parent().attr('id','__ed-iframe-html')
-                @editorBody$.attr("contenteditable", "true")
                 @editorBody$.attr("id","__ed-iframe-body")
 
                 @document = @editorBody$[0].ownerDocument
@@ -61,10 +55,19 @@ class exports.CNeditor
                 cssLink = '<link id="editorCSS" '
                 cssLink += 'href="stylesheets/CNeditor.css" rel="stylesheet">'
                 editor_head$.html(cssLink)
+
+                # Create div that will contains line
+                @linesDiv = document.createElement 'div'
+                @linesDiv.setAttribute('id','editor-lines')
+                @linesDiv.setAttribute('contenteditable','true')
+                @editorBody$.append @linesDiv
             
+                # init clipboard div
+                @_initClipBoard()
+
                 # set the properties of the editor
                 @_lines       = {}            # contains every line
-                @newPosition  = true          # true only if cursor has moved
+                @newPosition  = true          # true if cursor has moved 
                 @_highestId   = 0             # last inserted line identifier
                 @_deepest     = 1             # current maximum indentation
                 @_firstLine   = null          # pointer to the first line
@@ -88,24 +91,24 @@ class exports.CNeditor
                 @editorBody$.on 'paste', (event) =>
                     @paste event
 
-                # Create div that will contains line
-                @linesDiv = document.createElement 'div'
-                @linesDiv.setAttribute('id','editor-lines')
-                @editorBody$.append @linesDiv
-
-                # init clipboard div
-                @_initClipBoard()
-
                 # return a ref to the editor's controler
                 callBack.call(this)
-                @
+                return this
 
-            # this line is a trick : 
-            # the load event is fired on chrome if the iframe src equals '#' but not in ff.
-            # and if src= '', it's the opposite : works in ff but not in chrome
-            # with this command we force the load on every browser...
+            # This line is a trick : 
+            # The load event is fired on chrome if the iframe src equals '#' but
+            # not in ff.
+            # And if src= '', it's the opposite : works in ff but not in chrome.
+            # With this command we force the load event on every browser...
             @editorTarget.src = ''
 
+
+    # methods to deal selection on an iframe
+    getEditorSelection : () ->
+        return rangy.getIframeSelection @editorTarget
+
+    saveEditorSelection : () ->
+        return rangy.saveSelection(rangy.dom.getIframeWindow @editorTarget)
 
     ### ------------------------------------------------------------------------
     # EXTENSION : _updateDeepest
@@ -173,6 +176,56 @@ class exports.CNeditor
         linkElm.setAttribute('href' , path)
         document.head.appendChild(linkElm)
 
+    ###*
+     * Return [metaKeyCode,keyCode] corresponding to the key strike combinaison. 
+     * the string structure = [meta key]-[key]
+     *   * [metaKeyCode] : (Alt)*(Ctrl)*(Shift)*
+     *   * [keyCode] : (return|end|...|A|S|V|Y|Z)|(other) 
+     * ex : 
+     *   * "AltShift" & "up" 
+     *   * "AltCtrl" & "down" 
+     *   * "Shift" & "A"
+     *   * "Ctrl" & "S"
+     *   * "" & "other"
+     * @param  {[type]} e [description]
+     * @return {[type]}   [description]
+    ###
+    getShortCut : (e) ->
+        metaKeyCode = `(e.altKey ? "Alt" : "") + 
+                              (e.ctrlKey ? "Ctrl" : "") + 
+                              (e.shiftKey ? "Shift" : "")`
+        switch e.keyCode
+            when 13 then keyCode = 'return'
+            when 35 then keyCode = 'end'
+            when 36 then keyCode = 'home'
+            when 33 then keyCode = 'pgUp'
+            when 34 then keyCode = 'pgDwn'
+            when 37 then keyCode = 'left'
+            when 38 then keyCode = 'up'
+            when 39 then keyCode = 'right'
+            when 40 then keyCode = 'down'
+            when 9  then keyCode = 'tab'
+            when 8  then keyCode = 'backspace'
+            when 32 then keyCode = 'space'
+            when 27 then keyCode = 'esc'
+            when 46 then keyCode = 'suppr'
+            else
+                switch e.which
+                    when 32 then keyCode = 'space'
+                    when 8  then keyCode = 'backspace'
+                    when 65 then keyCode = 'A'
+                    when 83 then keyCode = 'S'
+                    when 86 then keyCode = 'V'
+                    when 89 then keyCode = 'Y'
+                    when 90 then keyCode = 'Z'
+                    else keyCode = 'other'
+        shortcut = metaKeyCode + '-' + keyCode
+        
+        # a,s,v,y,z alone are simple characters
+        if metaKeyCode == '' && keyCode in ['A', 'S', 'V', 'Y', 'Z']
+            keyCode = 'other'
+
+        return [metaKeyCode,keyCode]
 
 
     ### ------------------------------------------------------------------------
@@ -209,27 +262,11 @@ class exports.CNeditor
     #                               N°102 f is stroke) or "space" ...
     #
     _keyPressListener : (e) =>
+
         # 1- Prepare the shortcut corresponding to pressed keys
-        # TODO: when pressed key is a letter, prevent the browser default action
-        #       and an unDo after a sequence of letters shoud delete it
-        metaKeyStrokesCode = `(e.altKey ? "Alt" : "") + 
-                              (e.ctrlKey ? "Ctrl" : "") + 
-                              (e.shiftKey ? "Shift" : "")`
+        [metaKeyCode,keyCode] = @getShortCut(e)
+        shortcut = metaKeyCode + '-' + keyCode
         switch e.keyCode
-            when 13 then keyStrokesCode = "return"
-            when 35 then keyStrokesCode = "end"
-            when 36 then keyStrokesCode = "home"
-            when 33 then keyStrokesCode = "pgUp"
-            when 34 then keyStrokesCode = "pgDwn"
-            when 37 then keyStrokesCode = "left"
-            when 38 then keyStrokesCode = "up"
-            when 39 then keyStrokesCode = "right"
-            when 40 then keyStrokesCode = "down"
-            when 9  then keyStrokesCode = "tab"
-            when 8  then keyStrokesCode = "backspace"
-            when 32 then keyStrokesCode = "space"
-            when 27 then keyStrokesCode = "esc"
-            when 46 then keyStrokesCode = "suppr"
             when 16 #Shift
                 e.preventDefault()
                 return
@@ -239,28 +276,18 @@ class exports.CNeditor
             when 18 #Alt
                 e.preventDefault()
                 return
-            else
-                switch e.which
-                    when 32 then keyStrokesCode = "space"
-                    when 8  then keyStrokesCode = "backspace"
-                    when 65 then keyStrokesCode = "A"
-                    when 83 then keyStrokesCode = "S"
-                    when 86 then keyStrokesCode = "V"
-                    when 89 then keyStrokesCode = "Y"
-                    when 90 then keyStrokesCode = "Z"
-                    else keyStrokesCode = "other"
-        shortcut = metaKeyStrokesCode + '-' + keyStrokesCode
-        
-        # a,s,v,y,z alone are simple characters
-        if shortcut in ["-A", "-S", "-V", "-Y", "-Z"] then shortcut = "-other"
 
-            # Record last pressed shortcut and eventually update the history
-        if @_lastKey != shortcut and \
-               shortcut in ["-tab", "-return", "-backspace", "-suppr",
-                            "CtrlShift-down", "CtrlShift-up",
-                            "CtrlShift-left", "CtrlShift-right",
-                            "Ctrl-V", "Shift-tab", "-space", "-other"]
-            @_addHistory()
+        # 
+        # TODO BJA : activate history after using the serialization of range
+        # instead of insertions of markers (their deletions split text nodes...)
+        # 
+        # Record last pressed shortcut and eventually update the history
+        # if @_lastKey != shortcut and \
+        #        shortcut in ["-tab", "-return", "-backspace", "-suppr",
+        #                     "CtrlShift-down", "CtrlShift-up",
+        #                     "CtrlShift-left", "CtrlShift-right",
+        #                     "Ctrl-V", "Shift-tab", "-space", "-other"]
+        #     @_addHistory()
            
         @_lastKey = shortcut
 
@@ -269,34 +296,20 @@ class exports.CNeditor
         #    newPosition == true if the position of caret or selection has been
         #    modified with keyboard or mouse.
         #    If newPosition == true and a character is typed or a suppression
-        #    key is pressed, then selection must be "normalized" before
-        #       - caret must be in a span
-        #       - selection must start and end in a span
-        # 
-        #    Note : in Google Chrome, normalization couldn't place the selection
-        #      inside an empty node, so whenever it happens, we create a " "
-        #      textNode at this location, then selection is adjusted.
-        #      I'm afraid this operation is not that safe.
-        
-        # If the previous action was a move then "normalize" the selection.
+        #    key is pressed, then selection must be "normalized" so that its
+        #    break points are in text nodes.
+        # 2.1- If the previous action was a move then "normalize" the selection.
         # Selection is normalized only if an alphanumeric character or
         # suppr/backspace/return is pressed on this new position
         if @newPosition and shortcut in ['-other', '-space',
                                          '-suppr', '-backspace', '-return']
-            # if @newPosition
             @newPosition = false
             # get the current range and normalize it
-            # (following code is redundant but helpful for debugging)
             sel = @getEditorSelection()
             range = sel.getRangeAt(0)
-            normalizedRange = selection.normalize range
-
-            # update window selection so it is normalized
-            sel.setSingleRange normalizedRange
-
-        
-        # 2.1- Set a flag if the user moved the caret with keyboard
-        if keyStrokesCode in ["left","up","right","down",
+            selection.normalize range
+        # 2.2- Set a flag if the user moved the caret with keyboard
+        if keyCode in ["left","up","right","down",
                               "pgUp","pgDwn","end", "home",
                               "return", "suppr", "backspace"] and
            shortcut not in ["CtrlShift-down", "CtrlShift-up",
@@ -314,9 +327,9 @@ class exports.CNeditor
             when "-tab"
                 @tab()
                 e.preventDefault()
-            when "CtrlShift-right"
-                @tab()
-                e.preventDefault()
+            # when "CtrlShift-right"
+            #     @tab()
+            #     e.preventDefault()
             when "-backspace"
                 @_backspace(e)
             when "-suppr"
@@ -330,8 +343,11 @@ class exports.CNeditor
             when "Shift-tab"
                 @shiftTab()
                 e.preventDefault()
-            when "CtrlShift-left"
-                @shiftTab()
+            # when "CtrlShift-left"
+            #     @shiftTab()
+            #     e.preventDefault()
+            when "Ctrl-A"
+                selection.selectAll(this)
                 e.preventDefault()
             # TOGGLE LINE TYPE (Alt + a)                  
             when "Alt-A"
@@ -345,13 +361,13 @@ class exports.CNeditor
                 $(@editorTarget).trigger jQuery.Event("saveRequest")
                 e.preventDefault()
             # UNDO (Ctrl + z)
-            when "Ctrl-Z"
-                e.preventDefault()
-                @unDo()
+            # when "Ctrl-Z"
+            #     e.preventDefault()
+            #     @unDo()
             # REDO (Ctrl + y)
-            when "Ctrl-Y"
-                e.preventDefault()
-                @reDo()
+            # when "Ctrl-Y"
+            #     e.preventDefault()
+            #     @reDo()
             
 
     ### ------------------------------------------------------------------------
@@ -398,14 +414,14 @@ class exports.CNeditor
             # sel can be safely deleted thanks to normalization that have set
             # the selection correctly within the line.
             console.log '_suppr 4 - test '
-            @currentSel.sel.range.deleteContents()
+            @currentSel.range.deleteContents()
 
         # 3- Case of a multi lines selection
         else
             console.log '_suppr 5 - test '
             @_deleteMultiLinesSelections()
 
-        e.preventDefault()
+        event.preventDefault()
         return false
 
     ### ------------------------------------------------------------------------
@@ -418,9 +434,10 @@ class exports.CNeditor
 
         sel = @currentSel
 
-        if @isEmptyLine
-            @isEmptyLine = false
-            sel.range.deleteContents()
+        # TODO BJA : isEmptyLine seems obsolète - 28/12/2012
+        # if @isEmptyLine
+        #     @isEmptyLine = false
+        #     sel.range.deleteContents()
                     
         startLine = sel.startLine
 
@@ -434,13 +451,12 @@ class exports.CNeditor
                     # console.log '_backspace 3 - test ok'
                     sel.range.setStartBefore(startLine.linePrev.line$[0].lastChild)
                     sel.startLine = startLine.linePrev
-                    prevLine = startLine.linePrev.line$[0]
-                    text = prevLine.lastChild.previousSibling.firstChild
-                    offset = text.length
+                    startCont     = sel.range.startContainer
+                    startOffset   = sel.range.startOffset
+                    {cont,offset} = selection.normalizeBP(startCont, startOffset)
                     @_deleteMultiLinesSelections()
                     range = rangy.createRange()
-                    text = prevLine.lastChild.previousSibling.firstChild
-                    range.collapseToPoint text, offset
+                    range.collapseToPoint cont,offset
                     @currentSel.sel.setSingleRange range
 
                 # if there is no previous line = backspace at the beginning of 
@@ -487,8 +503,8 @@ class exports.CNeditor
         
         # find first and last div corresponding to the 1rst and
         # last selected lines
-        startDiv = selection.getStartDiv range
-        endDiv = selection.getEndDiv range, startDiv
+        startDiv = selection.getLineDiv range.startContainer, range.startOffset
+        endDiv = selection.getLineDiv range.endContainer, range.endOffset
         
         # loop on each line between the first and last line selected
         # TODO : deal the case of a multi range (multi selections). 
@@ -569,8 +585,8 @@ class exports.CNeditor
         else
             range = @getEditorSelection().getRangeAt(0)
 
-            startDiv = selection.getStartDiv range
-            endDiv = selection.getEndDiv range, startDiv
+            startDiv = selection.getLineDiv range.startContainer, range.startOffset
+            endDiv = selection.getLineDiv range.endContainer, range.endOffset
                 
             # 2- find first and last div corresponding to the 1rst and
             #    last selected lines
@@ -665,8 +681,8 @@ class exports.CNeditor
         sel   = @getEditorSelection()
         range = sel.getRangeAt(0)
         
-        startDiv = selection.getStartDiv range
-        endDiv = selection.getEndDiv range, startDiv
+        startDiv = selection.getLineDiv range.startContainer, range.startOffset
+        endDiv = selection.getLineDiv range.endContainer, range.endOffset
                 
         # 2- find first and last div corresponding to the 1rst and
         #    last selected lines
@@ -755,18 +771,12 @@ class exports.CNeditor
             sel   = @getEditorSelection()
             range = sel.getRangeAt(0)
 
-            startDiv = selection.getStartDiv range
-            endDiv = selection.getEndDiv range, startDiv
-                    
-        # 2- find first and last div corresponding to the 1rst and
-        #    last selected lines
-        if startDiv.nodeName != "DIV"
-            startDiv = $(startDiv).parents("div")[0]
-        if endDiv.nodeName != "DIV"
-            endDiv = $(endDiv).parents("div")[0]
+            startDiv = selection.getLineDiv range.startContainer, range.startOffset
+            endDiv = selection.getLineDiv range.endContainer, range.endOffset
+        
         endLineID = endDiv.id
 
-        # 3- loop on each line between the first and last line selected
+        # 2- loop on each line between the first and last line selected
         # TODO : deal the case of a multi range (multi selections). 
         #        Currently only the first range is taken into account.
         line = @_lines[startDiv.id]
@@ -862,14 +872,12 @@ class exports.CNeditor
             sel   = @getEditorSelection()
             range = sel.getRangeAt(0)
             
-        startDiv = selection.getStartDiv range
-        endDiv = selection.getEndDiv range, startDiv
+        startDiv = selection.getLineDiv range.startContainer, range.startOffset
+        endDiv = selection.getLineDiv range.endContainer, range.endOffset
         
-        # 2- find first and last div corresponding to the 1rst and
-        #    last selected lines
         endLineID = endDiv.id
         
-        # 3- loop on each line between the first and last line selected
+        # 2- loop on each line between the first and last line selected
         line = @_lines[startDiv.id]
         loop
             switch line.lineType
@@ -940,7 +948,7 @@ class exports.CNeditor
             )
             # Position caret
             range4sel = rangy.createRange()
-            range4sel.collapseToPoint(newLine.line$[0].firstChild,0)
+            range4sel.collapseToPoint(newLine.line$[0].firstChild.firstChild,0)
             currSel.sel.setSingleRange(range4sel)
 
         # 3- Caret is at the beginning of the line
@@ -1035,18 +1043,23 @@ class exports.CNeditor
 
 
     ###*
-    # Delete the user multi line selection
-    # Prerequisite : at least 2 different lines must be selected
-    # If startLine and endLine are specified, lines included between these two
-    # are deleted (including startLine & endLine.
-    # @param  {[line]} startLine [optional] if exists, the whole line will be taken
-    # @param  {[line]} endLine   [optional] if exists, the whole line will be taken
+    # Delete the user multi line selection :
+    #    * The 2 lines (selected of given in param) must be distinct
+    #    * If no params, @currentSel will be used to find the lines to delete
+    #    * Carret is positioned at the end of the line before startLine.
+    #    * startLine, endLine and lines between are deleted
+    # @param  {[line]} startLine [optional] if exists, the whole line will be deleted
+    # @param  {[line]} endLine   [optional] if exists, the whole line will be deleted
     # @return {[none]}           [nothing]
     ###
     _deleteMultiLinesSelections : (startLine, endLine) ->
-        unless @currentSel?
-            console.log "no selection, can't delete multi lines"
-            return null
+        
+        # TODO  BJA : to remove when _moveLinesDown and _moveLinesUp will be
+        # debugged
+        if startLine == null or endLine == null
+            throw new Error(
+                'CEeditor._deleteMultiLinesSelections called with a null param'
+                )
 
         # Get start and end positions of the selection.
         if startLine?
@@ -1054,7 +1067,8 @@ class exports.CNeditor
             selection.cleanSelection startLine, endLine, range
             replaceCaret = false
         else
-            curSel = @_findLines()
+            # curSel = @_findLines() # should be done be the caller
+            curSel = @currentSel
             range = curSel.range
             startContainer = range.startContainer
             startOffset = range.startOffset
@@ -1071,20 +1085,45 @@ class exports.CNeditor
         endLineDepth = endLine.lineDepthAbs
         deltaDepth = endLineDepth - startLineDepth
 
-        # copy the non selected end of endLine in a fragment
+        # Copy the un-selected end of endLine in a fragment
         endOfLineFragment = selection.cloneEndFragment range, endLine
 
-        # Perform deletion on selection and adapt remaining parts consequently.
-        @_adaptEndLineType startLine, endLine # adapt end line type if needed.
-        
-        @_deleteSelectedLines range
+        # Adapt end line type if needed.
+        @_adaptEndLineType startLine, endLine 
+
+        # Delete selection and adapt remaining parts consequently.
+        range.deleteContents()
+
+        # Insert the copied end of line at the end of startLine
         @_addMissingFragment startLine, endOfLineFragment
+
+        # Remove endLine from this.lines and updates links
         @_removeEndLine startLine, endLine
+
+        # Adapt depth
         @_adaptDepth startLine, startLineDepth, endLineDepth, deltaDepth
+
+        # Place caret
         if replaceCaret
-            @_setCaret(startContainer, startOffset, startLine, nextEndLine)
- 
-    _trimLine: (startLine) ->
+            # if selection was at the beginning of the line
+            # if startOffset == 0
+            #     if prevStartLine? or nextEndLine?
+            #         if startLine?
+            #             startContainer = startLine.line$[0].firstChild.firstChild
+            #         else
+            #             startContainer = nextEndLine.line$[0]
+            #     else
+            #         # full selection case (ctrl+A)
+            #         console.log "ctrl a"
+                    
+            #         startContainer = startLine.line$[0].lastChild
+            #         console.log startContainer
+                    
+            # else
+            #     startContainer = startLine.line$[0].firstChild.firstChild
+            
+            @_setCaret(startContainer, startOffset)
+
 
     #  adapt the depth of the children and following siblings of end line
     #    in case the depth delta between start and end line is
@@ -1107,10 +1146,14 @@ class exports.CNeditor
                     
         if line != null
             # if the line is a line (Lx), then make it "independant"
-            # by turning it in a Tx
+            # by turning it in a Tx, except if unecessary (previou is same
+            # type and same prof)
             if line.lineType[0] == 'L'
-                line.lineType = 'T' + line.lineType[1]
-                line.line$.prop("class","#{line.lineType}-#{line.lineDepthAbs}")
+                if !(     startLine.lineType[1]  == line.lineType[1]      \
+                      and startLine.lineDepthAbs == line.lineDepthAbs )
+                    line.lineType = 'T' + line.lineType[1]
+                    line.line$.prop('class',"#{line.lineType}-#{line.lineDepthAbs}")
+
 
             # find the previous sibling, adjust type to its type.
             firstLineAfterSiblingsOfDeleted = line
@@ -1127,39 +1170,32 @@ class exports.CNeditor
                     else
                         @markerList(firstLineAfterSiblingsOfDeleted)
 
-    # Delete selection registered in given range.
-    _deleteSelectedLines: (range) ->
-        range.deleteContents() # delete lines
 
     # Add back missing unselected fragment that have been deleted by our rough
     # deletion.
-    # if startFrag et myEndLine are SPAN and they both have the same class
+    # If startFrag et myEndLine are SPAN and they both have the same class
     # then we concatenate both
-    _addMissingFragment: (startLine, endOfLineFragment) ->
-        startFrag = endOfLineFragment.childNodes[0]
-        if startLine.line$[0].lastChild is null
-            startLine.line$.prepend '<span></span>'
-        if startLine.line$[0].lastChild.nodeName is 'BR'
-            startLine.line$[0].removeChild(startLine.line$[0].lastChild)
-        endLine = startLine.line$[0].lastChild
+    _addMissingFragment: (line, fragment) ->
+        startFrag = fragment.childNodes[0]
+        lineEl = line.line$[0]
 
-        if startFrag.tagName == endLine.tagName == 'SPAN' and
-           startFrag.className == endLine.className
-            startOffset = endLine.textContent.length
-            newText = endLine.textContent + startFrag.textContent
-            endLine.innerHTML = newText
-            startContainer = endLine.firstChild
-            
-            l = 1
-            while l < endOfLineFragment.childNodes.length
-                $(endOfLineFragment.childNodes[l]).appendTo startLine.line$
-                l++
+        if lineEl.lastChild is null
+            node = document.createElement('span')
+            lineEl.insertBefore(node,lineEl.firstChild)
+        
+        if lineEl.lastChild.nodeName is 'BR'
+            lineEl.removeChild(lineEl.lastChild)
+        lastNode = lineEl.lastChild
 
-            if startContainer?.nodeName is '#text'
-                startContainer = endLine.nextLine
-            startContainer
+        if startFrag.tagName == lastNode.tagName == 'SPAN' and 
+           startFrag.className == lastNode.className
+            startOffset = lastNode.textContent.length
+            newText = lastNode.textContent + startFrag.textContent
+            lastNode.firstChild.textContent = newText
+            fragment.removeChild(fragment.firstChild)
+            lineEl.appendChild fragment
         else
-            startLine.line$.append endOfLineFragment
+            lineEl.appendChild fragment
             null
 
 
@@ -1184,23 +1220,7 @@ class exports.CNeditor
 
 
     # Put caret at given position. Regitser current selection.
-    _setCaret: (startContainer, startOffset, startLine, nextEndLine, prevStartLine) ->
-        if startOffset is 0
-            if prevStartLine? or nextEndLine?
-                if startLine?
-                    startContainer = startLine.line$[0].firstChild.firstChild
-                else
-                    startContainer = nextEndLine.line$[0]
-            else
-                # full selection case (ctrl+A)
-                console.log "ctrl a"
-                
-                startContainer = startLine.line$[0].lastChild
-                console.log startContainer
-                
-        else
-            startContainer = startLine.line$[0].firstChild.firstChild
-        
+    _setCaret: (startContainer, startOffset) ->
         range = rangy.createRange()
         range.collapseToPoint startContainer, startOffset
         @currentSel.sel.setSingleRange range
@@ -1216,7 +1236,8 @@ class exports.CNeditor
     #     sourceLine         : line after which the line will be added
     #     fragment           : [optionnal] - an html fragment that will be added
     #                          in the div of the line.
-    #     innerHTML          : [optionnal] - an html string that will be added
+    #     innerHTML          : [optionnal] - if no fragment is given, an html
+    #                          string that will be added to the new line.
     #     targetLineType     : type of the line to add
     #     targetLineDepthAbs : absolute depth of the line to add
     #     targetLineDepthRel : relative depth of the line to add
@@ -1237,8 +1258,16 @@ class exports.CNeditor
             if newLine$[0].lastChild.nodeName != 'BR'
                 newLine$.append('<br>')
         else
-            newLine$ = $("<div id='#{lineID}' class='#{p.targetLineType}-#{p.targetLineDepthAbs}'></div>")
-            newLine$.append( $('<span></span><br>') )
+            newLine = document.createElement('div')
+            newLine.id = lineID
+            newLine.setAttribute('class',p.targetLineType + '-' + p.targetLineDepthAbs)
+            # newLine$ = $("<div id='#{lineID}' class='#{p.targetLineType}-#{p.targetLineDepthAbs}'></div>")
+            node = document.createElement('span')
+            node.appendChild(document.createTextNode(''))
+            newLine.appendChild(node)
+            newLine.appendChild(document.createElement('br'))
+            newLine$ = $(newLine)
+            # newLine$.append($('<span></span><br>'))
         sourceLine = p.sourceLine
         
         # 2 - insertion of newLine$ in the fragment
@@ -1273,6 +1302,7 @@ class exports.CNeditor
     # p = 
     #     sourceLine         : ID of the line before which a line will be added
     #     fragment           : [optionnal] - an html fragment that will be added
+    #                          the fragment is not supposed to end with a <br>
     #     targetLineType     : type of the line to add
     #     targetLineDepthAbs : absolute depth of the line to add
     #     targetLineDepthRel : relative depth of the line to add
@@ -1280,12 +1310,18 @@ class exports.CNeditor
     _insertLineBefore : (p) ->
         @_highestId += 1
         lineID = 'CNID_' + @_highestId
-        newLine$ = $("<div id='#{lineID}' class='#{p.targetLineType}-#{p.targetLineDepthAbs}'></div>")
+        newLineEl = document.createElement('div')
+        newLineEl.id = lineID
+        newLineEl.setAttribute('class', p.targetLineType + '-' + p.targetLineDepthAbs )
         if p.fragment?
-            newLine$.append( p.fragment )
-            newLine$.append( $('<br>') )
+            newLineEl.appendChild(p.fragment)
+            newLineEl.appendChild(document.createElement('br'))
         else
-            newLine$.append( $('<span></span><br>') )
+            node = document.createElement('span')
+            node.appendChild(document.createTextNode(''))
+            newLineEl.appendChild(node)
+            newLineEl.appendChild(document.createElement('br'))
+        newLine$ = $(newLineEl)
         sourceLine = p.sourceLine
         newLine$ = newLine$.insertBefore(sourceLine.line$)
         newLine =
@@ -1303,22 +1339,22 @@ class exports.CNeditor
         return newLine
 
 
-    _findStartLine: (startContainer) ->
-        if startContainer.nodeName == 'DIV'
-            # startContainer refers to a div of a line
-            startLine = @_lines[ startContainer.id ]
-        else   # means the range starts inside a div (span, textNode...)
-            startLine = @_lines[selection.getLineDiv(startContainer).id]
+    # _findStartLine: (startContainer) ->
+    #     if startContainer.nodeName == 'DIV'
+    #         # startContainer refers to a div of a line
+    #         startLine = @_lines[ startContainer.id ]
+    #     else   # means the range starts inside a div (span, textNode...)
+    #         startLine = @_lines[selection.getLineDiv(startContainer).id]
         
 
-    _findEndLine: (endContainer) ->
-        # endContainer refers to a div of a line
-        if endContainer.id? and endContainer.id.substr(0,5) == 'CNID_'
-            endLine = @_lines[ endContainer.id ]
-        # means the range ends inside a div (span, textNode...)
-        else
-            endLine = @_lines[selection.getLineDiv(endContainer).id]
-        endLine
+    # _findEndLine: (endContainer) ->
+    #     # endContainer refers to a div of a line
+    #     if endContainer.id? and endContainer.id.substr(0,5) == 'CNID_'
+    #         endLine = @_lines[ endContainer.id ]
+    #     # means the range ends inside a div (span, textNode...)
+    #     else
+    #         endLine = @_lines[selection.getLineDiv(endContainer).id]
+    #     endLine
 
 
     ### ------------------------------------------------------------------------
@@ -1339,9 +1375,12 @@ class exports.CNeditor
             sel = @getEditorSelection()
             range = sel.getRangeAt(0)
             
-            endLine = @_findEndLine range.endContainer
-            startLine = @_findStartLine range.startContainer
+            # startLine = @_findStartLine range.startContainer
+            # endLine = @_findEndLine range.endContainer
             
+            startLine = @_lines[selection.getLineDiv(range.startContainer).id]
+            endLine   = @_lines[selection.getLineDiv(range.endContainer  ).id]
+
             @currentSel =
                 sel              : sel
                 range            : range
@@ -1349,7 +1388,7 @@ class exports.CNeditor
                 endLine          : endLine
                 rangeIsStartLine : null
                 rangeIsEndLine   : null
-        @currentSel
+        return @currentSel
 
 
     ### ------------------------------------------------------------------------
@@ -1371,6 +1410,44 @@ class exports.CNeditor
     #   rangeIsEndLine   : true if the range ends at the end of the last line
     #   rangeIsStartLine : true if the range starts at the start of 1st line
     ###
+    
+
+    _findLinesAndIsStartIsEnd : ->
+        
+        sel                = @getEditorSelection()
+        range              = sel.getRangeAt(0)
+        startContainer     = range.startContainer
+        endContainer       = range.endContainer
+        initialStartOffset = range.startOffset
+        initialEndOffset   = range.endOffset
+
+        # find endLine and the rangeIsEndLine
+        {div,isStart,noMatter} = selection.getLineDivIsStartIsEnd(
+                                            startContainer, initialStartOffset)
+        startLine = @_lines[div.id]
+        # newHtml = 'startDiv=' + div.id   \
+        #         + ' isStart:' + isStart 
+        # console.log newHtml
+
+        {div,noMatter,isEnd,} = selection.getLineDivIsStartIsEnd(
+                                            endContainer, initialEndOffset)
+        endLine = @_lines[div.id]
+        # newHtml = 'startDiv=' + div.id   \
+        #         + ' isEnd:  ' + isEnd
+        # console.log newHtml
+
+        # result
+        @currentSel =
+            sel              : sel
+            range            : range
+            startLine        : startLine
+            endLine          : endLine
+            rangeIsStartLine : isStart
+            rangeIsEndLine   : isEnd
+
+        return @currrentSel
+
+    ### OLD
     _findLinesAndIsStartIsEnd : ->
         # if this.currentSel == null
             
@@ -1463,6 +1540,7 @@ class exports.CNeditor
             rangeIsEndLine   : rangeIsEndLine
 
         @currrentSel
+    ###
         
 
 
@@ -1552,8 +1630,9 @@ class exports.CNeditor
         sel   = @getEditorSelection()
         range = sel.getRangeAt(0)
         
-        startDiv = selection.getStartDiv range
-        endDiv = selection.getEndDiv range, startDiv
+        # TODO BJA : use findlines ?
+        startDiv = selection.getLineDiv range.startContainer, range.startOffset
+        endDiv = selection.getLineDiv range.endContainer, range.endOffset
         
         # Find first and last div corresponding to the first and last
         # selected lines
@@ -1581,6 +1660,7 @@ class exports.CNeditor
             # savedSel = @saveEditorSelection()
                 
             # 2 - Delete lineNext content then restore initial selection
+            # TODO BJA : ensure this call don't pass a null param
             @_deleteMultiLinesSelections(lineEnd, lineNext)
             
             # rangy.restoreSelection(savedSel)
@@ -1685,8 +1765,9 @@ class exports.CNeditor
         sel   = @getEditorSelection()
         range = sel.getRangeAt(0)
         
-        startDiv = selection.getStartDiv range
-        endDiv = selection.getEndDiv range, startDiv
+        # TODO BJA : use findlines ?
+        startDiv = selection.getLineDiv range.startContainer, range.startOffset
+        endDiv = selection.getLineDiv range.endContainer, range.endOffset
 
         # Find first and last div corresponding to the first and last
         # selected lines
@@ -1713,14 +1794,11 @@ class exports.CNeditor
                 lineDepthRel : linePrev.lineDepthRel
                 linePrev     : linePrev.linePrev
                 lineNext     : linePrev.lineNext
-
-            # savedSel = @saveEditorSelection()
             
             # 2 - Delete linePrev content then restore initial selection
+            # TODO BJA : ensure this call don't pass a null param
             @_deleteMultiLinesSelections(linePrev.linePrev, linePrev)
             
-            # rangy.restoreSelection(savedSel)
-
             # 3 - Restore linePrev below the last selected line (lineEnd )
             # 3.1 - if isSecondLine, line objects must be fixed
             if isSecondLine

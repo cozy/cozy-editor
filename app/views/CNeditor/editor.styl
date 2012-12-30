@@ -87,17 +87,32 @@ lineMixin(rank)
 
 #__ed-iframe-body
     font-family: main
-    overflow: auto
-    box-sizing: border-box
-    -moz-box-sizing : border-box
-    position: relative
-    left: 0px
-    top: 0px
+    position: absolute
+    margin:0
+    top:0
+    right:0
+    left:0
+    bottom:0
     color: darkgrey
     background-color: lightgrey
     line-height: 18px
     font: normal 13px/18px main, "Helvetica Neue", Arial, Helvetica, sans-serif
     font-family: main
+    -moz-box-sizing : border-box
+    box-sizing: border-box
+
+#editor-lines
+    -moz-box-sizing : border-box
+    box-sizing: border-box
+    overflow-y: auto
+    padding-left:8px
+    padding-right:8px
+    position: absolute
+    margin:0
+    top:0
+    right:0
+    left:0
+    bottom:0
 
 p
     margin-top: 0px

@@ -115,8 +115,6 @@ md2cozy.convertInlineEltToMarkdown = (obj) ->
 md2cozy.md2cozy = (text) ->
     conv = new Showdown.converter()
     htmlCode = $(conv.makeHtml text)
-   
-    console.log htmlCode
     
     cozyCode = ''
     md2cozy.currentId = 0
