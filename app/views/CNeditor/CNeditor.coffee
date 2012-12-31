@@ -781,85 +781,95 @@ class exports.CNeditor
         #        Currently only the first range is taken into account.
         line = @_lines[startDiv.id]
         loop
-            switch line.lineType
-                when 'Tu','Th'
-                    # find previous sibling to check if a tab is possible.
-                    linePrevSibling = @_findPrevSibling(line)
-                    if linePrevSibling == null
-                        isTabAllowed=false
-                    else
-                        isTabAllowed=true
-                        # determine new lineType
-                        if linePrevSibling.lineType == 'Th'
-                            lineTypeTarget = 'Lh'
-                        else
-                            if linePrevSibling.lineType == 'Tu'
-                                lineTypeTarget = 'Lu'
-                            else
-                                lineTypeTarget = 'Lo'
-                            if line.lineType == 'Th'
-                                # in case of a Th => Lx then all the following 
-                                # siblings must be turned to Tx and Lh into Lx
-                                # first we must find the previous sibling line                                
-                                # linePrevSibling = @_findPrevSibling(line)
-                                # linePrev = line.linePrev
-                                # while linePrev.lineDepthAbs > firstChild
-                                #     textContent
-                                lineNext = line.lineNext
-                                while lineNext != null and lineNext.lineDepthAbs > line.lineDepthAbs
-                                    switch lineNext.lineType
-                                        when 'Th'
-                                            lineNext.lineType = 'Tu'
-                                            line.line$.prop("class","Tu-#{lineNext.lineDepthAbs}")
-                                            nextLineType = prevTxType
-                                        when 'Tu'
-                                            nextLineType = 'Lu'
-                                        when 'To'
-                                            nextLineType = 'Lo'
-                                        when 'Lh'
-                                            lineNext.lineType = nextLineType
-                                            line.line$.prop("class","#{nextLineType}-#{lineNext.lineDepthAbs}")
-                when 'Lh', 'Lu', 'Lo'
-                    # TODO : if there are new siblings, the target type must be 
-                    # the one of those, otherwise Tu is default.
-                    lineNext = line.lineNext
-                    lineTypeTarget = null
-                    while lineNext != null and lineNext.lineDepthAbs >= line.lineDepthAbs
-                        if lineNext.lineDepthAbs != line.lineDepthAbs + 1
-                            lineNext = lineNext.lineNext
-                        else
-                            lineTypeTarget = lineNext.lineType
-                            lineNext=null
-                    if lineTypeTarget == null
-                        linePrev = line.linePrev
-                        while linePrev != null and linePrev.lineDepthAbs >= line.lineDepthAbs
-                            if linePrev.lineDepthAbs==line.lineDepthAbs + 1
-                                lineTypeTarget = linePrev.lineType
-                                linePrev=null
-                            else
-                                linePrev = linePrev.linePrev
-                    if lineTypeTarget == null
-                        isTabAllowed       = true
-                        lineTypeTarget     = 'Tu'
-                        line.lineDepthAbs += 1
-                        line.lineDepthRel += 1
-                    else
-                        if lineTypeTarget == 'Th'
-                            isTabAllowed       = true
-                            line.lineDepthAbs += 1
-                            line.lineDepthRel  = 0
-                        if lineTypeTarget == 'Tu' or  lineTypeTarget == 'To'
-                            isTabAllowed       = true
-                            line.lineDepthAbs += 1
-                            line.lineDepthRel += 1
-            if isTabAllowed
-                line.line$.prop("class","#{lineTypeTarget}-#{line.lineDepthAbs}")
-                line.lineType = lineTypeTarget
+            @_tabLine(line)
             if line.lineID == endLineID
                 break
             else
                 line = line.lineNext
 
+    _tabLine : (line) ->
+        switch line.lineType
+            when 'Tu','Th'
+                # find previous sibling to check if a tab is possible.
+                linePrevSibling = @_findPrevSibling(line)
+                if linePrevSibling == null
+                    isTabAllowed=false
+                else
+                    isTabAllowed=true
+                    # determine new lineType
+                    if linePrevSibling.lineType == 'Th'
+                        typeTarget = 'Lh'
+                    else
+                        if linePrevSibling.lineType == 'Tu'
+                            typeTarget = 'Lu'
+                        else
+                            typeTarget = 'Lo'
+                        if line.lineType == 'Th'
+                            # in case of a Th => Lx then all the following 
+                            # siblings must be turned to Tx and Lh into Lx
+                            # first we must find the previous sibling line                                
+                            # linePrevSibling = @_findPrevSibling(line)
+                            # linePrev = line.linePrev
+                            # while linePrev.lineDepthAbs > firstChild
+                            #     textContent
+                            lineNext = line.lineNext
+                            while lineNext != null and lineNext.lineDepthAbs > line.lineDepthAbs
+                                switch lineNext.lineType
+                                    when 'Th'
+                                        lineNext.lineType = 'Tu'
+                                        line.line$.prop("class","Tu-#{lineNext.lineDepthAbs}")
+                                        nextLineType = prevTxType
+                                    when 'Tu'
+                                        nextLineType = 'Lu'
+                                    when 'To'
+                                        nextLineType = 'Lo'
+                                    when 'Lh'
+                                        lineNext.lineType = nextLineType
+                                        line.line$.prop("class","#{nextLineType}-#{lineNext.lineDepthAbs}")
+            when 'Lh', 'Lu', 'Lo'
+                isTabAllowed   = true
+                depthAbsTarget = line.lineDepthAbs + 1
+
+                # find next sibling
+                nextSib = @_findNextSibling(line, depthAbsTarget)
+                
+                # nextSib = line.lineNext
+                # loop    
+                #     if nextSib == null or nextSib.lineDepthAbs < depthAbsTarget
+                #         nextSib = null
+                #         break
+                #     else if nextSib.lineType[0] == 'T'
+                #         break
+                #     nextSib = nextSib.lineNext
+                nextSibType = if nextSib == null then null else nextSib.lineType
+
+                # find previous sibling
+                prevSib = @_findPrevSibling(line, depthAbsTarget)
+                prevSibType = if prevSib == null then null else prevSib.lineType
+
+                # If there are no siblings => Tu
+                # If There are 2 identical, => use their type
+                # If the 2 siblings have different types => Tu
+                if  prevSibType == nextSibType == null
+                    typeTarget = 'Tu'
+                else if prevSibType == nextSibType
+                    typeTarget = nextSibType
+                else if prevSibType == null
+                    typeTarget = nextSibType
+                else if nextSibType == null
+                    typeTarget = prevSibType
+                else
+                    typeTarget = 'Tu'
+                
+                if typeTarget == 'Th'
+                    line.lineDepthAbs += 1
+                    line.lineDepthRel  = 0
+                else
+                    line.lineDepthAbs += 1
+                    line.lineDepthRel += 1
+        if isTabAllowed
+            line.line$.prop("class","#{typeTarget}-#{line.lineDepthAbs}")
+            line.lineType = typeTarget
 
     ### ------------------------------------------------------------------------
     #  shiftTab
@@ -880,41 +890,63 @@ class exports.CNeditor
         # 2- loop on each line between the first and last line selected
         line = @_lines[startDiv.id]
         loop
-            switch line.lineType
-                when 'Tu','Th','To'
-                    # find the closest parent to choose the new lineType.
-                    parent = line.linePrev
-                    while parent != null and parent.lineDepthAbs >= line.lineDepthAbs
-                        parent = parent.linePrev
-                    if parent != null
-                        isTabAllowed   = true
-                        lineTypeTarget = parent.lineType
-                        lineTypeTarget = "L" + lineTypeTarget.charAt(1)
-                        line.lineDepthAbs -= 1
-                        line.lineDepthRel -= parent.lineDepthRel
-                        # if lineNext is a Lx, then it must be turned in a Tx
-                        if line.lineNext? and line.lineNext.lineType[0]=='L'
-                            nextL = line.lineNext
-                            nextL.lineType = 'T'+nextL.lineType[1]
-                            nextL.line$.prop('class',"#{nextL.lineType}-#{nextL.lineDepthAbs}")
-                    else
-                        isTabAllowed = false
-                when 'Lh'
-                    isTabAllowed=true
-                    lineTypeTarget     = 'Th'
-                when 'Lu'
-                    isTabAllowed=true
-                    lineTypeTarget     = 'Tu'
-                when 'Lo'
-                    isTabAllowed=true
-                    lineTypeTarget     = 'To'
-            if isTabAllowed
-                line.line$.prop("class","#{lineTypeTarget}-#{line.lineDepthAbs}")
-                line.lineType = lineTypeTarget
+            @_shiftTabLine(line)
             if line.lineID == endDiv.id
                 break
             else
                 line = line.lineNext
+    ###*
+     * un-tab a single line
+     * @param  {line} line the line to un-tab
+    ###
+    _shiftTabLine : (line) ->
+        switch line.lineType
+            when 'Tu','Th','To'
+                # find the closest parent to choose the new lineType.
+                parent = line.linePrev
+                while parent != null and parent.lineDepthAbs >= line.lineDepthAbs
+                    parent = parent.linePrev
+                if parent != null
+                    isTabAllowed   = true
+                    # if lineNext is a Lx, then it must be turned in a Tx
+                    if line.lineNext? and 
+                      line.lineNext.lineType[0] == 'L' and
+                      line.lineNext.lineDepthAbs == line.lineDepthAbs
+                        nextL = line.lineNext
+                        nextL.lineType = 'T'+nextL.lineType[1]
+                        nextL.line$.prop('class',"#{nextL.lineType}-#{nextL.lineDepthAbs}")
+                    # if the line under is already deaper, all sons must have
+                    # their depth reduced
+                    if line.lineNext? and line.lineNext.lineDepthAbs > line.lineDepthAbs
+                        nextL = line.lineNext
+                        while nextL.lineDepthAbs > line.lineDepthAbs
+                            nextL.lineDepthAbs -=  1
+                            nextL.line$.prop('class',"#{nextL.lineType}-#{nextL.lineDepthAbs}")
+                            nextL = nextL.lineNext
+                        if nextL? and nextL.lineType[0]=='L'
+                            nextL.lineType = 'T'+nextL.lineType[1]
+                            nextL.line$.prop('class',"#{nextL.lineType}-#{nextL.lineDepthAbs}")
+                    lineTypeTarget = parent.lineType
+                    lineTypeTarget = "L" + lineTypeTarget.charAt(1)
+                    line.lineDepthAbs -= 1
+                    line.lineDepthRel -= parent.lineDepthRel
+
+                else
+                    isTabAllowed = false
+            when 'Lh'
+                isTabAllowed=true
+                lineTypeTarget     = 'Th'
+            when 'Lu'
+                isTabAllowed=true
+                lineTypeTarget     = 'Tu'
+            when 'Lo'
+                isTabAllowed=true
+                lineTypeTarget     = 'To'
+        if isTabAllowed
+            line.line$.prop("class","#{lineTypeTarget}-#{line.lineDepthAbs}")
+            line.lineType = lineTypeTarget
+
+
 
     ### ------------------------------------------------------------------------
     #  _return
@@ -1016,30 +1048,53 @@ class exports.CNeditor
                 linePrev = linePrev.linePrev
             return linePrev.lineNext
 
-
-    ### ------------------------------------------------------------------------
-    #  _findPrevSibling
-    # 
-    # find the previous sibling line.
-    # returns null if no previous sibling, the line otherwise
-    # the sibling is a title (Th, Tu or To), not a line (Lh nor Lu nor Lo)
+    ###* -----------------------------------------------------------------------
+     * Find the next sibling line.
+     * Returns null if no next sibling, the line otherwise.
+     * The sibling is a title (Th, Tu or To), not a line (Lh nor Lu nor Lo)
+     * @param  {line} line     The starting line for which we search a sibling
+     * @param  {number} depthAbs [optional] If the siblings we search is not
+     *                           of the same absolute depth
+     * @return {line}          The next sibling if one, null otherwise
     ###
-    _findPrevSibling : (line)->
-        lineDepthAbs = line.lineDepthAbs
-        linePrevSibling = line.linePrev
-        if linePrevSibling == null
-            # nothing to do if first line
-            return null
-        else if linePrevSibling.lineDepthAbs < lineDepthAbs
-            # If AbsDepth of previous line is lower : we are on the first
-            # line of a list of paragraphes, there is no previous sibling
-            return null
-        else
-            while linePrevSibling.lineDepthAbs > lineDepthAbs
-                linePrevSibling = linePrevSibling.linePrev
-            while linePrevSibling.lineType[0] == 'L'
-                linePrevSibling = linePrevSibling.linePrev
-            return linePrevSibling
+    _findNextSibling : (line, depth)->
+        if !depth?
+            depth = line.lineDepthAbs
+
+        nextSib = line.lineNext
+        loop    
+            if nextSib == null or nextSib.lineDepthAbs < depth
+                nextSib = null
+                break
+            else if nextSib.lineDepthAbs == depth && nextSib.lineType[0] == 'T'
+                break
+            nextSib = nextSib.lineNext
+        return nextSib
+
+
+    ###* -----------------------------------------------------------------------
+     * Find the previous sibling line.
+     * Returns null if no previous sibling, the line otherwise.
+     * The sibling is a title (Th, Tu or To), not a line (Lh nor Lu nor Lo)
+     * @param  {line} line     Rhe starting line for which we search a sibling
+     * @param  {number} depthAbs [optional] If the siblings we search is not
+     *                           of the same absolute depth
+     * @return {line}          The previous sibling if one, null otherwise
+    ###
+    _findPrevSibling : (line, depth)->
+        if !depth?
+            depth = line.lineDepthAbs
+
+        prevSib = line.linePrev
+        loop    
+            if prevSib == null or prevSib.lineDepthAbs < depth
+                prevSib = null
+                break
+            else if prevSib.lineDepthAbs == depth && prevSib.lineType[0] == 'T'
+                break
+            prevSib = prevSib.linePrev
+        return prevSib
+
 
 
     ###*
@@ -1089,7 +1144,7 @@ class exports.CNeditor
         endOfLineFragment = selection.cloneEndFragment range, endLine
 
         # Adapt end line type if needed.
-        @_adaptEndLineType startLine, endLine 
+        @_adaptEndLineType startLine, endLine, endLineDepth
 
         # Delete selection and adapt remaining parts consequently.
         range.deleteContents()
@@ -1209,10 +1264,10 @@ class exports.CNeditor
 
     # adapt the type of endLine and of its children to startLine 
     # the only useful case is when endLine must be changed from Th to Tu or To
-    _adaptEndLineType: (startLine, endLine) ->
+    _adaptEndLineType: (startLine, endLine, endLineDepth) ->
         endLineType = endLine.lineType
         startLineType = startLine.lineType
-        if endLineType[1] is 'h' and startLineType[1] is not 'h'
+        if endLineType[1] is 'h' and startLineType[1] isnt 'h'
             if endLineType[0] is 'L'
                 endLineType = 'T' + endLineType[1]
                 endLine.line$.prop "class","#{endLineType}-#{endLineDepth}"
@@ -1410,8 +1465,6 @@ class exports.CNeditor
     #   rangeIsEndLine   : true if the range ends at the end of the last line
     #   rangeIsStartLine : true if the range starts at the start of 1st line
     ###
-    
-
     _findLinesAndIsStartIsEnd : ->
         
         sel                = @getEditorSelection()
@@ -1421,20 +1474,15 @@ class exports.CNeditor
         initialStartOffset = range.startOffset
         initialEndOffset   = range.endOffset
 
-        # find endLine and the rangeIsEndLine
+        # find startLine and the rangeIsStartLine
         {div,isStart,noMatter} = selection.getLineDivIsStartIsEnd(
                                             startContainer, initialStartOffset)
         startLine = @_lines[div.id]
-        # newHtml = 'startDiv=' + div.id   \
-        #         + ' isStart:' + isStart 
-        # console.log newHtml
 
+        # find endLine and the rangeIsEndLine
         {div,noMatter,isEnd,} = selection.getLineDivIsStartIsEnd(
                                             endContainer, initialEndOffset)
         endLine = @_lines[div.id]
-        # newHtml = 'startDiv=' + div.id   \
-        #         + ' isEnd:  ' + isEnd
-        # console.log newHtml
 
         # result
         @currentSel =

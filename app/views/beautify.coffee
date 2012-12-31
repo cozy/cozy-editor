@@ -43,10 +43,9 @@ unpacker_filter = (source) ->
   # source = unpacker_filter(MyObfuscate.unpack(source))  if MyObfuscate.detect(source)
   # trailing_comments + source
 
-exports.beautify = (ed$) ->
+exports.beautify = (source) ->
   return  if the.beautify_in_progress
   the.beautify_in_progress = true
-  source = ed$.html()
   comment_mark = "<-" + "-"
   opts =
     indent_size: 2
@@ -58,14 +57,7 @@ exports.beautify = (ed$) ->
     space_before_conditional: true
     indent_scripts: "normal"
 
-  res$ = $("#preResultText")
-  if res$[0]?
-    res$.text style_html(source, opts)
-  else
-    $("#resultText").html '<pre id="preResultText" contenteditable="true"></pre>'
-    $("#preResultText").text style_html(source, opts)
-    
-
   the.beautify_in_progress = false
+  return style_html(source, opts)
 
 the = beautify_in_progress: false

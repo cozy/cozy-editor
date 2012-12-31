@@ -25,7 +25,6 @@
         option(value="content-full", style="display:block") Full note
         option(value="content-full-marker", style="display:block") Tout en puces
         option(value="content-empty", style="display:block") Empty note
-        option(value="content-full-relative-indent", style="display:block") Avec sommaire
         option(value="test_1", style="display:block") Test numero 1
         option(value="test_2", style="display:block") Test numero 2
         option(value="test_3", style="display:block") Test numero 3
@@ -51,14 +50,17 @@
       #editor-col.ui-layout-center
         #well-editor.monWell
           // boutons for the editor
-          #editorBtnBar.btn-group
-            button#indentBtn.btn.btn-small.btn-inverse Indent
-            button#unIndentBtn.btn.btn-small.btn-inverse Un-indent
-            button#markerListBtn.btn.btn-small.btn-inverse - Marker list
-            button#titleBtn.btn.btn-small.btn-inverse 1.1.2 Title
-            button#clearBtn.btn.btn-small.btn-inverse Clear
-            button#undoBtn.btn.btn-small.btn-inverse undo
-            button#redoBtn.btn.btn-small.btn-inverse redo
+          #editorBtnBar
+            .btn-group.btn-bar-editor
+              button#indentBtn.btn.btn-small.btn-inverse Indent
+              button#unIndentBtn.btn.btn-small.btn-inverse Un-indent
+              button#markerListBtn.btn.btn-small.btn-inverse - Marker list
+              button#titleBtn.btn.btn-small.btn-inverse 1.1.2 Title
+              button#clearBtn.btn.btn-small.btn-inverse Clear
+              button#undoBtn.btn.btn-small.btn-inverse undo
+              button#redoBtn.btn.btn-small.btn-inverse redo
+            .btn-group.btn-bar-editor
+              button#editor2Btn.btn.btn-small.btn-inverse Editor 2
           // text for the editor
           #editorContent
             iframe#editorIframe2()
@@ -74,7 +76,7 @@
               button#checkBtn.btn.btn-small Test syntax
               button#summaryBtn.btn.btn-small Display Summary
             div#resultTextDiv
-              div#resultText
+              pre#resultText
           #recordings.ui-layout-center
             #recordBtnBar.btn-group
               button#record-button.btn.btn-small Record
