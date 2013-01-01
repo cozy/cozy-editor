@@ -28,6 +28,26 @@ if require?
         md2cozy = require('./md2cozy').md2cozy
     if not selection?
         selection = require('./selection').selection
+  
+###*
+ * line$        : 
+ * lineID       : 
+ * lineType     : 
+ * lineDepthAbs : 
+ * lineDepthRel : 
+ * lineNext     : 
+ * linePrev     : 
+###
+class Line
+
+    setType : (type) ->
+        @lineType = type
+        @line$.prop('class',"#{type}-#{@lineDepthAbs}")
+
+    setDepthAbs : (absDepth) ->
+        @lineDepthAbs = type
+        @line$.prop('class',"#{@lineType}-#{lineDepthAbs}")
+        
 
 class exports.CNeditor
 
@@ -282,12 +302,12 @@ class exports.CNeditor
         # instead of insertions of markers (their deletions split text nodes...)
         # 
         # Record last pressed shortcut and eventually update the history
-        # if @_lastKey != shortcut and \
-        #        shortcut in ["-tab", "-return", "-backspace", "-suppr",
-        #                     "CtrlShift-down", "CtrlShift-up",
-        #                     "CtrlShift-left", "CtrlShift-right",
-        #                     "Ctrl-V", "Shift-tab", "-space", "-other"]
-        #     @_addHistory()
+        if @_lastKey != shortcut and \
+               shortcut in ["-tab", "-return", "-backspace", "-suppr",
+                            "CtrlShift-down", "CtrlShift-up",
+                            "CtrlShift-left", "CtrlShift-right",
+                            "Ctrl-V", "Shift-tab", "-space", "-other"]
+            @_addHistory()
            
         @_lastKey = shortcut
 
@@ -635,8 +655,7 @@ class exports.CNeditor
                     lineTypeTarget = false
 
             if lineTypeTarget
-                line.line$.prop("class","#{lineTypeTarget}-#{line.lineDepthAbs}")
-                line.lineType = lineTypeTarget
+                line.setType(lineTypeTarget)
             if line.lineID == endLineID
                 break
             else
@@ -701,21 +720,17 @@ class exports.CNeditor
                     while l!=null and l.lineDepthAbs >= line.lineDepthAbs
                         if l.lineDepthAbs == line.lineDepthAbs
                             if l.lineType == 'Tu'
-                                l.line$.prop("class","Th-#{line.lineDepthAbs}")
-                                l.lineType = 'Th'
+                                l.setType('Th')
                             else
-                                l.line$.prop("class","Lh-#{line.lineDepthAbs}")
-                                l.lineType = 'Lh'
+                                l.setType('Lh')
                         l=l.lineNext
                     l = line.linePrev
                     while l!=null and l.lineDepthAbs >= line.lineDepthAbs
                         if l.lineDepthAbs == line.lineDepthAbs
                             if l.lineType == 'Tu'
-                                l.line$.prop("class","Th-#{line.lineDepthAbs}")
-                                l.lineType = 'Th'
+                                l.setType('Th')
                             else
-                                l.line$.prop("class","Lh-#{line.lineDepthAbs}")
-                                l.lineType = 'Lh'
+                                l.setType('Lh')
                         l=l.linePrev
 
                 when 'Th'
@@ -725,21 +740,17 @@ class exports.CNeditor
                     while l!=null and l.lineDepthAbs >= line.lineDepthAbs
                         if l.lineDepthAbs == line.lineDepthAbs
                             if l.lineType == 'Th'
-                                l.line$.prop("class","Tu-#{line.lineDepthAbs}")
-                                l.lineType = 'Tu'
+                                l.setType('Tu')
                             else
-                                l.line$.prop("class","Lu-#{line.lineDepthAbs}")
-                                l.lineType = 'Lu'
+                                l.setType('Lu')
                         l=l.lineNext
                     l = line.linePrev
                     while l!=null and l.lineDepthAbs >= line.lineDepthAbs
                         if l.lineDepthAbs == line.lineDepthAbs
                             if l.lineType == 'Th'
-                                l.line$.prop("class","Tu-#{line.lineDepthAbs}")
-                                l.lineType = 'Tu'
+                                l.setType('Tu')
                             else
-                                l.line$.prop("class","Lu-#{line.lineDepthAbs}")
-                                l.lineType = 'Lu'
+                                l.setType('Lu')
                         l=l.linePrev
                 # when 'Lh'
                 #     lineTypeTarget = 'Th'
@@ -747,9 +758,10 @@ class exports.CNeditor
                 #     lineTypeTarget = 'Tu'
                 else
                     lineTypeTarget = false
+
             if lineTypeTarget
-                line.line$.prop("class","#{lineTypeTarget}-#{line.lineDepthAbs}")
-                line.lineType = lineTypeTarget
+                line.setType(lineTypeTarget)
+
             if line.lineID == endDiv.id
                 break
             else
@@ -789,77 +801,52 @@ class exports.CNeditor
 
     _tabLine : (line) ->
         switch line.lineType
-            when 'Tu','Th'
+            when 'Tu','Th','To'
                 # find previous sibling to check if a tab is possible.
-                linePrevSibling = @_findPrevSibling(line)
-                if linePrevSibling == null
-                    isTabAllowed=false
+                prevSibling = @_findPrevSibling(line)
+                if prevSibling == null
+                    return
+                # determine new lineType
+                if prevSibling.lineType == 'Th'
+                    typeTarget = 'Lh'
+                else if prevSibling.lineType == 'Tu'
+                    typeTarget = 'Lu'
                 else
-                    isTabAllowed=true
-                    # determine new lineType
-                    if linePrevSibling.lineType == 'Th'
-                        typeTarget = 'Lh'
-                    else
-                        if linePrevSibling.lineType == 'Tu'
-                            typeTarget = 'Lu'
-                        else
-                            typeTarget = 'Lo'
-                        if line.lineType == 'Th'
-                            # in case of a Th => Lx then all the following 
-                            # siblings must be turned to Tx and Lh into Lx
-                            # first we must find the previous sibling line                                
-                            # linePrevSibling = @_findPrevSibling(line)
-                            # linePrev = line.linePrev
-                            # while linePrev.lineDepthAbs > firstChild
-                            #     textContent
-                            lineNext = line.lineNext
-                            while lineNext != null and lineNext.lineDepthAbs > line.lineDepthAbs
-                                switch lineNext.lineType
-                                    when 'Th'
-                                        lineNext.lineType = 'Tu'
-                                        line.line$.prop("class","Tu-#{lineNext.lineDepthAbs}")
-                                        nextLineType = prevTxType
-                                    when 'Tu'
-                                        nextLineType = 'Lu'
-                                    when 'To'
-                                        nextLineType = 'Lo'
-                                    when 'Lh'
-                                        lineNext.lineType = nextLineType
-                                        line.line$.prop("class","#{nextLineType}-#{lineNext.lineDepthAbs}")
+                    typeTarget = 'Lo'
+                if line.lineType == 'Th'
+                    # in case of a Th => Lx then all the following 
+                    # siblings must be turned to Tx and Lh into Lx
+                    # first we must find the previous sibling line
+                    # prevSibling = @_findPrevSibling(line)
+                    # linePrev = line.linePrev
+                    # while linePrev.lineDepthAbs > firstChild
+                    #     textContent
+                    lineNext = line.lineNext
+                    while lineNext != null and lineNext.lineDepthAbs > line.lineDepthAbs
+                        switch lineNext.lineType
+                            when 'Th'
+                                lineNext.lineType = 'Tu'
+                                line.line$.prop("class","Tu-#{lineNext.lineDepthAbs}")
+                                nextLineType = prevTxType
+                            when 'Tu'
+                                nextLineType = 'Lu'
+                            when 'To'
+                                nextLineType = 'Lo'
+                            when 'Lh'
+                                lineNext.lineType = nextLineType
+                                line.line$.prop("class","#{nextLineType}-#{lineNext.lineDepthAbs}")
             when 'Lh', 'Lu', 'Lo'
-                isTabAllowed   = true
                 depthAbsTarget = line.lineDepthAbs + 1
 
                 # find next sibling
                 nextSib = @_findNextSibling(line, depthAbsTarget)
-                
-                # nextSib = line.lineNext
-                # loop    
-                #     if nextSib == null or nextSib.lineDepthAbs < depthAbsTarget
-                #         nextSib = null
-                #         break
-                #     else if nextSib.lineType[0] == 'T'
-                #         break
-                #     nextSib = nextSib.lineNext
                 nextSibType = if nextSib == null then null else nextSib.lineType
 
                 # find previous sibling
                 prevSib = @_findPrevSibling(line, depthAbsTarget)
                 prevSibType = if prevSib == null then null else prevSib.lineType
 
-                # If there are no siblings => Tu
-                # If There are 2 identical, => use their type
-                # If the 2 siblings have different types => Tu
-                if  prevSibType == nextSibType == null
-                    typeTarget = 'Tu'
-                else if prevSibType == nextSibType
-                    typeTarget = nextSibType
-                else if prevSibType == null
-                    typeTarget = nextSibType
-                else if nextSibType == null
-                    typeTarget = prevSibType
-                else
-                    typeTarget = 'Tu'
+                typeTarget = @_chooseTypeTarget(prevSibType,nextSibType)
                 
                 if typeTarget == 'Th'
                     line.lineDepthAbs += 1
@@ -867,9 +854,26 @@ class exports.CNeditor
                 else
                     line.lineDepthAbs += 1
                     line.lineDepthRel += 1
-        if isTabAllowed
-            line.line$.prop("class","#{typeTarget}-#{line.lineDepthAbs}")
-            line.lineType = typeTarget
+
+        line.setType(typeTarget)
+
+    _chooseTypeTarget : (prevSibType,nextSibType) ->
+        # If there are no siblings => Tu
+        if  prevSibType == nextSibType == null
+            typeTarget = 'Tu'
+        # If There are 2 identical, => use their type
+        else if prevSibType == nextSibType
+            typeTarget = nextSibType
+        # If only one sibling, use its type
+        else if prevSibType == null
+            typeTarget = nextSibType
+        # If only one sibling, use its type
+        else if nextSibType == null
+            typeTarget = prevSibType
+        # If the two siblings have differents types => Tu
+        else
+            typeTarget = 'Tu'
+        return typeTarget
 
     ### ------------------------------------------------------------------------
     #  shiftTab
@@ -908,43 +912,51 @@ class exports.CNeditor
                     parent = parent.linePrev
                 if parent != null
                     isTabAllowed   = true
-                    # if lineNext is a Lx, then it must be turned in a Tx
+                    # if lineNext is a Lx of line, then it must be turned in a Tx
                     if line.lineNext? and 
                       line.lineNext.lineType[0] == 'L' and
                       line.lineNext.lineDepthAbs == line.lineDepthAbs
                         nextL = line.lineNext
-                        nextL.lineType = 'T'+nextL.lineType[1]
-                        nextL.line$.prop('class',"#{nextL.lineType}-#{nextL.lineDepthAbs}")
+                        nextL.setType('T'+nextL.lineType[1])
                     # if the line under is already deaper, all sons must have
                     # their depth reduced
                     if line.lineNext? and line.lineNext.lineDepthAbs > line.lineDepthAbs
                         nextL = line.lineNext
                         while nextL.lineDepthAbs > line.lineDepthAbs
-                            nextL.lineDepthAbs -=  1
-                            nextL.line$.prop('class',"#{nextL.lineType}-#{nextL.lineDepthAbs}")
+                            nextL.setDepthAbs(nextL.lineDepthAbs - 1)
                             nextL = nextL.lineNext
                         if nextL? and nextL.lineType[0]=='L'
-                            nextL.lineType = 'T'+nextL.lineType[1]
-                            nextL.line$.prop('class',"#{nextL.lineType}-#{nextL.lineDepthAbs}")
-                    lineTypeTarget = parent.lineType
-                    lineTypeTarget = "L" + lineTypeTarget.charAt(1)
+                            nextL.setType('T'+nextL.lineType[1])
+                    typeTarget = parent.lineType
+                    typeTarget = "L" + typeTarget.charAt(1)
                     line.lineDepthAbs -= 1
                     line.lineDepthRel -= parent.lineDepthRel
-
                 else
                     isTabAllowed = false
-            when 'Lh'
-                isTabAllowed=true
-                lineTypeTarget     = 'Th'
-            when 'Lu'
-                isTabAllowed=true
-                lineTypeTarget     = 'Tu'
-            when 'Lo'
-                isTabAllowed=true
-                lineTypeTarget     = 'To'
+
+            when 'Lh', 'Lu', 'Lo'
+                isTabAllowed   = true
+                depthAbsTarget = line.lineDepthAbs - 1
+
+                # find next sibling
+                nextSib = @_findNextSibling(line, depthAbsTarget)
+                nextSibType = if nextSib == null then null else nextSib.lineType
+                
+                # find previous sibling
+                prevSib = @_findPrevSibling(line, depthAbsTarget)
+                prevSibType = if prevSib == null then null else prevSib.lineType
+
+                typeTarget = @_chooseTypeTarget(prevSibType,nextSibType)
+                
+                if typeTarget == 'Th'
+                    line.lineDepthAbs -= 1
+                    line.lineDepthRel  = 0
+                else
+                    line.lineDepthAbs -= 1
+                    line.lineDepthRel -= 1
+
         if isTabAllowed
-            line.line$.prop("class","#{lineTypeTarget}-#{line.lineDepthAbs}")
-            line.lineType = lineTypeTarget
+            line.setType(typeTarget)
 
 
 
@@ -1195,8 +1207,7 @@ class exports.CNeditor
             if deltaDepth1stLine > 1
                 while line!= null and line.lineDepthAbs >= endLineDepthAbs
                     newDepth = line.lineDepthAbs - deltaDepth
-                    line.lineDepthAbs = newDepth
-                    line.line$.prop("class","#{line.lineType}-#{newDepth}")
+                    line.setDepthAbs(newDepth)
                     line = line.lineNext
                     
         if line != null
@@ -1206,9 +1217,7 @@ class exports.CNeditor
             if line.lineType[0] == 'L'
                 if !(     startLine.lineType[1]  == line.lineType[1]      \
                       and startLine.lineDepthAbs == line.lineDepthAbs )
-                    line.lineType = 'T' + line.lineType[1]
-                    line.line$.prop('class',"#{line.lineType}-#{line.lineDepthAbs}")
-
+                    line.setType('T' + line.lineType[1])
 
             # find the previous sibling, adjust type to its type.
             firstLineAfterSiblingsOfDeleted = line
@@ -1269,8 +1278,7 @@ class exports.CNeditor
         startLineType = startLine.lineType
         if endLineType[1] is 'h' and startLineType[1] isnt 'h'
             if endLineType[0] is 'L'
-                endLineType = 'T' + endLineType[1]
-                endLine.line$.prop "class","#{endLineType}-#{endLineDepth}"
+                endLine.setType('T' + endLineType[1])
             @markerList endLine
 
 
@@ -1333,14 +1341,23 @@ class exports.CNeditor
             newLine$ = $(sourceLine.line$[0].parentNode.insertBefore(newLine$[0], nextSibling))
         
         # 3 - update references in _lines[], lineNext and linePrev
-        newLine    =
-            line$        : newLine$
-            lineID       : lineID
-            lineType     : p.targetLineType
-            lineDepthAbs : p.targetLineDepthAbs
-            lineDepthRel : p.targetLineDepthRel
-            lineNext     : sourceLine.lineNext
-            linePrev     : sourceLine
+        newLine = new Line()
+        newLine.line$        = newLine$
+        newLine.lineID       = lineID
+        newLine.lineType     = p.targetLineType
+        newLine.lineDepthAbs = p.targetLineDepthAbs
+        newLine.lineDepthRel = p.targetLineDepthRel
+        newLine.lineNext     = sourceLine.lineNext
+        newLine.linePrev     = sourceLine
+        # newLine    =
+        #     line$        : newLine$
+        #     lineID       : lineID
+        #     lineType     : p.targetLineType
+        #     lineDepthAbs : p.targetLineDepthAbs
+        #     lineDepthRel : p.targetLineDepthRel
+        #     lineNext     : sourceLine.lineNext
+        #     linePrev     : sourceLine
+
         @_lines[lineID] = newLine
         if sourceLine.lineNext != null
             sourceLine.lineNext.linePrev = newLine
@@ -1379,14 +1396,14 @@ class exports.CNeditor
         newLine$ = $(newLineEl)
         sourceLine = p.sourceLine
         newLine$ = newLine$.insertBefore(sourceLine.line$)
-        newLine =
-            line$        : newLine$
-            lineID       : lineID
-            lineType     : p.targetLineType
-            lineDepthAbs : p.targetLineDepthAbs
-            lineDepthRel : p.targetLineDepthRel
-            lineNext     : sourceLine
-            linePrev     : sourceLine.linePrev
+        newLine = new Line()
+        newLine.line$        = newLine$
+        newLine.lineID       = lineID
+        newLine.lineType     = p.targetLineType
+        newLine.lineDepthAbs = p.targetLineDepthAbs
+        newLine.lineDepthRel = p.targetLineDepthRel
+        newLine.lineNext     = sourceLine
+        newLine.linePrev     = sourceLine.linePrev
         @_lines[lineID] = newLine
         if sourceLine.linePrev != null
             sourceLine.linePrev.lineNext = newLine
@@ -1625,14 +1642,22 @@ class exports.CNeditor
                 lineID=(parseInt(lineID,10)+1)
                 lineID_st = "CNID_"+lineID
                 htmlLine$.prop("id",lineID_st)
-                lineNew =
-                    line$        : htmlLine$
-                    lineID       : lineID_st
-                    lineType     : lineType
-                    lineDepthAbs : lineDepthAbs
-                    lineDepthRel : lineDepthRel
-                    lineNext     : null
-                    linePrev     : linePrev
+                lineNew = new Line()
+                lineNew.line$        = htmlLine$
+                lineNew.lineID       = lineID_st
+                lineNew.lineType     = lineType
+                lineNew.lineDepthAbs = lineDepthAbs
+                lineNew.lineDepthRel = lineDepthRel
+                lineNew.lineNext     = null
+                lineNew.linePrev     = linePrev
+                # lineNew =
+                #     line$        : htmlLine$
+                #     lineID       : lineID_st
+                #     lineType     : lineType
+                #     lineDepthAbs : lineDepthAbs
+                #     lineDepthRel : lineDepthRel
+                #     lineNext     : null
+                #     linePrev     : linePrev
                 if linePrev != null then linePrev.lineNext = lineNew
                 linePrev = lineNew
                 @_lines[lineID_st] = lineNew
@@ -1696,14 +1721,22 @@ class exports.CNeditor
         if lineNext != null
             
             # 1 - save lineNext
-            cloneLine =
-                line$        : lineNext.line$.clone()
-                lineID       : lineNext.lineID
-                lineType     : lineNext.lineType
-                lineDepthAbs : lineNext.lineDepthAbs
-                lineDepthRel : lineNext.lineDepthRel
-                linePrev     : lineNext.linePrev
-                lineNext     : lineNext.lineNext
+            cloneLine = new Line()
+            cloneLine.line$        = lineNext.line$.clone()
+            cloneLine.lineID       = lineNext.lineID
+            cloneLine.lineType     = lineNext.lineType
+            cloneLine.lineDepthAbs = lineNext.lineDepthAbs
+            cloneLine.lineDepthRel = lineNext.lineDepthRel
+            cloneLine.linePrev     = lineNext.linePrev
+            cloneLine.lineNext     = lineNext.lineNext
+            # cloneLine =
+            #     line$        : lineNext.line$.clone()
+            #     lineID       : lineNext.lineID
+            #     lineType     : lineNext.lineType
+            #     lineDepthAbs : lineNext.lineDepthAbs
+            #     lineDepthRel : lineNext.lineDepthRel
+            #     linePrev     : lineNext.linePrev
+            #     lineNext     : lineNext.lineNext
 
             # savedSel = @saveEditorSelection()
                 
@@ -1834,14 +1867,22 @@ class exports.CNeditor
             isSecondLine = (linePrev.linePrev == null)
                         
             # 1 - save linePrev
-            cloneLine =
-                line$        : linePrev.line$.clone()
-                lineID       : linePrev.lineID
-                lineType     : linePrev.lineType
-                lineDepthAbs : linePrev.lineDepthAbs
-                lineDepthRel : linePrev.lineDepthRel
-                linePrev     : linePrev.linePrev
-                lineNext     : linePrev.lineNext
+            cloneLine = new Line()
+            cloneLine.line$        = linePrev.line$.clone()
+            cloneLine.lineID       = linePrev.lineID
+            cloneLine.lineType     = linePrev.lineType
+            cloneLine.lineDepthAbs = linePrev.lineDepthAbs
+            cloneLine.lineDepthRel = linePrev.lineDepthRel
+            cloneLine.linePrev     = linePrev.linePrev
+            cloneLine.lineNext     = linePrev.lineNext
+            # cloneLine =
+            #     line$        : linePrev.line$.clone()
+            #     lineID       : linePrev.lineID
+            #     lineType     : linePrev.lineType
+            #     lineDepthAbs : linePrev.lineDepthAbs
+            #     lineDepthRel : linePrev.lineDepthRel
+            #     linePrev     : linePrev.linePrev
+            #     lineNext     : linePrev.lineNext
             
             # 2 - Delete linePrev content then restore initial selection
             # TODO BJA : ensure this call don't pass a null param

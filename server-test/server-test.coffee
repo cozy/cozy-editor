@@ -1,3 +1,14 @@
+###*
+ * A simple server to save tests recorded in the client
+ * Runs on port 3000 (http://localhost:3000)
+ * Paths :
+ | Path     | Method | Description          |
+ | /        | all    | ../public/index.html |
+ | /records | put    | deleteRecord         |
+ | /records | get    | get                  |
+ | /records | post   | save                 |
+###
+
 fs = require('fs')
 express = require('express')
 app = express()
@@ -32,10 +43,10 @@ saveToFile = (req, res) ->
     reqData = req.body
 
     newFileNum = newFileNumber()+''
-    zeros = newFilledArray(4-newFileNum.length,'0')
-    zeros = zeros.join('')
-    fileName = zeros + newFileNum + '-' + reqData.title
-    data =
+    zeros      = newFilledArray(4-newFileNum.length,'0')
+    zeros      = zeros.join('')
+    fileName   = zeros + newFileNum + '-' + reqData.title
+    data       =
         id           : newFileNum
         fileName     : fileName
         title        : reqData.title
@@ -44,7 +55,6 @@ saveToFile = (req, res) ->
         initialState : reqData.initialState
         finalState   : reqData.finalState
     path = '../test/test-cases/' +  fileName
-    # fs.writeFileSync(path, JSON.stringify(data))
     fs.writeFileSync(path, JSON.stringify(data))
     res.send
         id          : newFileNum
@@ -75,7 +85,7 @@ newFilledArray = (length, val) ->
         i++
     return array
 
-app.put '/records/' , deleteRecord
-app.get '/records/' , getAllRecords
-app.post '/records/', saveToFile
+app.put  '/records/' , deleteRecord
+app.get  '/records/' , getAllRecords
+app.post '/records/' , saveToFile
 app.listen 3000
