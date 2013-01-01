@@ -39,6 +39,80 @@ if require?
  * linePrev     : 
 ###
 class Line
+    ###*
+     * If no arguments, returns an empty object (only methods), otherwise
+     * constructs a full line. The dom element of the line is inserted according
+     * to the previous or next line given in the arguments.
+     * @param  {Array}  Array of parameters :
+     *   [ 
+            editor        , # 
+            type          , # 
+            depthAbs      , # 
+            depthRelative , # 
+            prevLine      , # The prev line, null if nextLine is given
+            nextLine      , # The next line, null if prevLine is given
+            fragment        # [optional] a fragment to insert in the line, no br at the end
+          ]
+    ###
+    constructor : ( ) ->
+        if arguments.length == 0
+            return
+        else
+            [ 
+              editor        , # 
+              type          , # 
+              depthAbs      , # 
+              depthRelative , # 
+              prevLine      , # The prev line, null if nextLine is given
+              nextLine      , # The next line, null if prevLine is given
+              fragment        # [optional] a fragment to insert in the line, no br at the end
+            ] = arguments
+
+        editor._highestId += 1
+        lineID = 'CNID_' + editor._highestId
+        newLineEl = document.createElement('div')
+        newLineEl.id = lineID
+        newLineEl.setAttribute('class', type + '-' + depthAbs)
+        if fragment?
+            newLineEl.appendChild(fragment)
+            newLineEl.appendChild(document.createElement('br'))
+        else
+            node = document.createElement('span')
+            node.appendChild(document.createTextNode(''))
+            newLineEl.appendChild(node)
+            newLineEl.appendChild(document.createElement('br'))
+        @line$ = $(newLineEl)
+        
+        if prevLine?
+            @.linePrev = prevLine
+            if prevLine.lineNext?
+                nextL = prevLine.lineNext
+                editor.linesDiv.insertBefore(newLineEl,nextL.line$[0])
+                @.lineNext     = nextL
+                nextL.linePrev = @
+            else
+                editor.linesDiv.appendChild(newLineEl)
+                @.lineNext = null
+            prevLine.lineNext = @
+            
+        else if nextLine?
+            @.lineNext = nextLine
+            editor.linesDiv.insertBefore(newLineEl,nextLine.line$[0])
+            if nextLine.linePrev? 
+                @.linePrev = nextLine.linePrev
+                nextLine.linePrev.lineNext = @
+            else
+                @.linePrev = null
+            nextLine.linePrev = @
+            
+        @.lineID       = lineID
+        @.lineType     = type
+        @.lineDepthAbs = depthAbs
+        @.lineDepthRel = depthRelative
+        @.linePrev     = prevLine
+        @.lineNext     = nextLine
+        editor._lines[lineID] = @
+        
 
     setType : (type) ->
         @lineType = type
@@ -47,7 +121,17 @@ class Line
     setDepthAbs : (absDepth) ->
         @lineDepthAbs = absDepth
         @line$.prop('class',"#{@lineType}-#{absDepth}")
-        
+
+Line.clone = (line) ->
+    clone = new Line()
+    clone.line$        = line.line$.clone()
+    clone.lineID       = line.lineID
+    clone.lineType     = line.lineType
+    clone.lineDepthAbs = line.lineDepthAbs
+    clone.lineDepthRel = line.lineDepthRel
+    clone.linePrev     = line.linePrev
+    clone.lineNext     = line.lineNext
+    return clone
 
 class exports.CNeditor
 
@@ -606,8 +690,14 @@ class exports.CNeditor
         else
             range = @getEditorSelection().getRangeAt(0)
 
-            startDiv = selection.getLineDiv range.startContainer, range.startOffset
-            endDiv = selection.getLineDiv range.endContainer, range.endOffset
+            startDiv = selection.getLineDiv(
+                    range.startContainer, 
+                    range.startOffset
+                )
+            endDiv = selection.getLineDiv(
+                    range.endContainer, 
+                    range.endOffset
+                )
                 
             # 2- find first and last div corresponding to the 1rst and
             #    last selected lines
@@ -784,8 +874,14 @@ class exports.CNeditor
             sel   = @getEditorSelection()
             range = sel.getRangeAt(0)
 
-            startDiv = selection.getLineDiv range.startContainer, range.startOffset
-            endDiv = selection.getLineDiv range.endContainer, range.endOffset
+            startDiv = selection.getLineDiv(
+                    range.startContainer, 
+                    range.startOffset
+                )
+            endDiv = selection.getLineDiv(
+                    range.endContainer, 
+                    range.endOffset
+                )
         
         endLineID = endDiv.id
 
@@ -799,6 +895,7 @@ class exports.CNeditor
                 break
             else
                 line = line.lineNext
+
 
     _tabLine : (line) ->
         switch line.lineType
@@ -995,7 +1092,6 @@ class exports.CNeditor
             )
             # Position caret
             range4sel = rangy.createRange()
-            #range4sel.collapseToPoint(newLine.line$[0].firstChild.childNodes[0],0)
             range4sel.collapseToPoint(newLine.line$[0].firstChild,0)
             
             currSel.sel.setSingleRange(range4sel)
@@ -1027,7 +1123,7 @@ class exports.CNeditor
                 linePrev = linePrev.linePrev
             return linePrev
         else
-            while linePrev != null and linePrev.lineDepthAbs > (lineDepthAbs - 2)
+            while linePrev != null and linePrev.lineDepthAbs > (lineDepthAbs-2)
                 linePrev = linePrev.linePrev
             return linePrev.lineNext
 
@@ -1143,23 +1239,6 @@ class exports.CNeditor
 
         # Place caret
         if replaceCaret
-            # if selection was at the beginning of the line
-            # if startOffset == 0
-            #     if prevStartLine? or nextEndLine?
-            #         if startLine?
-            #             startContainer = startLine.line$[0].firstChild.firstChild
-            #         else
-            #             startContainer = nextEndLine.line$[0]
-            #     else
-            #         # full selection case (ctrl+A)
-            #         console.log "ctrl a"
-                    
-            #         startContainer = startLine.line$[0].lastChild
-            #         console.log startContainer
-                    
-            # else
-            #     startContainer = startLine.line$[0].firstChild.firstChild
-            
             @_setCaret(startContainer, startOffset)
 
 
@@ -1277,63 +1356,15 @@ class exports.CNeditor
     #     targetLineDepthRel : relative depth of the line to add
     ###
     _insertLineAfter : (p) ->
-        
-        # 1 - creation of the element of the line (newLine$)
-        @_highestId += 1
-        lineID          = 'CNID_' + @_highestId
-        if p.fragment?
-            newLine$ = $("<div id='#{lineID}' class='#{p.targetLineType}-#{p.targetLineDepthAbs}'></div>")
-            newLine$.append( p.fragment )
-            if newLine$[0].childNodes.length == 0 or newLine$[0].lastChild.nodeName != 'BR'
-                newLine$.append('<br>')
-        else if p.innerHTML?
-            newLine$ = $("<div id='#{lineID}' class='#{p.targetLineType}-#{p.targetLineDepthAbs}'>
-                #{p.innerHTML}</div>")
-            if newLine$[0].lastChild.nodeName != 'BR'
-                newLine$.append('<br>')
-        else
-            newLine = document.createElement('div')
-            newLine.id = lineID
-            newLine.setAttribute('class',p.targetLineType + '-' + p.targetLineDepthAbs)
-            # newLine$ = $("<div id='#{lineID}' class='#{p.targetLineType}-#{p.targetLineDepthAbs}'></div>")
-            node = document.createElement('span')
-            node.appendChild(document.createTextNode(''))
-            newLine.appendChild(node)
-            newLine.appendChild(document.createElement('br'))
-            newLine$ = $(newLine)
-            # newLine$.append($('<span></span><br>'))
-        sourceLine = p.sourceLine
-        
-        # 2 - insertion of newLine$ in the fragment
-        nextSibling = sourceLine.line$[0].nextSibling
-        if nextSibling == null
-            sourceLine.line$[0].parentNode.appendChild(newLine$[0])
-        else
-            newLine$ = $(sourceLine.line$[0].parentNode.insertBefore(newLine$[0], nextSibling))
-        
-        # 3 - update references in _lines[], lineNext and linePrev
-        newLine = new Line()
-        newLine.line$        = newLine$
-        newLine.lineID       = lineID
-        newLine.lineType     = p.targetLineType
-        newLine.lineDepthAbs = p.targetLineDepthAbs
-        newLine.lineDepthRel = p.targetLineDepthRel
-        newLine.lineNext     = sourceLine.lineNext
-        newLine.linePrev     = sourceLine
-        # newLine    =
-        #     line$        : newLine$
-        #     lineID       : lineID
-        #     lineType     : p.targetLineType
-        #     lineDepthAbs : p.targetLineDepthAbs
-        #     lineDepthRel : p.targetLineDepthRel
-        #     lineNext     : sourceLine.lineNext
-        #     linePrev     : sourceLine
-
-        @_lines[lineID] = newLine
-        if sourceLine.lineNext != null
-            sourceLine.lineNext.linePrev = newLine
-        sourceLine.lineNext = newLine
-
+        newLine    = new Line(
+                @                    , # editor
+                p.targetLineType     , # type
+                p.targetLineDepthAbs , # depth abs
+                p.targetLineDepthRel , # depth relative
+                p.sourceLine         , # previous line
+                null                 , # next line
+                p.fragment             # fragment
+            )
         return newLine
 
 
@@ -1343,7 +1374,7 @@ class exports.CNeditor
     # 
     # Insert a line before a source line
     # p = 
-    #     sourceLine         : ID of the line before which a line will be added
+    #     sourceLine         : Line before which a line will be added
     #     fragment           : [optionnal] - an html fragment that will be added
     #                          the fragment is not supposed to end with a <br>
     #     targetLineType     : type of the line to add
@@ -1351,53 +1382,16 @@ class exports.CNeditor
     #     targetLineDepthRel : relative depth of the line to add
     ###
     _insertLineBefore : (p) ->
-        @_highestId += 1
-        lineID = 'CNID_' + @_highestId
-        newLineEl = document.createElement('div')
-        newLineEl.id = lineID
-        newLineEl.setAttribute('class', p.targetLineType + '-' + p.targetLineDepthAbs )
-        if p.fragment?
-            newLineEl.appendChild(p.fragment)
-            newLineEl.appendChild(document.createElement('br'))
-        else
-            node = document.createElement('span')
-            node.appendChild(document.createTextNode(''))
-            newLineEl.appendChild(node)
-            newLineEl.appendChild(document.createElement('br'))
-        newLine$ = $(newLineEl)
-        sourceLine = p.sourceLine
-        newLine$ = newLine$.insertBefore(sourceLine.line$)
-        newLine = new Line()
-        newLine.line$        = newLine$
-        newLine.lineID       = lineID
-        newLine.lineType     = p.targetLineType
-        newLine.lineDepthAbs = p.targetLineDepthAbs
-        newLine.lineDepthRel = p.targetLineDepthRel
-        newLine.lineNext     = sourceLine
-        newLine.linePrev     = sourceLine.linePrev
-        @_lines[lineID] = newLine
-        if sourceLine.linePrev != null
-            sourceLine.linePrev.lineNext = newLine
-        sourceLine.linePrev=newLine
+        newLine    = new Line(
+                @                    , # editor
+                p.targetLineType     , # type
+                p.targetLineDepthAbs , # depth abs
+                p.targetLineDepthRel , # depth relative
+                null                 , # previous line
+                p.sourceLine         , # next line
+                p.fragment             # fragment
+            )
         return newLine
-
-
-    # _findStartLine: (startContainer) ->
-    #     if startContainer.nodeName == 'DIV'
-    #         # startContainer refers to a div of a line
-    #         startLine = @_lines[ startContainer.id ]
-    #     else   # means the range starts inside a div (span, textNode...)
-    #         startLine = @_lines[selection.getLineDiv(startContainer).id]
-        
-
-    # _findEndLine: (endContainer) ->
-    #     # endContainer refers to a div of a line
-    #     if endContainer.id? and endContainer.id.substr(0,5) == 'CNID_'
-    #         endLine = @_lines[ endContainer.id ]
-    #     # means the range ends inside a div (span, textNode...)
-    #     else
-    #         endLine = @_lines[selection.getLineDiv(endContainer).id]
-    #     endLine
 
 
     ### ------------------------------------------------------------------------
@@ -1417,9 +1411,6 @@ class exports.CNeditor
         if @currentSel is null
             sel = @getEditorSelection()
             range = sel.getRangeAt(0)
-            
-            # startLine = @_findStartLine range.startContainer
-            # endLine = @_findEndLine range.endContainer
             
             startLine = @_lines[selection.getLineDiv(range.startContainer).id]
             endLine   = @_lines[selection.getLineDiv(range.endContainer  ).id]
@@ -1482,102 +1473,6 @@ class exports.CNeditor
             rangeIsEndLine   : isEnd
 
         return @currrentSel
-
-    ### OLD
-    _findLinesAndIsStartIsEnd : ->
-        # if this.currentSel == null
-            
-        # 1- Variables
-        sel                = @getEditorSelection()
-        range              = sel.getRangeAt(0)
-        startContainer     = range.startContainer
-        endContainer       = range.endContainer
-        initialStartOffset = range.startOffset
-        initialEndOffset   = range.endOffset
-
-        # 2- find endLine and the rangeIsEndLine
-        # endContainer refers to a div of a line
-        if endContainer.id? and endContainer.id.substr(0,5) == 'CNID_'
-            endLine = @_lines[ endContainer.id ]
-            # rangeIsEndLine if endOffset points on the last node of the div
-            # or on the one before the last which is a <br>
-            rangeIsEndLine = endContainer.children.length < initialEndOffset or endContainer.children[initialEndOffset].nodeName=="BR"
-        # means the range ends inside a div (span, textNode...)
-        else if $(endContainer).parents("div").length > 0
-            endLineDiv = selection.getLineDiv(endContainer)
-            endLine = @_lines[endLineDiv.id]
-            # rangeIsEndLine if the selection is at the end of the
-            # endContainer and of each of its parents (this approach is more
-            # robust than just considering that the line is a flat
-            # succession of span : maybe one day there will be a table for
-            # instance...)
-            rangeIsEndLine = false
-            # case of a textNode: it must have no nextSibling
-            # and offset must be its length
-            if endContainer.nodeType == Node.TEXT_NODE
-                rangeIsEndLine = endContainer.nextSibling == null and
-                                 initialEndOffset == endContainer.textContent.length
-            # case of another node : it must be a br;
-            # or be followed by a br and have maximal offset.
-            else
-                rangeIsEndLine = endContainer.nodeName=='BR' or
-                                 (endContainer.nextSibling.nodeName=='BR' and
-                                 endContainer.childNodes.length==initialEndOffset)
-                #nextSibling    = endContainer.nextSibling
-                #rangeIsEndLine = (nextSibling == null or nextSibling.nodeName=='BR')
-                #(nextSibling == null or (initialEndOffset==parentEndContainer.textContent.length and nextSibling.nodeName=='BR'))
-            parentEndContainer = endContainer.parentNode
-            while rangeIsEndLine and parentEndContainer.nodeName != "DIV"
-                nextSibling = parentEndContainer.nextSibling
-                rangeIsEndLine = (nextSibling == null or nextSibling.nodeName=='BR')
-                # rangeIsEndLine = endContainer.nodeName=='BR' or
-                #                  (nextSibling.nodeName=='BR' and
-                #                  endContainer.childNodes.length==initialEndOffset)
-                parentEndContainer = parentEndContainer.parentNode
-        else
-            endLine = @_lines["CNID_1"]
-        
-        # 3- find startLine and rangeIsStartLine
-        if startContainer.nodeName == 'DIV' # startContainer refers to a div of a line
-            startLine = @_lines[ startContainer.id ]
-            rangeIsStartLine = initialStartOffset == 0
-            
-        else if $(startContainer).parents("div").length > 0
-            # means the range starts inside a div (span, textNode...)
-        
-            startLine = @_lines[selection.getLineDiv(startContainer).id]
-            # case of a textNode: it must have no previousSibling nor offset
-            if startContainer.nodeType == Node.TEXT_NODE
-                rangeIsStartLine = endContainer.previousSibling == null and
-                                   initialStartOffset == 0
-            else
-                rangeIsStartLine = initialStartOffset == 0
-            
-            parentStartContainer = startContainer.parentNode
-            while rangeIsStartLine && parentStartContainer.nodeName != "DIV"
-                rangeIsStartLine = parentStartContainer.previousSibling == null
-                parentStartContainer = parentStartContainer.parentNode
-        else
-            startLine = @_lines["CNID_1"]
-
-        # Special case of an "empty" line (<span><""></span><br>)
-        if endLine?.line$[0].innerHTML == "<span></span><br>"
-            rangeIsEndLine = true
-        if startLine?.line$[0].innerHTML == "<span></span><br>"
-            rangeIsStartLine = true
-
-        # 4- build result
-        @currentSel =
-            sel              : sel
-            range            : range
-            startLine        : startLine
-            endLine          : endLine
-            rangeIsStartLine : rangeIsStartLine
-            rangeIsEndLine   : rangeIsEndLine
-
-        @currrentSel
-    ###
-        
 
 
     ###  -----------------------------------------------------------------------
@@ -1692,24 +1587,7 @@ class exports.CNeditor
         if lineNext != null
             
             # 1 - save lineNext
-            cloneLine = new Line()
-            cloneLine.line$        = lineNext.line$.clone()
-            cloneLine.lineID       = lineNext.lineID
-            cloneLine.lineType     = lineNext.lineType
-            cloneLine.lineDepthAbs = lineNext.lineDepthAbs
-            cloneLine.lineDepthRel = lineNext.lineDepthRel
-            cloneLine.linePrev     = lineNext.linePrev
-            cloneLine.lineNext     = lineNext.lineNext
-            # cloneLine =
-            #     line$        : lineNext.line$.clone()
-            #     lineID       : lineNext.lineID
-            #     lineType     : lineNext.lineType
-            #     lineDepthAbs : lineNext.lineDepthAbs
-            #     lineDepthRel : lineNext.lineDepthRel
-            #     linePrev     : lineNext.linePrev
-            #     lineNext     : lineNext.lineNext
-
-            # savedSel = @saveEditorSelection()
+            cloneLine = Line.clone(lineNext)
                 
             # 2 - Delete lineNext content then restore initial selection
             # TODO BJA : ensure this call don't pass a null param
@@ -1838,22 +1716,7 @@ class exports.CNeditor
             isSecondLine = (linePrev.linePrev == null)
                         
             # 1 - save linePrev
-            cloneLine = new Line()
-            cloneLine.line$        = linePrev.line$.clone()
-            cloneLine.lineID       = linePrev.lineID
-            cloneLine.lineType     = linePrev.lineType
-            cloneLine.lineDepthAbs = linePrev.lineDepthAbs
-            cloneLine.lineDepthRel = linePrev.lineDepthRel
-            cloneLine.linePrev     = linePrev.linePrev
-            cloneLine.lineNext     = linePrev.lineNext
-            # cloneLine =
-            #     line$        : linePrev.line$.clone()
-            #     lineID       : linePrev.lineID
-            #     lineType     : linePrev.lineType
-            #     lineDepthAbs : linePrev.lineDepthAbs
-            #     lineDepthRel : linePrev.lineDepthRel
-            #     linePrev     : linePrev.linePrev
-            #     lineNext     : linePrev.lineNext
+            cloneLine = Line.clone(linePrev)
             
             # 2 - Delete linePrev content then restore initial selection
             # TODO BJA : ensure this call don't pass a null param

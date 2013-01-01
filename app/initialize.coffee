@@ -332,8 +332,11 @@ cb = () ->
         $('#editorIframe').css('width','49%')
         if html
             @editor2.replaceContent strg
+            serializerDisplay.text beautify(strg)
+
         else
             @editor2.setEditorContent strg
+            serializerDisplay.text strg
 
     Recorder = require('./recorder').Recorder
     recorder = new Recorder(editorCtrler, 

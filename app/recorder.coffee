@@ -187,9 +187,16 @@ class exports.Recorder
                     <div class="btn-group" >
                         <button class="slowPlay btn btn-primary btn-mini"> > </button>
                         <button class="playQuick btn btn-primary btn-mini"> >> </button>
-                        <button class="md btn btn-mini">md</button>
-                        <button class="html btn btn-mini">html</button>
-                        <button class="delete btn btn-mini">X</button>
+                        <button class="btn btn-mini dropdown-toggle" data-toggle="dropdown">
+                            <span class="caret"></span>
+                        </button>
+                        <ul class="dropdown-menu">
+                            <li><a class="html-ini" href="#">Load initial html</a></li>
+                            <li><a class="md-ini" href="#">Load initial md</a></li>
+                            <li><a class="html" href="#">Load expected final html</a></li>
+                            <li><a class="md" href="#">Load expected final md</a></li>
+                            <li><a class="delete" href="#">Delete test</a></li>
+                        </ul>
                     </div>
                 </span>
                 <span class="resultAction"></span>
@@ -199,6 +206,12 @@ class exports.Recorder
         element = @recordList.children().last()
         record.element = element
         @.add(record)
+
+        element.find('.md-ini').click =>
+            @expectedResult(record.initialState.md)
+
+        element.find('.html-ini').click =>
+            @expectedResult(record.initialState.html,true)
 
         element.find('.md').click =>
             @expectedResult(record.finalState.md)
@@ -213,9 +226,7 @@ class exports.Recorder
 
         element.find('.slowPlay').tooltip({title:'Slow play',delay:800})
         element.find('.playQuick').tooltip({title:'Quick play',delay:800})
-        element.find('.md').tooltip({title:'Load md final state',delay:800})
-        element.find('.html').tooltip({title:'Load html final state',delay:800})
-        element.find('.delete').tooltip({title:'Delete',delay:800})
+
         element.find('.playQuick').click =>
             @continuousCheckOff()
             @.serializerDisplay.val JSON.stringify record.sequence
