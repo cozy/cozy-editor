@@ -28,6 +28,7 @@ class exports.AutoTest
         try
             @checkEachDivRefersALine()
         catch error
+            console.log error
             return false
 
         # 2- Tree construction
@@ -42,12 +43,14 @@ class exports.AutoTest
         try    
             root = @buildTree()
         catch error
+            console.log error
             return false
 
         # Tree validation
         try    
             @recVerif(root)
         catch error
+            console.log error
             return false
 
         # everything went well !
@@ -82,11 +85,17 @@ class exports.AutoTest
      * @param  {string} txt  a text to display
     ###
     logErr : (line,txt) ->
-        msg1 = "ERROR: invalid line #{line.lineID}"
-        msg2 = "  => #{line.lineType}-#{line.lineDepthAbs} " + txt
+        if line?
+            msg1 = "ERROR: invalid line #{line.lineID}"
+            msg2 = "  => #{line.lineType}-#{line.lineDepthAbs} " + txt
+        else
+            msg1 = "ERROR: invalid line"
+            msg2 = "  => " + txt
+        
         console.log ''
         console.log msg1
-        console.log line.line$[0]
+        if line?
+            console.log line.line$[0]
         console.log msg2
         throw new Error(msg1 + '\n' + msg2)
 

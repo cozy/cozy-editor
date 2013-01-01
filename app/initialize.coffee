@@ -66,9 +66,9 @@ cb = () ->
     this.replaceContent( require('views/templates/content-shortlines-all-hacked') )
     content = require('views/templates/content-shortlines-large')
     content = require('views/templates/test')
-    content = require('views/templates/content-shortlines-small')
-    ###
     content = require('views/templates/content-shortlines-medium')
+    ###
+    content = require('views/templates/content-shortlines-small')
     @replaceContent content()
     # beautify(editorBody$)
 

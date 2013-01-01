@@ -85,19 +85,21 @@ class Line
         
         if prevLine?
             @.linePrev = prevLine
+            linesDiv = prevLine.line$[0].parentNode
             if prevLine.lineNext?
                 nextL = prevLine.lineNext
-                editor.linesDiv.insertBefore(newLineEl,nextL.line$[0])
+                linesDiv.insertBefore(newLineEl,nextL.line$[0])
                 @.lineNext     = nextL
                 nextL.linePrev = @
             else
-                editor.linesDiv.appendChild(newLineEl)
+                linesDiv.appendChild(newLineEl)
                 @.lineNext = null
             prevLine.lineNext = @
             
         else if nextLine?
+            linesDiv = nextLine.line$[0].parentNode
             @.lineNext = nextLine
-            editor.linesDiv.insertBefore(newLineEl,nextLine.line$[0])
+            linesDiv.insertBefore(newLineEl,nextLine.line$[0])
             if nextLine.linePrev? 
                 @.linePrev = nextLine.linePrev
                 nextLine.linePrev.lineNext = @
@@ -109,8 +111,6 @@ class Line
         @.lineType     = type
         @.lineDepthAbs = depthAbs
         @.lineDepthRel = depthRelative
-        @.linePrev     = prevLine
-        @.lineNext     = nextLine
         editor._lines[lineID] = @
         
 
@@ -1985,7 +1985,7 @@ class exports.CNeditor
             # not a Webkit: 1 - empty the sandBox
             #               2 - paste in sandBox
             #               3 - cleanup the sandBox
-            mySandBox.innerHTML = ""
+            # mySandBox.innerHTML = ""
             @_waitForPasteData mySandBox
             return true
 
@@ -2000,11 +2000,13 @@ class exports.CNeditor
     # * @return {obj} a ref to the clipboard div
     ###
     _initClipBoard : () ->
-        @clipboard$ = $ document.createElement('div')
+        clipboardEl = document.createElement('div')
+        clipboardEl.setAttribute('contenteditable','true')
+        @clipboard$ = $ clipboardEl
         @clipboard$.attr('id', 'editor-clipboard')
-        getOffTheScreen =
-            left: -300
-        @clipboard$.offset getOffTheScreen
+        # getOffTheScreen =
+        #     left: -300
+        # @clipboard$.offset getOffTheScreen
         @clipboard$.prependTo @editorBody$
         @clipboard = @clipboard$[0]
         @clipboard.style.setProperty('width','280px')
@@ -2027,7 +2029,7 @@ class exports.CNeditor
             @_processPaste()
         # else : paste not ready => wait
         else
-            setTimeout @_waitForPasteData, 10
+            setTimeout @_waitForPasteData, 100
        
 
 
