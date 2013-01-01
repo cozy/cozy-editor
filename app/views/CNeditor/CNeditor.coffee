@@ -45,8 +45,8 @@ class Line
         @line$.prop('class',"#{type}-#{@lineDepthAbs}")
 
     setDepthAbs : (absDepth) ->
-        @lineDepthAbs = type
-        @line$.prop('class',"#{@lineType}-#{lineDepthAbs}")
+        @lineDepthAbs = absDepth
+        @line$.prop('class',"#{@lineType}-#{absDepth}")
         
 
 class exports.CNeditor
@@ -128,7 +128,8 @@ class exports.CNeditor
         return rangy.getIframeSelection @editorTarget
 
     saveEditorSelection : () ->
-        return rangy.saveSelection(rangy.dom.getIframeWindow @editorTarget)
+        sel = rangy.getIframeSelection @editorTarget
+        return rangy.serializeSelection sel, true, @linesDiv
 
     ### ------------------------------------------------------------------------
     # EXTENSION : _updateDeepest
@@ -381,13 +382,13 @@ class exports.CNeditor
                 $(@editorTarget).trigger jQuery.Event("saveRequest")
                 e.preventDefault()
             # UNDO (Ctrl + z)
-            # when "Ctrl-Z"
-            #     e.preventDefault()
-            #     @unDo()
+            when "Ctrl-Z"
+                e.preventDefault()
+                @unDo()
             # REDO (Ctrl + y)
-            # when "Ctrl-Y"
-            #     e.preventDefault()
-            #     @reDo()
+            when "Ctrl-Y"
+                e.preventDefault()
+                @reDo()
             
 
     ### ------------------------------------------------------------------------
@@ -802,7 +803,8 @@ class exports.CNeditor
     _tabLine : (line) ->
         switch line.lineType
             when 'Tu','Th','To'
-                # find previous sibling to check if a tab is possible.
+                # find previous sibling to check if a tab is possible 
+                # (no tab if no previous sibling)
                 prevSibling = @_findPrevSibling(line)
                 if prevSibling == null
                     return
@@ -813,28 +815,7 @@ class exports.CNeditor
                     typeTarget = 'Lu'
                 else
                     typeTarget = 'Lo'
-                if line.lineType == 'Th'
-                    # in case of a Th => Lx then all the following 
-                    # siblings must be turned to Tx and Lh into Lx
-                    # first we must find the previous sibling line
-                    # prevSibling = @_findPrevSibling(line)
-                    # linePrev = line.linePrev
-                    # while linePrev.lineDepthAbs > firstChild
-                    #     textContent
-                    lineNext = line.lineNext
-                    while lineNext != null and lineNext.lineDepthAbs > line.lineDepthAbs
-                        switch lineNext.lineType
-                            when 'Th'
-                                lineNext.lineType = 'Tu'
-                                line.line$.prop("class","Tu-#{lineNext.lineDepthAbs}")
-                                nextLineType = prevTxType
-                            when 'Tu'
-                                nextLineType = 'Lu'
-                            when 'To'
-                                nextLineType = 'Lo'
-                            when 'Lh'
-                                lineNext.lineType = nextLineType
-                                line.line$.prop("class","#{nextLineType}-#{lineNext.lineDepthAbs}")
+
             when 'Lh', 'Lu', 'Lo'
                 depthAbsTarget = line.lineDepthAbs + 1
 
@@ -910,33 +891,31 @@ class exports.CNeditor
                 parent = line.linePrev
                 while parent != null and parent.lineDepthAbs >= line.lineDepthAbs
                     parent = parent.linePrev
-                if parent != null
-                    isTabAllowed   = true
-                    # if lineNext is a Lx of line, then it must be turned in a Tx
-                    if line.lineNext? and 
-                      line.lineNext.lineType[0] == 'L' and
-                      line.lineNext.lineDepthAbs == line.lineDepthAbs
-                        nextL = line.lineNext
+                if parent == null
+                    return
+
+                # if lineNext is a Lx of line, then it must be turned in a Tx
+                if line.lineNext? and 
+                  line.lineNext.lineType[0] == 'L' and
+                  line.lineNext.lineDepthAbs == line.lineDepthAbs
+                    nextL = line.lineNext
+                    nextL.setType('T'+nextL.lineType[1])
+                # if the line under is already deaper, all sons must have
+                # their depth reduced
+                if line.lineNext? and line.lineNext.lineDepthAbs > line.lineDepthAbs
+                    nextL = line.lineNext
+                    while nextL.lineDepthAbs > line.lineDepthAbs
+                        nextL.setDepthAbs(nextL.lineDepthAbs - 1)
+                        nextL = nextL.lineNext
+                    if nextL? and nextL.lineType[0]=='L'
                         nextL.setType('T'+nextL.lineType[1])
-                    # if the line under is already deaper, all sons must have
-                    # their depth reduced
-                    if line.lineNext? and line.lineNext.lineDepthAbs > line.lineDepthAbs
-                        nextL = line.lineNext
-                        while nextL.lineDepthAbs > line.lineDepthAbs
-                            nextL.setDepthAbs(nextL.lineDepthAbs - 1)
-                            nextL = nextL.lineNext
-                        if nextL? and nextL.lineType[0]=='L'
-                            nextL.setType('T'+nextL.lineType[1])
-                    typeTarget = parent.lineType
-                    typeTarget = "L" + typeTarget.charAt(1)
-                    line.lineDepthAbs -= 1
-                    line.lineDepthRel -= parent.lineDepthRel
-                else
-                    isTabAllowed = false
+                typeTarget = parent.lineType
+                typeTarget = "L" + typeTarget.charAt(1)
+                line.lineDepthAbs -= 1
+                line.lineDepthRel -= parent.lineDepthRel
 
             when 'Lh', 'Lu', 'Lo'
-                isTabAllowed   = true
-                depthAbsTarget = line.lineDepthAbs - 1
+                depthAbsTarget = line.lineDepthAbs
 
                 # find next sibling
                 nextSib = @_findNextSibling(line, depthAbsTarget)
@@ -947,16 +926,8 @@ class exports.CNeditor
                 prevSibType = if prevSib == null then null else prevSib.lineType
 
                 typeTarget = @_chooseTypeTarget(prevSibType,nextSibType)
-                
-                if typeTarget == 'Th'
-                    line.lineDepthAbs -= 1
-                    line.lineDepthRel  = 0
-                else
-                    line.lineDepthAbs -= 1
-                    line.lineDepthRel -= 1
 
-        if isTabAllowed
-            line.setType(typeTarget)
+        line.setType(typeTarget)
 
 
 
@@ -1999,13 +1970,12 @@ class exports.CNeditor
             xcoord: @editorBody$.scrollTop()
             ycoord: @editorBody$.scrollLeft()
         @_history.historyScroll.push savedScroll
-        # save newPosition
+        # save newPosition flag
         @_history.historyPos.push @newPosition
         # 1- add the html content with markers to the history
-        @_history.history.push @editorBody$.html()
-        rangy.removeMarkers(savedSel)
+        @_history.history.push @linesDiv.innerHTML
         # 2 - update the index
-        @_history.index = @_history.history.length-1
+        @_history.index = @_history.history.length - 1
 
     ### -------------------------------------------------------------------------
     #  undoPossible
@@ -2041,8 +2011,7 @@ class exports.CNeditor
             @linesDiv.innerHTML = @_history.history[@_history.index]
             # 1 - restore selection
             savedSel = @_history.historySelect[@_history.index]
-            savedSel.restored = false
-            rangy.restoreSelection(savedSel)
+            rangy.deserializeSelection savedSel, @linesDiv
             # 2 - restore scrollbar position
             xcoord = @_history.historyScroll[@_history.index].xcoord
             ycoord = @_history.historyScroll[@_history.index].ycoord

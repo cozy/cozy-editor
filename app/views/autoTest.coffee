@@ -138,7 +138,7 @@ class exports.AutoTest
 
                 # 2- a line can't have any type of child
                 if ! @possibleSon[node.line.lineType](child.line.lineType)
-                    txt = "a line type #{node.line.lineType} can't have a child of type #{sonsType}"
+                    txt = "a line type #{node.line.lineType} can't have a child of type #{child.line.lineType}"
                     @logErr(node.line,txt)
 
                 # 3- the indentation increase at most of 1 (no constraint 
