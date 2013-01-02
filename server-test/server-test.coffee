@@ -1,3 +1,14 @@
+###*
+ * A simple server to save tests recorded in the client
+ * Runs on port 3000 (http://localhost:3000)
+ * Paths :
+ | Path     | Method | Description          |
+ | /        | all    | ../public/index.html |
+ | /records | put    | deleteRecord         |
+ | /records | get    | get                  |
+ | /records | post   | save                 |
+###
+
 fs = require('fs')
 express = require('express')
 app = express()
@@ -29,20 +40,13 @@ getAllRecords = (req, res) ->
 
 
 saveToFile = (req, res) ->
-    console.log "START SAVE"
-    console.log req.body
     reqData = req.body
-    console.log "reqData"
-    console.log reqData
-    console.log "reqData.sequence[1]"
-    console.log reqData.sequence[1]
 
     newFileNum = newFileNumber()+''
-    zeros = newFilledArray(4-newFileNum.length,'0')
-    zeros = zeros.join('')
-    fileName = zeros + newFileNum + '-' + reqData.title
-    console.log "fileName = " + fileName
-    data =
+    zeros      = newFilledArray(4-newFileNum.length,'0')
+    zeros      = zeros.join('')
+    fileName   = zeros + newFileNum + '-' + reqData.title
+    data       =
         id           : newFileNum
         fileName     : fileName
         title        : reqData.title
@@ -51,11 +55,6 @@ saveToFile = (req, res) ->
         initialState : reqData.initialState
         finalState   : reqData.finalState
     path = '../test/test-cases/' +  fileName
-    console.log 'raw data ='
-    console.log data
-    console.log 'stringified data string ='
-    console.log JSON.stringify(data)
-    # fs.writeFileSync(path, JSON.stringify(data))
     fs.writeFileSync(path, JSON.stringify(data))
     res.send
         id          : newFileNum
@@ -86,7 +85,9 @@ newFilledArray = (length, val) ->
         i++
     return array
 
-app.put '/records/' , deleteRecord
-app.get '/records/' , getAllRecords
-app.post '/records/', saveToFile
-app.listen 3000
+app.put  '/records/' , deleteRecord
+app.get  '/records/' , getAllRecords
+app.post '/records/' , saveToFile
+port = 3000
+app.listen port
+console.log "app listing on port " + port

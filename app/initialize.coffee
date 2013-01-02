@@ -28,13 +28,11 @@ $("#col-wrap").layout
     slidable:false
     togglerLength_closed: "100%"
     onresize_end: ->
-        console.log "resize end"
         drag.css("z-index","-1")
 
 # we detect the start of resize with the on mousedown instead of 
 # the onresize_start because this one happens a bit latter what may be a pb.
 $(".ui-layout-resizer").bind 'mousedown', (e)->
-    console.log "resize start"
     drag.css("z-index","1")
 
 initialSize2 = Math.round(window.innerWidth/3)
@@ -47,7 +45,6 @@ $("#well-result").layout
     slidable:false
     togglerLength_closed: "100%"
     onresize_end: ->
-        console.log "resize end"
         drag.css("z-index","-1")
 
 
@@ -68,20 +65,40 @@ cb = () ->
     this.replaceContent( require('views/templates/content-full-relative-indent') )
     this.replaceContent( require('views/templates/content-shortlines-all-hacked') )
     content = require('views/templates/content-shortlines-large')
-
+    content = require('views/templates/test')
+    content = require('views/templates/content-shortlines-medium')
     ###
     content = require('views/templates/content-shortlines-small')
     @replaceContent content()
+    # beautify(editorBody$)
 
     #### -------------------------------------------------------------------
     # buttons init, beautify actions
-    editorCtrler = this
-    editorBody$  = @editorBody$
+    editorCtrler      = this
+    editorBody$       = @editorBody$
+    recordButton      = $ "#record-button"
+    serializerDisplay = $ "#resultText"
+    playAllButton     = $ "#play-all-button"
+    playAllSlowButton = $ "#play-all-slow-button"
+    slowPlayButton    = $ "#slow-play-button"
+    recordList        = $ '#record-list'
+    recordSaveButton  = $ '#record-save-button'
+    recordSaveInput   = $ '#record-name'
+    editor2Btn        = $ '#editor2Btn'
+    editorIframe$     = $ '#editorIframe'
 
-    beautify(editorBody$)
+    editor2Btn.on 'click', () =>
+        parentWidth = editorIframe$.parent().css('width')
+        if editorIframe$.css('width') != parentWidth
+            editorIframe$.css('width','100%')
+        else
+            editorIframe$.css('width','49%')
+            @editor2.replaceContent @.linesDiv.innerHTML
+
+
         
-    $("#resultBtnBar_coller").on  'click' , ->
-        beautify(editorBody$)
+    $("#resultBtnBar_coller").on  'click' , =>
+        serializerDisplay.text beautify(@linesDiv.innerHTML)
         
     $("#printRangeBtn").on "click", () ->
         sel = editorCtrler.getEditorSelection()
@@ -123,7 +140,8 @@ cb = () ->
     # Allows user to load a file in the Cozy format
     $('#contentSelect').on "change" , (e) ->
         editorCtrler.replaceContent( require("views/templates/#{e.currentTarget.value}")() )
-        beautify(editorBody$)
+        $('#well-editor').css('background-color','')
+        checkEditor()
 
     # Allows user to load a style sheet for the page
     $('#cssSelect').on "change" , (e) ->
@@ -152,19 +170,28 @@ cb = () ->
     
     #  > tests the code structure
     checkBtn = $ "#checkBtn"
-    checker = new AutoTest()
+    checker  = new AutoTest()
+    checkLog = ''
 
-    checkEditor=() ->
-        res = checker.checkLines(editorCtrler) 
+    checkEditor = () ->
+        res  = checker.checkLines(editorCtrler) 
         date = new Date()
-        st = date.getHours()+":"+date.getMinutes()+":"+date.getSeconds()+" - "
+        h = date.getHours() + ''
+        h = if h.length == 1 then '0'+h else h
+        m = date.getMinutes() + ''
+        m = if m.length == 1 then '0'+m else m
+        s = date.getSeconds() + ''
+        s = if s.length == 1 then '0'+s else s
+        st   = h+":"+m+":"+s+" - "
         if res
-            $("#resultText").text(st + "Syntax test success")
+            checkLog += st + "Syntax test success\n" 
+            serializerDisplay.text(checkLog)
         else
-            $("#resultText").text(st + "Syntax test FAILLURE : cf logs")
+            checkLog += st + " !!! Syntax test FAILLURE : cf console  !!!\n"
+            serializerDisplay.text(checkLog)
             $('#well-editor').css('background-color','#c10000')
 
-    continuousCheck = () =>
+    continuousCheckToggle = () =>
         if not checkBtn.hasClass "btn-warning"
             checkBtn.addClass "btn-warning"
             checkEditor()
@@ -187,22 +214,16 @@ cb = () ->
 
     continuousCheckOn() # by default activate continuous checking
 
-    checkBtn.click continuousCheck
+    checkBtn.click continuousCheckToggle
 
     #  > translate cozy code into markdown and markdown to cozy code
     #    Note: in the markdown code there should be two \n between each line
     $("#markdownBtn").on "click", () ->
         content = editorCtrler.getEditorContent()
-        res$ = $("#preResultText")
-        if res$[0]?
-          res$.text content
-        else
-          $("#resultText").html '<pre id="preResultText" contenteditable="true"></pre>'
-          $("#preResultText").text content
-        # $("#resultText").text content
-        true
+        serializerDisplay.text content
+
     $("#cozyBtn").on "click", () ->
-        editorCtrler.setEditorContent $("#preResultText").text()
+        editorCtrler.setEditorContent serializerDisplay.text()
 
     $("#addClass").toggle(
         () ->
@@ -297,15 +318,6 @@ cb = () ->
     #### -------------------------------------------------------------------
     # Recording stuff
 
-    recordButton      = $ "#record-button"
-    serializerDisplay = $ "#resultText"
-    playAllButton     = $ "#play-all-button"
-    playAllSlowButton = $ "#play-all-slow-button"
-    slowPlayButton    = $ "#slow-play-button"
-    recordList        = $ '#record-list'
-    recordSaveButton  = $ '#record-save-button'
-    recordSaveInput   = $ '#record-name'
-
     recordStop = () ->
         if recordButton.hasClass "btn-warning"
             recordButton.removeClass "btn-warning"
@@ -320,8 +332,11 @@ cb = () ->
         $('#editorIframe').css('width','49%')
         if html
             @editor2.replaceContent strg
+            serializerDisplay.text beautify(strg)
+
         else
             @editor2.setEditorContent strg
+            serializerDisplay.text strg
 
     Recorder = require('./recorder').Recorder
     recorder = new Recorder(editorCtrler, 

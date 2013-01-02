@@ -21,7 +21,6 @@ class exports.AutoTest
     ###
     checkLines : (editor) ->
         # init
-        console.log 'Detecting incoherences...'
         @editor    = editor
         @divLines$ = $(editor.editorBody$[0].children[1])
         
@@ -29,6 +28,7 @@ class exports.AutoTest
         try
             @checkEachDivRefersALine()
         catch error
+            console.log error
             return false
 
         # 2- Tree construction
@@ -42,17 +42,18 @@ class exports.AutoTest
         # A To/Tu can't be the father of a Th
         try    
             root = @buildTree()
-        catch error    
+        catch error
+            console.log error
             return false
 
         # Tree validation
         try    
             @recVerif(root)
         catch error
+            console.log error
             return false
 
         # everything went well !
-        console.log 'editor structure is valid'
         return true
 
 
@@ -84,11 +85,17 @@ class exports.AutoTest
      * @param  {string} txt  a text to display
     ###
     logErr : (line,txt) ->
-        msg1 = "ERROR: invalid line #{line.lineID}"
-        msg2 = "  => #{line.lineType}-#{line.lineDepthAbs} " + txt
+        if line?
+            msg1 = "ERROR: invalid line #{line.lineID}"
+            msg2 = "  => #{line.lineType}-#{line.lineDepthAbs} " + txt
+        else
+            msg1 = "ERROR: invalid line"
+            msg2 = "  => " + txt
+        
         console.log ''
         console.log msg1
-        console.log line.line$[0]
+        if line?
+            console.log line.line$[0]
         console.log msg2
         throw new Error(msg1 + '\n' + msg2)
 
@@ -110,9 +117,12 @@ class exports.AutoTest
     ###*
      * Walk threw the tree to check the structure.
      * Tests :
-     *     * 1- all sons of a line has the same type
-     *     * the type of the sons of a line is valid (Tx -> Lx)
-     *     * the indentation increase at most of 1 (no constraint on depth
+     *     * 1- the sons of a line can be Lx or Tx but all Tx must be identical (no
+     *       mix of Th and Tu)
+     *     * 2- a line can't have any type of child :
+     *          Tu -> Lu, Tu 
+     *          Th -> Lh, Th, Tu 
+     *     * 3- the indentation increase at most of 1 (no constraint on depth
      *       decrease)
      *     * 
      * @param  {[type]} node [description]
@@ -120,32 +130,39 @@ class exports.AutoTest
     ###
     recVerif : (node) ->    
         if node.sons.length > 0
-            sonsType = node.sons[0].line.lineType
 
-
+            # prevChildTitleType = ''
             for child in node.sons
-                # Hierarchy verification
+                childType = child.line.lineType
+
+                # 1- the sons of a line can be Lx or Tx but all Tx must be
+                # identical (no mix of Th and Tu)
+                # if childType[0] == 'T'
+                #     if prevChildTitleType == ''
+                #         prevChildTitleType = childType
+                #     else
+                #         if prevChildTitleType != childType
+                #             txt = "a line type #{node.line.lineType} can't have mix of title type as children"
+                #             @logErr(node.line,txt)
+
+                # 2- a line can't have any type of child
                 if ! @possibleSon[node.line.lineType](child.line.lineType)
-                    txt = "a line type #{node.line.lineType} can't have a child of type #{sonsType}"
+                    txt = "a line type #{node.line.lineType} can't have a child of type #{child.line.lineType}"
                     @logErr(node.line,txt)
 
-                # # 1- all sons of a line has the same type
-                # if sonsType != child.line.lineType
-                #     txt =  'all sons don\'t have the same ' \
-                #          + "type #{sonsType} != #{child.line.lineType})"
-                #     @logErr(node.line,txt)
-
-                    
-                # Depth verification
+                # 3- the indentation increase at most of 1 (no constraint 
+                # on depth decrease)
                 if @nodeType(child.line.lineType) == 'T'
                     if node.line.lineDepthAbs+1 != child.line.lineDepthAbs
                         txt = 'indentation issue'
                         @logErr(node.line,txt)
-                    @recVerif(child)
+                    
                 else if @nodeType(child.line.lineType) == 'L'
                     if node.line.lineDepthAbs != child.line.lineDepthAbs
                         txt = 'indentation issue'
                         @logErr(node.line,txt)
+
+                @recVerif(child)
                         
         return true
 
