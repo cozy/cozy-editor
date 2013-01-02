@@ -406,7 +406,7 @@ class exports.CNeditor
         # 2.1- If the previous action was a move then "normalize" the selection.
         # Selection is normalized only if an alphanumeric character or
         # suppr/backspace/return is pressed on this new position
-        if @newPosition and shortcut in ['-other', '-space',
+        if @newPosition and shortcut in ['-other', '-space', 'Ctrl-V'
                                          '-suppr', '-backspace', '-return']
             @newPosition = false
             # get the current range and normalize it
@@ -2034,8 +2034,8 @@ class exports.CNeditor
 
 
     ###
-     * Called when the browser has pasted data in the clipboard div. Its role is to
-     * insert the content of the clipboard into the editor.
+     * Called when the browser has pasted data in the clipboard div. 
+     * Its role is to insert the content of the clipboard into the editor.
      * @param  {element} sandbox 
     ###
 
@@ -2063,7 +2063,7 @@ class exports.CNeditor
 
         # 3- _domWalk will parse the clipboard in order to insert lines in frag.
         # Each line will be prepared in its own fragment before being inserted
-        # inserted in frag.
+        # into frag.
         # _domWalk is recursive and the variables of the context of the parse 
         # are stored in the parameter "domWalkContext" that is transmited at
         # each recursion.
@@ -2072,26 +2072,25 @@ class exports.CNeditor
         if currSel.startLine.lineType == 'Th'
             absDepth += 1
         domWalkContext =
-            # Absolute depth of the current explored node.
-            absDepth           : absDepth,
-            # level of the Previous  <hx> element (ex : if last title parsed 
-            # was h3 => prevHxLevel==)
-            prevHxLevel        : null,
-            # the fragment where new lines will be added during the parse of the
+            # The fragment where new lines will be added during the parse of the
             # clipboard div
             frag               : frag,
-            # previous Cozy Note Line Abs Depth, used for the insertion of 
-            # internal lines with  _clipBoard_Insert_InternalLine()
-            prevCNLineAbsDepth : null,
-            # refers to the record of editor.lines[] of the last inserted 
-            # line in the frag
+            # Refers to the last inserted line in the frag
             lastAddedLine      : dummyLine,
             # Fragment where a line is under construction
             currentLineFrag    : currentLineFrag,
-            # last element of currentLineFrag being populated by _domWalk
+            # Element (or node) of currentLineFrag being populated by _domWalk
             currentLineEl      : currentLineFrag,
-            # boolean indicating wether currentLineFrag has already be appended
-            # an element.
+            # Absolute depth of the current explored node of clip board
+            absDepth           : absDepth,
+            # Level of the Previous  <hx> element (ex : if last title parsed 
+            # was h3 => prevHxLevel==3)
+            prevHxLevel        : null,
+            # Previous Cozy Note Line Abs Depth, used for the insertion of 
+            # internal lines with  _clipBoard_Insert_InternalLine()
+            prevCNLineAbsDepth : null,
+            # Boolean wether currentLineFrag has already had an 
+            # element appended.
             isCurrentLineBeingPopulated : false
 
         # go for the walk !
@@ -2106,13 +2105,11 @@ class exports.CNeditor
         # TODO : the following steps removes all the styles of the lines in frag
         # Later this will be removed in order to take into account styles.
         ###
-        i = 0
-        while i<frag.childNodes.length
+        for line in frag.childNodes.length
             line = frag.childNodes[i]
             txt = line.textContent
             line.innerHTML = '<span></span><br>'
             line.firstChild.appendChild(document.createTextNode(txt))
-            i += 1
         ###
         # END TODO
         ###
@@ -2124,16 +2121,20 @@ class exports.CNeditor
             # nothing to do
         else if endLine == startLine
             currSel.range.deleteContents()
+            # in case deleteContent left a span without text node
+            selection.normalize(currSel.range) 
         else
             @_deleteMultiLinesSelections()
+            selection.normalize(currSel.range) 
             @_findLinesAndIsStartIsEnd()
             currSel = @currentSel
             startLine = currSel.startLine
 
-        # 5- insert first line of the frag in the target line
-        # we assume that the structure of lines in frag and in the editor are :
-        # <div><span>(TextNode)</span><br></div>
-        # what is incorrect when styles will be taken into account.
+        ### 5- Insert first line of the frag in the target line
+        # We assume that the structure of lines in frag and in the editor are :
+        #   <div><span>(TextNode)</span><br></div>
+        # what will be incorrect when styles will be taken into account.
+        ###
         targetNode   = currSel.range.startContainer
         startOffset  = currSel.range.startOffset
         # if startContainer is a linediv, set targetNode to the inside text node
@@ -2154,12 +2155,8 @@ class exports.CNeditor
         else
             lineElements = [frag]
         # loop on each element to insert (only one for now)
-        i=0
-        nbElements = lineElements.length
-        while i < nbElements-1
-            elToInsert = lineElements[i]
-            i += 1
-            # if targetNode & elToInsert are SPAN or TextNode and both have 
+        for elToInsert in lineElements
+            # If targetNode & elToInsert are SPAN or TextNode and both have 
             # the same class, then we concatenate them
             if (elToInsert.tagName=='SPAN') and (targetNode.tagName=='SPAN' or targetNode.nodeType==Node.TEXT_NODE )
                 targetText   = targetNode.textContent
@@ -2168,9 +2165,10 @@ class exports.CNeditor
                 newText     += targetText.substr(startOffset)
                 targetNode.textContent = newText
                 startOffset += elToInsert.textContent.length
-
-        # 6- if the clipboard has more than one line, insert the end of target
+        ###
+        # 6- If the clipboard has more than one line, insert the end of target
         #    line in the last line of frag and delete it
+        ###
         if frag.childNodes.length > 1
             range = document.createRange()
             range.setStart(targetNode,startOffset)
@@ -2185,7 +2183,7 @@ class exports.CNeditor
                 frag.lastChild.children.length-1,  # penultimate node of last line
                 endTargetLineFrag)                 # the frag to insert
             # TODO : the next 3 lines are required for firebug to detect
-            # breakpoints ! ! !   ????????
+            # breakpoints ! ! !   ???????? (otherwise could be deleted)
             parendDiv = targetNode
             while parendDiv.tagName != 'DIV'
                 parendDiv = parendDiv.parentElement

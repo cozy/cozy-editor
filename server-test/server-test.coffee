@@ -88,4 +88,6 @@ newFilledArray = (length, val) ->
 app.put  '/records/' , deleteRecord
 app.get  '/records/' , getAllRecords
 app.post '/records/' , saveToFile
-app.listen 3000
+port = 3000
+app.listen port
+console.log "app listing on port " + port
