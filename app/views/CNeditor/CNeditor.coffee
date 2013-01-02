@@ -2134,21 +2134,11 @@ class exports.CNeditor
         # We assume that the structure of lines in frag and in the editor are :
         #   <div><span>(TextNode)</span><br></div>
         # what will be incorrect when styles will be taken into account.
+        # 
         ###
-        targetNode   = currSel.range.startContainer
+        targetNode   = currSel.range.startContainer # a text node because of selection.normalize()
         startOffset  = currSel.range.startOffset
-        # if startContainer is a linediv, set targetNode to the inside text node
-        if targetNode.nodeName == 'DIV' and targetNode.id.substr(0,5)=='CNID_'
-            targetNode = targetNode.firstChild.firstChild
-            if startOffset > 0
-                startOffset = targetNode.length
-            else
-                startOffset = 0
-            endOffset = targetNode.length - startOffset
-        # if startContainer is a span, set targetNode to the inside text node
-        if targetNode.nodeName == 'SPAN'
-            targetNode = targetNode.firstChild
-            endOffset = targetNode.length - startOffset
+        endOffset = targetNode.length - startOffset
         # prepare lineElements
         if frag.childNodes.length > 0
             lineElements = frag.firstChild.childNodes
@@ -2187,8 +2177,9 @@ class exports.CNeditor
             parendDiv = targetNode
             while parendDiv.tagName != 'DIV'
                 parendDiv = parendDiv.parentElement
-
-        # remove the firstAddedLine from the fragment
+        ###*
+         * remove the firstAddedLine from the fragment
+        ###
         firstAddedLine = dummyLine.lineNext
         secondAddedLine = firstAddedLine?.lineNext
         if frag.firstChild?
@@ -2196,7 +2187,9 @@ class exports.CNeditor
         if firstAddedLine?
             delete this._lines[firstAddedLine.lineID]
 
-        # 7- updates nextLine and prevLines, insert frag in the editor
+        ###*
+         * 7- updates nextLine and prevLines, insert frag in the editor
+        ###
         if secondAddedLine?
             lineNextStartLine          = currSel.startLine.lineNext
             currSel.startLine.lineNext = secondAddedLine
@@ -2207,8 +2200,9 @@ class exports.CNeditor
                 domWalkContext.lastAddedLine.lineNext = lineNextStartLine
                 lineNextStartLine.linePrev = domWalkContext.lastAddedLine
                 @linesDiv.insertBefore(frag, lineNextStartLine.line$[0])
-        
-        # 8- position caret
+        ###*
+         * 8- position caret
+        ###
         if secondAddedLine?
             # Assumption : last inserted line always has at least one <span> with only text inside
             caretTextNodeTarget = lineNextStartLine.linePrev.line$[0].childNodes[0].firstChild
@@ -2424,7 +2418,9 @@ class exports.CNeditor
         # if the line is empty, add an empty Span before the <br>
         if context.currentLineFrag.childNodes.length == 0
             spanNode = document.createElement('span')
+            spanNode.appendChild(document.createTextNode(''))
             context.currentLineFrag.appendChild(spanNode)
+
         p =
             sourceLine         : context.lastAddedLine
             fragment           : context.currentLineFrag
@@ -2455,9 +2451,15 @@ class exports.CNeditor
             # context.absDepth += 1
         else
             # context.absDepth += deltaDepth
+        elemtFrag = document.createDocumentFragment()
+        n = elemt.childNodes.length
+        i = 0
+        while i < n 
+            elemtFrag.appendChild(elemt.childNodes[0])
+            i++
         p =
             sourceLine         : context.lastAddedLine
-            innerHTML          : elemt.innerHTML
+            fragment           : elemtFrag
             targetLineType     : "Tu"
             targetLineDepthAbs : context.absDepth
             targetLineDepthRel : context.absDepth
