@@ -211,6 +211,8 @@ class exports.CNeditor
             # With this command we force the load event on every browser...
             @editorTarget.src = ''
 
+    setFocus : () ->
+        @linesDiv.focus()
 
     # methods to deal selection on an iframe
     getEditorSelection : () ->
@@ -607,79 +609,117 @@ class exports.CNeditor
     # 
     # Turn selected lines in a title List (Th)
     ###
-    titleList : () ->
-        sel   = @getEditorSelection()
-        range = sel.getRangeAt(0)
-        
-        # find first and last div corresponding to the 1rst and
-        # last selected lines
-        startDiv = selection.getLineDiv range.startContainer, range.startOffset
-        endDiv = selection.getLineDiv range.endContainer, range.endOffset
-        
-        # loop on each line between the first and last line selected
-        # TODO : deal the case of a multi range (multi selections). 
-        #        Currently only the first range is taken into account.
-        line = @_lines[startDiv.id]
+
+    titleList : (l) ->
+        # @_addHistory()
+        # 1- find first and last div of the lines to turn into markers
+        if l?
+            startDivID = l.lineID
+            endLineID  = startDivID
+        else
+            range = @getEditorSelection().getRangeAt(0)
+            startDiv = selection.getLineDiv(
+                    range.startContainer, 
+                    range.startOffset
+                )
+            endDiv = selection.getLineDiv(
+                    range.endContainer, 
+                    range.endOffset
+                )
+            startDivID =  startDiv.id
+            endLineID = endDiv.id
+            
+        # 2- loop on each line between the first and last line selected
+        # TODO : deal the case of a multi range (multi selections).
+        line = @_lines[startDivID]
         loop
-            @_line2titleList(line)
-            if line.lineID == endDiv.id
+            switch line.lineType
+                when 'Tu','To'
+                    @_toggleLineType(line)
+                when 'Lh'
+                    line.setType('Th')
+                when 'Lu'
+                    line.setType('Tu')
+                    @_toggleLineType(line)
+
+            if line.lineID == endLineID
                 break
-            else
-                line = line.lineNext
+            line = line.lineNext
 
 
-    ### ------------------------------------------------------------------------
-    #  _line2titleList
-    # 
-    #  Turn a given line in a title List Line (Th)
-    ###
-    _line2titleList : (line)->
-        if line.lineType != 'Th'
-            if line.lineType[0] == 'L'
-                line.lineType = 'Tu'
-                line.lineDepthAbs += 1
-            @_titilizeSiblings(line)
-            parent1stSibling = @_findParent1stSibling(line)
-            while parent1stSibling!=null and parent1stSibling.lineType != 'Th'
-                @_titilizeSiblings(parent1stSibling)
-                parent1stSibling = @_findParent1stSibling(parent1stSibling)
+    # titleList : () ->
+    #     sel   = @getEditorSelection()
+    #     range = sel.getRangeAt(0)
+        
+    #     # find first and last div corresponding to the 1rst and
+    #     # last selected lines
+    #     startDiv = selection.getLineDiv range.startContainer, range.startOffset
+    #     endDiv = selection.getLineDiv range.endContainer, range.endOffset
+        
+    #     # loop on each line between the first and last line selected
+    #     # TODO : deal the case of a multi range (multi selections). 
+    #     #        Currently only the first range is taken into account.
+    #     line = @_lines[startDiv.id]
+    #     loop
+    #         @_line2titleList(line)
+    #         if line.lineID == endDiv.id
+    #             break
+    #         else
+    #             line = line.lineNext
 
 
-    ### ------------------------------------------------------------------------
-    # turn in Th or Lh of the siblings of line (and line itself of course)
-    # the children are not modified
-    ###
-    _titilizeSiblings : (line) ->
-        lineDepthAbs = line.lineDepthAbs
-        # 1- transform all its next siblings in Th
-        l = line
-        while l!=null and l.lineDepthAbs >= lineDepthAbs
-            if l.lineDepthAbs == lineDepthAbs
-                switch l.lineType
-                    when 'Tu','To'
-                        l.line$.prop("class","Th-#{lineDepthAbs}")
-                        l.lineType = 'Th'
-                        l.lineDepthRel = 0
-                    when 'Lu','Lo'
-                        l.line$.prop("class","Lh-#{lineDepthAbs}")
-                        l.lineType = 'Lh'
-                        l.lineDepthRel = 0
-            l=l.lineNext
-        # 2- transform all its previous siblings in Th
-        l = line.linePrev
-        while l!=null and l.lineDepthAbs >= lineDepthAbs
-            if l.lineDepthAbs == lineDepthAbs
-                switch l.lineType
-                    when 'Tu','To'
-                        l.line$.prop("class","Th-#{lineDepthAbs}")
-                        l.lineType = 'Th'
-                        l.lineDepthRel = 0
-                    when 'Lu','Lo'
-                        l.line$.prop("class","Lh-#{lineDepthAbs}")
-                        l.lineType = 'Lh'
-                        l.lineDepthRel = 0
-            l=l.linePrev
-        return true
+    # ### ------------------------------------------------------------------------
+    # #  _line2titleList
+    # # 
+    # #  Turn a given line in a title List Line (Th)
+    # ###
+    # _line2titleList : (line)->
+    #     if line.lineType != 'Th'
+    #         if line.lineType[0] == 'L'
+    #             line.lineType = 'Tu'
+    #             line.lineDepthAbs += 1
+    #         @_titilizeSiblings(line)
+    #         parent1stSibling = @_findParent1stSibling(line)
+    #         while parent1stSibling!=null and parent1stSibling.lineType != 'Th'
+    #             @_titilizeSiblings(parent1stSibling)
+    #             parent1stSibling = @_findParent1stSibling(parent1stSibling)
+
+
+    # ### ------------------------------------------------------------------------
+    # # turn in Th or Lh of the siblings of line (and line itself of course)
+    # # the children are not modified
+    # ###
+    # _titilizeSiblings : (line) ->
+    #     lineDepthAbs = line.lineDepthAbs
+    #     # 1- transform all its next siblings in Th
+    #     l = line
+    #     while l!=null and l.lineDepthAbs >= lineDepthAbs
+    #         if l.lineDepthAbs == lineDepthAbs
+    #             switch l.lineType
+    #                 when 'Tu','To'
+    #                     l.line$.prop("class","Th-#{lineDepthAbs}")
+    #                     l.lineType = 'Th'
+    #                     l.lineDepthRel = 0
+    #                 when 'Lu','Lo'
+    #                     l.line$.prop("class","Lh-#{lineDepthAbs}")
+    #                     l.lineType = 'Lh'
+    #                     l.lineDepthRel = 0
+    #         l=l.lineNext
+    #     # 2- transform all its previous siblings in Th
+    #     l = line.linePrev
+    #     while l!=null and l.lineDepthAbs >= lineDepthAbs
+    #         if l.lineDepthAbs == lineDepthAbs
+    #             switch l.lineType
+    #                 when 'Tu','To'
+    #                     l.line$.prop("class","Th-#{lineDepthAbs}")
+    #                     l.lineType = 'Th'
+    #                     l.lineDepthRel = 0
+    #                 when 'Lu','Lo'
+    #                     l.line$.prop("class","Lh-#{lineDepthAbs}")
+    #                     l.lineType = 'Lh'
+    #                     l.lineDepthRel = 0
+    #         l=l.linePrev
+    #     return true
 
 
     ### ------------------------------------------------------------------------
@@ -689,6 +729,7 @@ class exports.CNeditor
     ###
 
     markerList : (l) ->
+        @_addHistory()
         # 1- find first and last div of the lines to turn into markers
         if l?
             startDivID = l.lineID
@@ -716,86 +757,11 @@ class exports.CNeditor
                 when 'Lh', 'Lo'
                     line.setTypeDepth('Tu',line.lineDepthAbs+1)
                 when 'Lu'
-                    line.setTypeDepth('Tu',line.lineDepthAbs)
-                else
-                    lineTypeTarget = false
+                    line.setType('Tu')
+
             if line.lineID == endLineID
                 break
             line = line.lineNext
-
-    
-    ### 
-        old version
-    ###
-    # markerList : (l) ->
-    #     # 1- Variables
-    #     if l?
-    #         startDivID = l.lineID
-    #         endLineID  = startDivID
-    #     else
-    #         range = @getEditorSelection().getRangeAt(0)
-
-    #         startDiv = selection.getLineDiv(
-    #                 range.startContainer, 
-    #                 range.startOffset
-    #             )
-    #         endDiv = selection.getLineDiv(
-    #                 range.endContainer, 
-    #                 range.endOffset
-    #             )
-                
-    #         # 2- find first and last div corresponding to the 1rst and
-    #         #    last selected lines
-    #         startDivID =  startDiv.id
-    #         endLineID = endDiv.id
-            
-    #     # 3- loop on each line between the first and last line selected
-    #     # TODO : deal the case of a multi range (multi selections). 
-    #     #        Currently only the first range is taken into account.
-    #     line = @_lines[startDivID]
-    #     loop
-    #         switch line.lineType
-    #             when 'Th'
-    #                 lineTypeTarget = 'Tu'
-    #                 # transform all next Th & Lh siblings in Tu & Lu
-    #                 l = line.lineNext
-    #                 while l!=null and l.lineDepthAbs >= line.lineDepthAbs
-    #                     switch l.lineType
-    #                         when 'Th'
-    #                             l.line$.prop("class","Tu-#{l.lineDepthAbs}")
-    #                             l.lineType = 'Tu'
-    #                             l.lineDepthRel = @_findDepthRel(l)
-    #                         when 'Lh'
-    #                             l.line$.prop("class","Lu-#{l.lineDepthAbs}")
-    #                             l.lineType = 'Lu'
-    #                             l.lineDepthRel = @_findDepthRel(l)
-    #                     l=l.lineNext
-    #                 # transform all previous Th &vLh siblings in Tu & Lu
-    #                 l = line.linePrev
-    #                 while l!=null and l.lineDepthAbs >= line.lineDepthAbs
-    #                     switch l.lineType
-    #                         when 'Th'
-    #                             l.line$.prop("class","Tu-#{l.lineDepthAbs}")
-    #                             l.lineType = 'Tu'
-    #                             l.lineDepthRel = @_findDepthRel(l)
-    #                         when 'Lh'
-    #                             l.line$.prop("class","Lu-#{l.lineDepthAbs}")
-    #                             l.lineType = 'Lu'
-    #                             l.lineDepthRel = @_findDepthRel(l)
-    #                     l=l.linePrev
-    #             when 'Lh', 'Lu'
-    #                 # remember : the default indentation action is to make 
-    #                 # a marker list, that's why it works here.
-    #                 @tab(line)
-    #             else
-    #                 lineTypeTarget = false
-
-    #         if lineTypeTarget
-    #             line.setType(lineTypeTarget)
-    #         if line.lineID == endLineID
-    #             break
-    #         else
-    #             line = line.lineNext
 
 
     ### ------------------------------------------------------------------------
@@ -1342,7 +1308,7 @@ class exports.CNeditor
                 prevSiblingType = line.lineType
                 if firstLineAfterSiblingsOfDeleted.lineType != prevSiblingType
                     if prevSiblingType[1] == 'h'
-                        @_line2titleList(firstLineAfterSiblingsOfDeleted)
+                        @titleList(firstLineAfterSiblingsOfDeleted)
                     else
                         @markerList(firstLineAfterSiblingsOfDeleted)
 

@@ -175,18 +175,25 @@ cb = () ->
     # Buttons should probably give back the focus to the editor's iframe
     $("#indentBtn").on "click", () ->
         editorCtrler.tab()
+        editorCtrler.setFocus()
     $("#unIndentBtn").on "click", () ->
         editorCtrler.shiftTab()
+        editorCtrler.setFocus()
     $("#markerListBtn").on "click", () ->
         editorCtrler.markerList()
+        editorCtrler.setFocus()
     $("#titleBtn").on "click", () ->
         editorCtrler.titleList()
+        editorCtrler.setFocus()
     $("#clearBtn").on "click", () ->
         editorCtrler.deleteContent()
+        editorCtrler.setFocus()
     $("#undoBtn").on "click", () ->
         editorCtrler.unDo()
+        editorCtrler.setFocus()
     $("#redoBtn").on "click", () ->
         editorCtrler.reDo()
+        editorCtrler.setFocus()
         
     #### -------------------------------------------------------------------
     # Special buttons (to be removed later)
