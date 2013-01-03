@@ -56,21 +56,6 @@ $("#well-result").layout
 ###
 cb = () ->
 
-    #### -------------------------------------------------------------------
-    ### initialize content of the editor
-    this.replaceContent( require('views/templates/content-empty') )
-    this.replaceContent( require('views/templates/content-full') )
-    this.replaceContent( require('views/templates/content-full-marker') )
-    this.replaceContent( require('views/templates/content-shortlines-marker') )
-    this.replaceContent( require('views/templates/content-full-relative-indent') )
-    this.replaceContent( require('views/templates/content-shortlines-all-hacked') )
-    content = require('views/templates/content-shortlines-large')
-    content = require('views/templates/test')
-    content = require('views/templates/content-shortlines-medium')
-    ###
-    content = require('views/templates/content-shortlines-small')
-    @replaceContent content()
-    # beautify(editorBody$)
 
     #### -------------------------------------------------------------------
     # buttons init, beautify actions
@@ -85,7 +70,23 @@ cb = () ->
     recordSaveButton  = $ '#record-save-button'
     recordSaveInput   = $ '#record-name'
     editor2Btn        = $ '#editor2Btn'
+    ed_2_ed2_Btn      = $ '#ed_2_ed2_Btn'
+    ed2_2_ed_Btn      = $ '#ed2_2_ed_Btn'
     editorIframe$     = $ '#editorIframe'
+
+    #### -------------------------------------------------------------------
+    # buttons for moving editors content from one to the other
+    move_ed_2_ed2 = () =>
+        parentWidth = editorIframe$.parent().css('width')
+        if editorIframe$.css('width') == parentWidth
+            editorIframe$.css('width','49%')
+        @editor2.replaceContent @.linesDiv.innerHTML
+
+    move_ed2_2_ed = () =>
+        parentWidth = editorIframe$.parent().css('width')
+        if editorIframe$.css('width') == parentWidth
+            editorIframe$.css('width','49%')
+        @.replaceContent @editor2.linesDiv.innerHTML
 
     editor2Btn.on 'click', () =>
         parentWidth = editorIframe$.parent().css('width')
@@ -94,7 +95,29 @@ cb = () ->
         else
             editorIframe$.css('width','49%')
             @editor2.replaceContent @.linesDiv.innerHTML
+    
+    ed_2_ed2_Btn.on 'click', move_ed_2_ed2
 
+    ed2_2_ed_Btn.on 'click', move_ed2_2_ed
+    
+    #### -------------------------------------------------------------------
+    ### initialize content of the editor
+    this.replaceContent( require('views/templates/content-empty') )
+    this.replaceContent( require('views/templates/content-full') )
+    this.replaceContent( require('views/templates/content-full-marker') )
+    this.replaceContent( require('views/templates/content-shortlines-marker') )
+    this.replaceContent( require('views/templates/content-full-relative-indent') )
+    this.replaceContent( require('views/templates/content-shortlines-all-hacked') )
+    content = require('views/templates/content-shortlines-large')
+    content = require('views/templates/content-shortlines-small')
+    content = require('views/templates/content-shortlines-medium')
+    ###
+    content = require('views/templates/test2')
+    @replaceContent content()
+    move_ed_2_ed2()
+    # beautify(editorBody$)
+
+    # editorIframe$.css('width','49%')
 
         
     $("#resultBtnBar_coller").on  'click' , =>
@@ -394,6 +417,7 @@ cb = () ->
 ###
 
 $ ->
-    editor = new CNeditor( document.querySelector('#editorIframe'), cb )
-    editor2 = new CNeditor( document.querySelector('#editorIframe2'), -> )
-    editor.editor2 = editor2
+    editor2 = new CNeditor( document.querySelector('#editorIframe2'), () ->
+        editor = new CNeditor document.querySelector('#editorIframe'), cb 
+        editor.editor2 = editor2
+    )

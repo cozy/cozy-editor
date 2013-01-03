@@ -456,7 +456,7 @@ class exports.CNeditor
                 e.preventDefault()
             # TOGGLE LINE TYPE (Alt + a)                  
             when "Alt-A"
-                @_toggleLineType()
+                @toggleType()
                 e.preventDefault()
             # PASTE (Ctrl + v)                  
             when "Ctrl-V"
@@ -779,14 +779,10 @@ class exports.CNeditor
 
 
     ### ------------------------------------------------------------------------
-    #  _toggleLineType
-    # 
-    # Toggle line type
-    #   usage : cycle : Tu => To => Lx => Th
-    #   param :
-    #       e = event
+    # Toggle the selected lines type
+    #   cycle : Tu <=> Th
     ###
-    _toggleLineType : () ->
+    toggleType : () ->
         # 1- Variables
         sel   = @getEditorSelection()
         range = sel.getRangeAt(0)
@@ -797,66 +793,87 @@ class exports.CNeditor
         # 2- find first and last div corresponding to the 1rst and
         #    last selected lines
         endLineID = endDiv.id
-        
+
         # 3- loop on each line between the first and last line selected
         # TODO : deal the case of a multi range (multi selections). 
         #        Currently only the first range is taken into account.
         line = @_lines[startDiv.id]
+        depthIsTreated = {}
+        currentDepth = line.lineDepthAbs
+        depthIsTreated[currentDepth] = false
         loop
-            switch line.lineType
-                when 'Tu' # can be turned in a Th only if his parent is a Th
-                    lineTypeTarget = 'Th'
-                    # transform all its siblings in Th
-                    l = line.lineNext
-                    while l!=null and l.lineDepthAbs >= line.lineDepthAbs
-                        if l.lineDepthAbs == line.lineDepthAbs
-                            if l.lineType == 'Tu'
-                                l.setType('Th')
-                            else
-                                l.setType('Lh')
-                        l=l.lineNext
-                    l = line.linePrev
-                    while l!=null and l.lineDepthAbs >= line.lineDepthAbs
-                        if l.lineDepthAbs == line.lineDepthAbs
-                            if l.lineType == 'Tu'
-                                l.setType('Th')
-                            else
-                                l.setType('Lh')
-                        l=l.linePrev
-
-                when 'Th'
-                    lineTypeTarget = 'Tu'
-                    # transform all its siblings in Tu
-                    l = line.lineNext
-                    while l!=null and l.lineDepthAbs >= line.lineDepthAbs
-                        if l.lineDepthAbs == line.lineDepthAbs
-                            if l.lineType == 'Th'
-                                l.setType('Tu')
-                            else
-                                l.setType('Lu')
-                        l=l.lineNext
-                    l = line.linePrev
-                    while l!=null and l.lineDepthAbs >= line.lineDepthAbs
-                        if l.lineDepthAbs == line.lineDepthAbs
-                            if l.lineType == 'Th'
-                                l.setType('Tu')
-                            else
-                                l.setType('Lu')
-                        l=l.linePrev
-                # when 'Lh'
-                #     lineTypeTarget = 'Th'
-                # when 'Lu'
-                #     lineTypeTarget = 'Tu'
-                else
-                    lineTypeTarget = false
-
-            if lineTypeTarget
-                line.setType(lineTypeTarget)
-
+            if ! depthIsTreated[currentDepth]
+                done = @_toggleLineType(line)
+                depthIsTreated[line.lineDepthAbs] = done
             if line.lineID == endDiv.id
-                break
+                return
+            line = line.lineNext
+            if line.lineDepthAbs < currentDepth
+                depthIsTreated[currentDepth] = false
+                currentDepth = line.lineDepthAbs
             else
-                line = line.lineNext
+                currentDepth = line.lineDepthAbs
+                
+
+    _toggleLineType : (line) ->
+        switch line.lineType
+            
+            when 'Tu'
+                lineTypeTarget = 'Th'
+                # transform all its next siblings and lines in Th or Lh
+                l = line.lineNext
+                while l!=null and l.lineDepthAbs >= line.lineDepthAbs
+                    if l.lineDepthAbs == line.lineDepthAbs
+                        if l.lineType == 'Tu'
+                            l.setType('Th')
+                        else if l.lineType == 'Lu'
+                            l.setType('Lh')
+                        else # when on the same level there are both u and h
+                            break # manage only contiguous lines and siblings
+                    l = l.lineNext
+                # transform all its previous siblings and lines in Th or Lh
+                l = line.linePrev
+                while l!=null and l.lineDepthAbs >= line.lineDepthAbs
+                    if l.lineDepthAbs == line.lineDepthAbs
+                        if l.lineType == 'Tu'
+                            l.setType('Th')
+                        else if l.lineType == 'Lu'
+                            l.setType('Lh')
+                        else
+                            break
+                    l = l.linePrev
+
+            when 'Th'
+                lineTypeTarget = 'Tu'
+                # transform all its next siblings and lines in Tu or Lu
+                l = line.lineNext
+                while l!=null and l.lineDepthAbs >= line.lineDepthAbs
+                    if l.lineDepthAbs == line.lineDepthAbs
+                        if l.lineType == 'Th'
+                            l.setType('Tu')
+                        else if l.lineType == 'Lh'
+                            l.setType('Lu')
+                        else
+                            break
+                    l = l.lineNext
+                l = line.linePrev
+                # transform all its previous siblings and lines in Tu or Lu
+                while l!=null and l.lineDepthAbs >= line.lineDepthAbs
+                    if l.lineDepthAbs == line.lineDepthAbs
+                        if l.lineType == 'Th'
+                            l.setType('Tu')
+                        else if l.lineType == 'Lh'
+                            l.setType('Lu')
+                        else
+                            break
+                    l = l.linePrev
+
+            else
+                return false
+
+        line.setType(lineTypeTarget)
+        return true
+
 
 
     ### ------------------------------------------------------------------------
