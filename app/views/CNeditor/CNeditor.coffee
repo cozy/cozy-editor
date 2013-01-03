@@ -122,6 +122,11 @@ class Line
         @lineDepthAbs = absDepth
         @line$.prop('class',"#{@lineType}-#{absDepth}")
 
+    setTypeDepth : (type, absDepth) ->
+        @lineType = type
+        @lineDepthAbs = absDepth
+        @line$.prop('class',"#{type}-#{absDepth}")
+
 Line.clone = (line) ->
     clone = new Line()
     clone.line$        = line.line$.clone()
@@ -682,14 +687,14 @@ class exports.CNeditor
     # 
     #  Turn selected lines in a Marker List
     ###
+
     markerList : (l) ->
-        # 1- Variables
+        # 1- find first and last div of the lines to turn into markers
         if l?
             startDivID = l.lineID
             endLineID  = startDivID
         else
             range = @getEditorSelection().getRangeAt(0)
-
             startDiv = selection.getLineDiv(
                     range.startContainer, 
                     range.startOffset
@@ -698,59 +703,99 @@ class exports.CNeditor
                     range.endContainer, 
                     range.endOffset
                 )
-                
-            # 2- find first and last div corresponding to the 1rst and
-            #    last selected lines
             startDivID =  startDiv.id
             endLineID = endDiv.id
             
-        # 3- loop on each line between the first and last line selected
-        # TODO : deal the case of a multi range (multi selections). 
-        #        Currently only the first range is taken into account.
+        # 2- loop on each line between the first and last line selected
+        # TODO : deal the case of a multi range (multi selections).
         line = @_lines[startDivID]
         loop
             switch line.lineType
-                when 'Th'
-                    lineTypeTarget = 'Tu'
-                    # transform all next Th & Lh siblings in Tu & Lu
-                    l = line.lineNext
-                    while l!=null and l.lineDepthAbs >= line.lineDepthAbs
-                        switch l.lineType
-                            when 'Th'
-                                l.line$.prop("class","Tu-#{l.lineDepthAbs}")
-                                l.lineType = 'Tu'
-                                l.lineDepthRel = @_findDepthRel(l)
-                            when 'Lh'
-                                l.line$.prop("class","Lu-#{l.lineDepthAbs}")
-                                l.lineType = 'Lu'
-                                l.lineDepthRel = @_findDepthRel(l)
-                        l=l.lineNext
-                    # transform all previous Th &vLh siblings in Tu & Lu
-                    l = line.linePrev
-                    while l!=null and l.lineDepthAbs >= line.lineDepthAbs
-                        switch l.lineType
-                            when 'Th'
-                                l.line$.prop("class","Tu-#{l.lineDepthAbs}")
-                                l.lineType = 'Tu'
-                                l.lineDepthRel = @_findDepthRel(l)
-                            when 'Lh'
-                                l.line$.prop("class","Lu-#{l.lineDepthAbs}")
-                                l.lineType = 'Lu'
-                                l.lineDepthRel = @_findDepthRel(l)
-                        l=l.linePrev
-                when 'Lh', 'Lu'
-                    # remember : the default indentation action is to make 
-                    # a marker list, that's why it works here.
-                    @tab(line)
+                when 'Th','To'
+                    @_toggleLineType(line)
+                when 'Lh', 'Lo'
+                    line.setTypeDepth('Tu',line.lineDepthAbs+1)
+                when 'Lu'
+                    line.setTypeDepth('Tu',line.lineDepthAbs)
                 else
                     lineTypeTarget = false
-
-            if lineTypeTarget
-                line.setType(lineTypeTarget)
             if line.lineID == endLineID
                 break
-            else
-                line = line.lineNext
+            line = line.lineNext
+
+    
+    ### 
+        old version
+    ###
+    # markerList : (l) ->
+    #     # 1- Variables
+    #     if l?
+    #         startDivID = l.lineID
+    #         endLineID  = startDivID
+    #     else
+    #         range = @getEditorSelection().getRangeAt(0)
+
+    #         startDiv = selection.getLineDiv(
+    #                 range.startContainer, 
+    #                 range.startOffset
+    #             )
+    #         endDiv = selection.getLineDiv(
+    #                 range.endContainer, 
+    #                 range.endOffset
+    #             )
+                
+    #         # 2- find first and last div corresponding to the 1rst and
+    #         #    last selected lines
+    #         startDivID =  startDiv.id
+    #         endLineID = endDiv.id
+            
+    #     # 3- loop on each line between the first and last line selected
+    #     # TODO : deal the case of a multi range (multi selections). 
+    #     #        Currently only the first range is taken into account.
+    #     line = @_lines[startDivID]
+    #     loop
+    #         switch line.lineType
+    #             when 'Th'
+    #                 lineTypeTarget = 'Tu'
+    #                 # transform all next Th & Lh siblings in Tu & Lu
+    #                 l = line.lineNext
+    #                 while l!=null and l.lineDepthAbs >= line.lineDepthAbs
+    #                     switch l.lineType
+    #                         when 'Th'
+    #                             l.line$.prop("class","Tu-#{l.lineDepthAbs}")
+    #                             l.lineType = 'Tu'
+    #                             l.lineDepthRel = @_findDepthRel(l)
+    #                         when 'Lh'
+    #                             l.line$.prop("class","Lu-#{l.lineDepthAbs}")
+    #                             l.lineType = 'Lu'
+    #                             l.lineDepthRel = @_findDepthRel(l)
+    #                     l=l.lineNext
+    #                 # transform all previous Th &vLh siblings in Tu & Lu
+    #                 l = line.linePrev
+    #                 while l!=null and l.lineDepthAbs >= line.lineDepthAbs
+    #                     switch l.lineType
+    #                         when 'Th'
+    #                             l.line$.prop("class","Tu-#{l.lineDepthAbs}")
+    #                             l.lineType = 'Tu'
+    #                             l.lineDepthRel = @_findDepthRel(l)
+    #                         when 'Lh'
+    #                             l.line$.prop("class","Lu-#{l.lineDepthAbs}")
+    #                             l.lineType = 'Lu'
+    #                             l.lineDepthRel = @_findDepthRel(l)
+    #                     l=l.linePrev
+    #             when 'Lh', 'Lu'
+    #                 # remember : the default indentation action is to make 
+    #                 # a marker list, that's why it works here.
+    #                 @tab(line)
+    #             else
+    #                 lineTypeTarget = false
+
+    #         if lineTypeTarget
+    #             line.setType(lineTypeTarget)
+    #         if line.lineID == endLineID
+    #             break
+    #         else
+    #             line = line.lineNext
 
 
     ### ------------------------------------------------------------------------
