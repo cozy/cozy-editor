@@ -538,11 +538,11 @@ class exports.CNeditor
                 # if there is no next line :
                 # no modification, just prevent default action
                 else
-                    console.log '_suppr 2 - test '
+                    # console.log '_suppr 2 - test '
 
             # 1.2 caret is in the middle of the line : delete one caracter
             else
-                console.log '_suppr 3 - test '
+                # console.log '_suppr 3 - test '
                 # we consider that we are in a text node
                 textNode = @currentSel.range.startContainer
                 startOffset = @currentSel.range.startOffset
@@ -556,12 +556,12 @@ class exports.CNeditor
         else if @currentSel.endLine == startLine
             # sel can be safely deleted thanks to normalization that have set
             # the selection correctly within the line.
-            console.log '_suppr 4 - test '
+            # console.log '_suppr 4 - test '
             @currentSel.range.deleteContents()
 
         # 3- Case of a multi lines selection
         else
-            console.log '_suppr 5 - test '
+            # console.log '_suppr 5 - test '
             @_deleteMultiLinesSelections()
 
         event.preventDefault()
@@ -2062,9 +2062,9 @@ class exports.CNeditor
         clipboardEl.setAttribute('contenteditable','true')
         @clipboard$ = $ clipboardEl
         @clipboard$.attr('id', 'editor-clipboard')
-        # getOffTheScreen =
-        #     left: -300
-        # @clipboard$.offset getOffTheScreen
+        getOffTheScreen =
+            left: -300
+        @clipboard$.offset getOffTheScreen
         @clipboard$.prependTo @editorBody$
         @clipboard = @clipboard$[0]
         @clipboard.style.setProperty('width','280px')
@@ -2336,17 +2336,17 @@ class exports.CNeditor
             switch child.nodeName
 
                 when '#text'
-                    # text nodes are inserted
-                    txtNode = document.createTextNode(child.textContent)
-                    
+                    # text nodes are inserted in the current populated 
+                    # element if its a "textual" element
                     if context.currentLineEl.nodeName in ['SPAN','A']
-                        context.currentLineEl.appendChild txtNode
+                        context.currentLineEl.textContent += child.textContent
+                    # otherwise in a new span
                     else
+                        txtNode = document.createTextNode(child.textContent)
                         spanEl = document.createElement('span')
                         spanEl.appendChild txtNode
                         context.currentLineEl.appendChild spanEl
                     
-                    # @_appendCurrentLineFrag(context,absDepth,absDepth)
                     context.isCurrentLineBeingPopulated = true
 
                 when 'P', 'UL', 'OL'
@@ -2393,6 +2393,15 @@ class exports.CNeditor
                     if context.isCurrentLineBeingPopulated
                         @_appendCurrentLineFrag(context,absDepth,absDepth)
 
+                when 'TR'
+                    # if a line was being populated, append it to the frag
+                    if context.isCurrentLineBeingPopulated
+                        @_appendCurrentLineFrag(context,absDepth,absDepth)
+                    # walk throught the child and append it to the frag
+                    @__domWalk(child, context)
+                    if context.isCurrentLineBeingPopulated
+                        @_appendCurrentLineFrag(context,absDepth,absDepth)
+
                 when 'BR'
                     # append the line that was being populated to the frag (even
                     # if this one had not yet been populated by any element)
@@ -2401,15 +2410,27 @@ class exports.CNeditor
                 when 'A'
                     lastInsertedEl = context.currentLineEl.lastChild
                     if lastInsertedEl != null and lastInsertedEl.nodeName=='SPAN'
-                        lastInsertedEl.textContent += '[[' + child.textContent + '|'+ child.href+']]'
+                        lastInsertedEl.textContent += '[' + child.textContent + ']('+ child.href+')'
                     else
-                        spanNode = document.createElement('a')
-                        spanNode.href = child.href
-                        spanNode.textContent = child.textContent
-                        #spanNode.textContent = child.textContent + ' [[' + child.href+']] '
+                        spanNode = document.createElement('span')
+                        spanNode.textContent = child.textContent + ' [[' + child.href+']] '
                         context.currentLineEl.appendChild(spanNode)
                     context.isCurrentLineBeingPopulated = true
-                
+                    
+
+
+                    # if context.currentLineEl.nodeName == 'A'
+                    #     context.currentLineEl.textContent += child.textContent
+                    # # otherwise in a new span
+                    # else
+                    #     txtNode = document.createTextNode(child.textContent)
+                    #     spanEl = document.createElement('span')
+                    #     spanEl.appendChild txtNode
+                    #     context.currentLineEl.appendChild spanEl
+                    
+                    # context.isCurrentLineBeingPopulated = true
+
+
                 # ###
                 # ready for styles to be taken into account
                 # when 'A'
@@ -2447,7 +2468,7 @@ class exports.CNeditor
                 #     @__domWalk(child, context)
                 #     context.currentLineEl = initialCurrentLineEl
                 #     context.isCurrentLineBeingPopulated = true
-                when 'DIV'
+                when 'DIV', 'TABLE', 'TBODY'
                     if child.id.substr(0,5)=='CNID_'
                         @_clipBoard_Insert_InternalLine(child, context)
                     else

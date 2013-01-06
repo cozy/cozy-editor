@@ -159,7 +159,6 @@ cb = () ->
     # Allows user to load a file in the Cozy format
     $('#contentSelect').on "change" , (e) ->
         editorCtrler.replaceContent( require("views/templates/#{e.currentTarget.value}")() )
-        $('#well-editor').css('background-color','')
         checkEditor()
 
     # Allows user to load a style sheet for the page
@@ -212,6 +211,7 @@ cb = () ->
         if res
             checkLog += st + "Syntax test success\n" 
             serializerDisplay.val(checkLog)
+            $('#well-editor').css('background-color','')
         else
             checkLog += st + " !!! Syntax test FAILLURE : cf console  !!!\n"
             serializerDisplay.val(checkLog)
@@ -247,18 +247,16 @@ cb = () ->
     
     $("#getHtmlBtn").on  'click' , =>
         serializerDisplay.val beautify(@linesDiv.innerHTML)
-        
+
     $("#getMarkdownBtn").on "click", () ->
         content = editorCtrler.getEditorContent()
         serializerDisplay.val content
 
     $("#loadMdBtn").on "click", () ->
-        $('#well-editor').css('background-color','')
         editorCtrler.setEditorContent serializerDisplay[0].value
         checkEditor()
 
     $("#loadHtmlBtn").on "click", () ->
-        $('#well-editor').css('background-color','')
         # htmlStrg = serializerDisplay[0].value
         # htmlStrg = htmlStrg.replace(/>[\n ]*</g, "><")
         editorCtrler.replaceContent serializerDisplay[0].value,  true

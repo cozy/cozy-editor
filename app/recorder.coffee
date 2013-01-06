@@ -54,15 +54,19 @@ class exports.Recorder
     startRecordSession: () ->
         @._recordingSession = []
         @.serializerDisplay.val null
+        # re number lines id so that final state will have same ids after played
+        @editor._readHtml() 
         @initialState = @getState()
         # listen events on bubbling phase so that the editor reacts before ( the
         # editor listen the capturing phase which takes place before)
         @editor.linesDiv.addEventListener('mouseup', @selectionRecorder, false)
         @editor.linesDiv.addEventListener('keydown', @keyboardRecorder, false)
+        @editor.linesDiv.addEventListener('keyup', @keyboardMoveRecorder, false)
 
     stopRecordSession: () ->
         @editor.linesDiv.removeEventListener('mouseup', @selectionRecorder, false)
         @editor.linesDiv.removeEventListener('keydown', @keyboardRecorder, false)
+        @editor.linesDiv.removeEventListener('keyup', @keyboardMoveRecorder, false)
         @finalState = @getState()
 
     getState: () ->
@@ -88,11 +92,10 @@ class exports.Recorder
             selection: serializedSelection
 
         @_recordingSession.push serializedEvent
-        @_refreshRecorder()
+        @_refreshResultDisplay()
 
     keyboardRecorder: (event) =>
         [metaKeyCode,keyCode] = @editor.getShortCut(event)
-        console.log 'keyboardRecorder => getShortCut = ', metaKeyCode + '-' + keyCode
         serializedEvent = {}
 
         if metaKeyCode+keyCode == 'other'
@@ -107,21 +110,33 @@ class exports.Recorder
             return
 
         if keyCode in ['up','down','right','left','home','pgUp','pgDwn']
+        #     sel = @editor.getEditorSelection()
+        #     serializedSelection = rangy.serializeSelection sel, true, @editorBody$[0]
+        #     console.log 'keyboardRecorder detect a keyboard move : ' + keyCode + ' ' + serializedSelection
+        #     serializedEvent.selection = serializedSelection
+        else
+            serializedEvent.keyboard =
+                altKey   : event.altKey
+                shiftKey : event.shiftKey
+                ctrlKey  : event.ctrlKey
+                keyCode  : event.which
+                which    : event.which
+
+            @_recordingSession.push serializedEvent
+            @_refreshResultDisplay()
+
+    keyboardMoveRecorder: (event) =>
+        [metaKeyCode,keyCode] = @editor.getShortCut(event)
+        serializedEvent = {}
+
+        if keyCode in ['up','down','right','left','home','pgUp','pgDwn']
             sel = @editor.getEditorSelection()
             serializedSelection = rangy.serializeSelection sel, true, @editorBody$[0]
             serializedEvent.selection = serializedSelection
+            @_recordingSession.push serializedEvent
+            @_refreshResultDisplay()
 
-        serializedEvent.keyboard =
-            altKey   : event.altKey
-            shiftKey : event.shiftKey
-            ctrlKey  : event.ctrlKey
-            keyCode  : event.which
-            which    : event.which
-
-        @_recordingSession.push serializedEvent
-        @_refreshRecorder()
-
-    _refreshRecorder: ->
+    _refreshResultDisplay: ->
         @serializerDisplay.val JSON.stringify(@_recordingSession)
 
     playAll: ->
@@ -133,6 +148,8 @@ class exports.Recorder
             record = @_recordingSession
         if record == []
             return
+        if record.currentStep
+            record.currentStep = null
         @restoreState(record.initialState)
         for action in record.sequence
             @_playAction action
@@ -226,12 +243,13 @@ class exports.Recorder
             </div>
             """
         @recordList.append element
-        record.element = element
-
-        record.setResult = @setResult
-        record.playStep = @playStep
+        record.element       = element
+        
+        record.setResult     = @setResult
+        record.playStep      = @playStep
+        record.currentStep   = null
         record.displayResult = @displayResult
-        record.recorder = @
+        record.recorder      = @
 
         @.add(record)
 
