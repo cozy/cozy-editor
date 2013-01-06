@@ -56,6 +56,50 @@ $("#well-result").layout
 ###
 cb = () ->
 
+
+    #### -------------------------------------------------------------------
+    # buttons init, beautify actions
+    editorCtrler      = this
+    editorBody$       = @editorBody$
+    recordButton      = $ "#record-button"
+    loadHtmlBtn       = $ "#loadHtmlBtn"
+    serializerDisplay = $ "#resultText"
+    playAllButton     = $ "#play-all-button"
+    playCurrentButton = $ "#play-current-button"
+    recordList        = $ '#record-list'
+    recordSaveButton  = $ '#record-save-button'
+    recordSaveInput   = $ '#record-name'
+    editor2Btn        = $ '#editor2Btn'
+    ed_2_ed2_Btn      = $ '#ed_2_ed2_Btn'
+    ed2_2_ed_Btn      = $ '#ed2_2_ed_Btn'
+    editorIframe$     = $ '#editorIframe'
+
+    #### -------------------------------------------------------------------
+    # buttons for moving editors content from one to the other
+    move_ed_2_ed2 = () =>
+        parentWidth = editorIframe$.parent().css('width')
+        if editorIframe$.css('width') == parentWidth
+            editorIframe$.css('width','49%')
+        @editor2.replaceContent @.linesDiv.innerHTML
+
+    move_ed2_2_ed = () =>
+        parentWidth = editorIframe$.parent().css('width')
+        if editorIframe$.css('width') == parentWidth
+            editorIframe$.css('width','49%')
+        @.replaceContent @editor2.linesDiv.innerHTML
+
+    editor2Btn.on 'click', () =>
+        parentWidth = editorIframe$.parent().css('width')
+        if editorIframe$.css('width') != parentWidth
+            editorIframe$.css('width','100%')
+        else
+            editorIframe$.css('width','49%')
+            @editor2.replaceContent @.linesDiv.innerHTML
+    
+    ed_2_ed2_Btn.on 'click', move_ed_2_ed2
+
+    ed2_2_ed_Btn.on 'click', move_ed2_2_ed
+    
     #### -------------------------------------------------------------------
     ### initialize content of the editor
     this.replaceContent( require('views/templates/content-empty') )
@@ -65,40 +109,15 @@ cb = () ->
     this.replaceContent( require('views/templates/content-full-relative-indent') )
     this.replaceContent( require('views/templates/content-shortlines-all-hacked') )
     content = require('views/templates/content-shortlines-large')
-    content = require('views/templates/test')
-    content = require('views/templates/content-shortlines-medium')
-    ###
     content = require('views/templates/content-shortlines-small')
+    content = require('views/templates/test2')
+    ###
+    content = require('views/templates/content-shortlines-medium')
     @replaceContent content()
+    move_ed_2_ed2()
     # beautify(editorBody$)
 
-    #### -------------------------------------------------------------------
-    # buttons init, beautify actions
-    editorCtrler      = this
-    editorBody$       = @editorBody$
-    recordButton      = $ "#record-button"
-    serializerDisplay = $ "#resultText"
-    playAllButton     = $ "#play-all-button"
-    playAllSlowButton = $ "#play-all-slow-button"
-    slowPlayButton    = $ "#slow-play-button"
-    recordList        = $ '#record-list'
-    recordSaveButton  = $ '#record-save-button'
-    recordSaveInput   = $ '#record-name'
-    editor2Btn        = $ '#editor2Btn'
-    editorIframe$     = $ '#editorIframe'
-
-    editor2Btn.on 'click', () =>
-        parentWidth = editorIframe$.parent().css('width')
-        if editorIframe$.css('width') != parentWidth
-            editorIframe$.css('width','100%')
-        else
-            editorIframe$.css('width','49%')
-            @editor2.replaceContent @.linesDiv.innerHTML
-
-
-        
-    $("#resultBtnBar_coller").on  'click' , =>
-        serializerDisplay.text beautify(@linesDiv.innerHTML)
+    # editorIframe$.css('width','49%')
         
     $("#printRangeBtn").on "click", () ->
         sel = editorCtrler.getEditorSelection()
@@ -140,7 +159,6 @@ cb = () ->
     # Allows user to load a file in the Cozy format
     $('#contentSelect').on "change" , (e) ->
         editorCtrler.replaceContent( require("views/templates/#{e.currentTarget.value}")() )
-        $('#well-editor').css('background-color','')
         checkEditor()
 
     # Allows user to load a style sheet for the page
@@ -152,18 +170,25 @@ cb = () ->
     # Buttons should probably give back the focus to the editor's iframe
     $("#indentBtn").on "click", () ->
         editorCtrler.tab()
+        editorCtrler.setFocus()
     $("#unIndentBtn").on "click", () ->
         editorCtrler.shiftTab()
+        editorCtrler.setFocus()
     $("#markerListBtn").on "click", () ->
         editorCtrler.markerList()
+        editorCtrler.setFocus()
     $("#titleBtn").on "click", () ->
         editorCtrler.titleList()
+        editorCtrler.setFocus()
     $("#clearBtn").on "click", () ->
         editorCtrler.deleteContent()
+        editorCtrler.setFocus()
     $("#undoBtn").on "click", () ->
         editorCtrler.unDo()
+        editorCtrler.setFocus()
     $("#redoBtn").on "click", () ->
         editorCtrler.reDo()
+        editorCtrler.setFocus()
         
     #### -------------------------------------------------------------------
     # Special buttons (to be removed later)
@@ -185,10 +210,11 @@ cb = () ->
         st   = h+":"+m+":"+s+" - "
         if res
             checkLog += st + "Syntax test success\n" 
-            serializerDisplay.text(checkLog)
+            serializerDisplay.val(checkLog)
+            $('#well-editor').css('background-color','')
         else
             checkLog += st + " !!! Syntax test FAILLURE : cf console  !!!\n"
-            serializerDisplay.text(checkLog)
+            serializerDisplay.val(checkLog)
             $('#well-editor').css('background-color','#c10000')
 
     continuousCheckToggle = () =>
@@ -218,12 +244,23 @@ cb = () ->
 
     #  > translate cozy code into markdown and markdown to cozy code
     #    Note: in the markdown code there should be two \n between each line
-    $("#markdownBtn").on "click", () ->
-        content = editorCtrler.getEditorContent()
-        serializerDisplay.text content
+    
+    $("#getHtmlBtn").on  'click' , =>
+        serializerDisplay.val beautify(@linesDiv.innerHTML)
 
-    $("#cozyBtn").on "click", () ->
-        editorCtrler.setEditorContent serializerDisplay.text()
+    $("#getMarkdownBtn").on "click", () ->
+        content = editorCtrler.getEditorContent()
+        serializerDisplay.val content
+
+    $("#loadMdBtn").on "click", () ->
+        editorCtrler.setEditorContent serializerDisplay[0].value
+        checkEditor()
+
+    $("#loadHtmlBtn").on "click", () ->
+        # htmlStrg = serializerDisplay[0].value
+        # htmlStrg = htmlStrg.replace(/>[\n ]*</g, "><")
+        editorCtrler.replaceContent serializerDisplay[0].value,  true
+        checkEditor()
 
     $("#addClass").toggle(
         () ->
@@ -332,11 +369,11 @@ cb = () ->
         $('#editorIframe').css('width','49%')
         if html
             @editor2.replaceContent strg
-            serializerDisplay.text beautify(strg)
+            serializerDisplay.val beautify(strg)
 
         else
             @editor2.setEditorContent strg
-            serializerDisplay.text strg
+            serializerDisplay.val strg
 
     Recorder = require('./recorder').Recorder
     recorder = new Recorder(editorCtrler, 
@@ -367,13 +404,9 @@ cb = () ->
         continuousCheckOff()
         recorder.playAll()
 
-    playAllSlowButton.click ->
+    playCurrentButton.click ->
         continuousCheckOff()
-        recorder.slowPlayAll()
-
-    slowPlayButton.click ->
-        continuousCheckOff()
-        recorder.slowPlay()
+        recorder.play()
 
     recordButton.click recordTest
 
@@ -394,6 +427,7 @@ cb = () ->
 ###
 
 $ ->
-    editor = new CNeditor( document.querySelector('#editorIframe'), cb )
-    editor2 = new CNeditor( document.querySelector('#editorIframe2'), -> )
-    editor.editor2 = editor2
+    editor2 = new CNeditor( document.querySelector('#editorIframe2'), () ->
+        editor = new CNeditor document.querySelector('#editorIframe'), cb 
+        editor.editor2 = editor2
+    )

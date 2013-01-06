@@ -60,12 +60,12 @@ class exports.AutoTest
     #     Utility functions
     # 
     # Defines what type of children a node can have
-    # only useful for the structure's verification
+    # (children = type Lx of same depth and Tx of  depth x+1)
     possibleSon : {
         'Th': (name) ->
             return name=='Lh' || name=='Th' || name=='To' || name=='Tu'
         'Tu': (name) ->
-            return name=='Lu' || name=='To' || name=='Tu'
+            return name=='Tu' || name=='Lu' || name=='Th' || name=='To'
         'To': (name) ->
             return name=='Lo' || name=='To' || name=='Tu'
         'Lh': (name) ->

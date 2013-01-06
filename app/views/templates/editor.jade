@@ -60,7 +60,9 @@
               button#undoBtn.btn.btn-small.btn-inverse undo
               button#redoBtn.btn.btn-small.btn-inverse redo
             .btn-group.btn-bar-editor
-              button#editor2Btn.btn.btn-small.btn-inverse Editor 2
+              button#editor2Btn.btn.btn-small.btn-inverse Show/hide
+              button#ed_2_ed2_Btn.btn.btn-small.btn-inverse =>
+              button#ed2_2_ed_Btn.btn.btn-small.btn-inverse <=
           // text for the editor
           #editorContent
             iframe#editorIframe2()
@@ -70,18 +72,18 @@
           // text for the resulting html
           #resultContent.ui-layout-west
             #resultBtnBar.btn-group
-              button#resultBtnBar_coller.btn.btn-small Get HTML
-              button#markdownBtn.btn.btn-small Get MD
-              button#cozyBtn.btn.btn-small Load MD
+              button#getHtmlBtn.btn.btn-small Get HTML
+              button#getMarkdownBtn.btn.btn-small Get MD
+              button#loadHtmlBtn.btn.btn-small Load HTML
+              button#loadMdBtn.btn.btn-small Load MD
               button#checkBtn.btn.btn-small Test syntax
-              button#summaryBtn.btn.btn-small Display Summary
+              //- button#summaryBtn.btn.btn-small Display Summary
             div#resultTextDiv
-              pre#resultText
+              textarea#resultText(contentEditable='true', spellcheck='false')
           #recordings.ui-layout-center
             #recordBtnBar.btn-group
               button#record-button.btn.btn-small Record
-              button#slow-play-button.btn.btn-small Play last recorded
-              button#play-all-slow-button.btn.btn-small Play all slow
+              button#play-current-button.btn.btn-small Play last recorded
               button#play-all-button.btn.btn-small Play all
             #record-form
                 div
