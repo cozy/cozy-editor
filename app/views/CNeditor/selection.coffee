@@ -171,7 +171,6 @@ selection.normalize = (range) ->
  * @return {object} the suggested break point : {cont:newCont,offset:newOffset}
 ###
 selection.normalizeBP = (cont, offset) ->
-    console.log "__ normalize()"
     if cont.nodeName == '#text'
         # nothing to do
         res = {cont:cont,offset:offset}

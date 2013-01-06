@@ -15,6 +15,7 @@ class exports.Recorder
         # list of all the records retrived from the server (localhost:3000)
         @records           = []
         @checker = new AutoTest()
+        @keyEvent = document.createEvent('KeyboardEvent')
 
     ### Functionalities ###
 
@@ -54,12 +55,14 @@ class exports.Recorder
         @._recordingSession = []
         @.serializerDisplay.val null
         @initialState = @getState()
-        @.editorBody$.mouseup(@.selectionRecorder)
-        @.editorBody$.keyup(@.keyboardRecorder)
+        # listen events on bubbling phase so that the editor reacts before ( the
+        # editor listen the capturing phase which takes place before)
+        @editor.linesDiv.addEventListener('mouseup', @selectionRecorder, false)
+        @editor.linesDiv.addEventListener('keydown', @keyboardRecorder, false)
 
     stopRecordSession: () ->
-        @.editorBody$.off 'mouseup', @.selectionRecorder
-        @.editorBody$.off 'keyup'  , @.keyboardRecorder
+        @editor.linesDiv.removeEventListener('mouseup', @selectionRecorder, false)
+        @editor.linesDiv.removeEventListener('keydown', @keyboardRecorder, false)
         @finalState = @getState()
 
     getState: () ->
@@ -73,9 +76,8 @@ class exports.Recorder
 
     restoreState: (state) ->
         if state
-            @.editor.setEditorContent(state.md)
-            # @editorBody$.html state
-            # @editor._readHtml()
+            @.editor.replaceContent(state.html)
+            # @.editor.setEditorContent(state.md)
 
     ### Listeners ###
     
@@ -90,6 +92,7 @@ class exports.Recorder
 
     keyboardRecorder: (event) =>
         [metaKeyCode,keyCode] = @editor.getShortCut(event)
+        console.log 'keyboardRecorder => getShortCut = ', metaKeyCode + '-' + keyCode
         serializedEvent = {}
 
         if metaKeyCode+keyCode == 'other'
@@ -97,6 +100,7 @@ class exports.Recorder
             # able to play them.
             # This test doesn't fit all the insertions, but 80% cases, it's 
             # enougth
+            alert 'No insertion during recording'
             throw new Error('No insertion during recording')
         else if metaKeyCode != '' and keyCode == 'other'
             # don't record if only a meta is stroken
@@ -123,78 +127,96 @@ class exports.Recorder
     playAll: ->
         for record in @records
             @play record
-        @_displayResults()
-
-    slowPlayAll: ->
-        @slowPlayRecords = @records.slice(0)
-        @_slowPlayAllLoop()
-
-    _slowPlayAllLoop: ->
-        if @slowPlayRecords.length > 0
-            @slowPlayRecord = @slowPlayRecords.shift()
-            @slowPlay @slowPlayRecord, true
-        else
-            @_displayResults()
-            console.log 'slowPlayAll finished'
 
     play: (record) ->
-        @restoreState(record.initialState)
         if !record
             record = @_recordingSession
+        if record == []
+            return
+        @restoreState(record.initialState)
         for action in record.sequence
             @_playAction action
+        record.displayResult( @getState() )
         finalState = @.getState()
-        if finalState.md != record.finalState.md
+        if finalState.html != record.finalState.html
             record.finalStateOK = false
-            record.finalStateTxt = "md differs"
-        else if finalState.html != record.finalState.html
+            errorText = 'Actions ok, but final html differs'
+            record.setResult(errorText,'finalHTMLNOK')
+        else if finalState.md != record.finalState.md
             record.finalStateOK = false
-            record.finalStateTxt = "html differs"
+            errorText = 'Actions ok, but final md differs'
+            record.setResult(errorText,'finalMdNOK')
         else
             record.finalStateOK = true
+            record.setResult('ok','resultActionOK')
 
-    slowPlay: (record, isAll) =>
-        @restoreState(record.initialState)
-        if record?
-            @_slowPlayingSession = record.sequence.slice(0)
-            @slowPlayRecord = record
-        else
-            @_slowPlayingSession = @_recordingSession.slice(0)
-        @editorBody$.focus()
-        if !isAll
-            @slowPlayRecords=[]
-        @_slowPlayLoop()
 
-    _slowPlayLoop: =>
-        if @_slowPlayingSession.length > 0
-            action = @_slowPlayingSession.shift()
-            @_playAction action
-            setTimeout @_slowPlayLoop, 300
-        else
-            console.log "finished a record"
-            finalState = @.getState()
-            if (finalState.md == @slowPlayRecord.finalState.md) and (finalState.html == @slowPlayRecord.finalState.html)
-                @slowPlayRecord.finalStateOK = true
+    displayResult : (finalState) ->
+            if finalState.html != @finalState.html
+                @finalStateOK = false
+                errorText = 'Actions ok, but final html differs'
+                @setResult(errorText,'finalHTMLNOK')
+            else if finalState.md != @finalState.md
+                @finalStateOK = false
+                errorText = 'Actions ok, but final md differs'
+                @setResult(errorText,'finalMdNOK')
             else
-                @slowPlayRecord.finalStateOK = false
-                debugger
-            @_slowPlayAllLoop()
-            
+                @finalStateOK = true
+                @setResult('ok','resultActionOK')
+
+    setResult : (msg,classError) ->
+            el = @element.find('.resultAction')
+            actionsInError = []
+            for action , i in @sequence
+                if action.result
+                    recordResult = true
+                else
+                    recordResult = false
+                    actionsInError.push(i)
+                2 # for a clear compiled js 
+
+                el.text(msg)
+                el.removeClass('resultActionOK'  )
+                el.removeClass('resultActionNOK' )
+                el.removeClass('finalHTMLNOK'    )
+                el.removeClass('finalMdNOK'      )
+                el.addClass(classError)
+
+    playStep : () ->
+        if !@currentStep?
+            @currentStep = 0
+            @recorder.restoreState(@initialState)
+        @recorder._playAction @sequence[@currentStep]
+        if @currentStep == @sequence.length - 1
+            @currentStep = null
+            @displayResult(@recorder.getState())
+        else
+            el = @element.find('.resultAction')
+            if @sequence[@currentStep].result
+                el.removeClass('resultActionNOK')
+                el.addClass('resultActionOK')
+                el.text('step ' + (@currentStep+1) + '/' + @sequence.length + ' OK')
+            else
+                el.removeClass('resultActionOK')
+                el.addClass('resultActionNOK')
+                el.text('step ' + (@currentStep+1) + '/' + @sequence.length + ' NOK')
+            @currentStep +=1
+
     _appendRecordElement: (record) ->
-        @recordList.append """
+        element = $  """
             <div id="record_#{record.id}">
                 <span class="btnDiv-RecordLine">
                     <div class="btn-group" >
-                        <button class="slowPlay btn btn-primary btn-mini"> > </button>
                         <button class="playQuick btn btn-primary btn-mini"> >> </button>
+                        <button class="playStep btn btn-primary btn-mini"> >| </button>
                         <button class="btn btn-mini dropdown-toggle" data-toggle="dropdown">
                             <span class="caret"></span>
                         </button>
                         <ul class="dropdown-menu">
-                            <li><a class="html-ini" href="#">Load initial html</a></li>
-                            <li><a class="md-ini" href="#">Load initial md</a></li>
-                            <li><a class="html" href="#">Load expected final html</a></li>
-                            <li><a class="md" href="#">Load expected final md</a></li>
+                            <li><a class="html-ini" href="#">Initial html -> editor2</a></li>
+                            <li><a class="md-ini" href="#">Initial md -> editor2</a></li>
+                            <li><a class="html" href="#">Expected final html -> editor2</a></li>
+                            <li><a class="md" href="#">Expected final md -> editor2</a></li>
                             <li><a class="delete" href="#">Delete test</a></li>
                         </ul>
                     </div>
@@ -203,12 +225,21 @@ class exports.Recorder
                 <span class="txtDiv-RecordLine">#{record.fileName}</span>
             </div>
             """
-        element = @recordList.children().last()
+        @recordList.append element
         record.element = element
+
+        record.setResult = @setResult
+        record.playStep = @playStep
+        record.displayResult = @displayResult
+        record.recorder = @
+
         @.add(record)
 
+        element.find('.playStep').click =>
+            record.playStep()
+
         element.find('.md-ini').click =>
-            @expectedResult(record.initialState.md)
+            @expectedResult(record.initialState.md,false)
 
         element.find('.html-ini').click =>
             @expectedResult(record.initialState.html,true)
@@ -219,19 +250,13 @@ class exports.Recorder
         element.find('.html').click =>
             @expectedResult(record.finalState.html,true)
 
-        element.find('.slowPlay').click =>
-            @continuousCheckOff()
-            @.serializerDisplay.val JSON.stringify record.sequence
-            @.slowPlay(record)
-
-        element.find('.slowPlay').tooltip({title:'Slow play',delay:800})
         element.find('.playQuick').tooltip({title:'Quick play',delay:800})
+        element.find('.playStep').tooltip({title:'Play step by step',delay:800})
 
         element.find('.playQuick').click =>
             @continuousCheckOff()
             @.serializerDisplay.val JSON.stringify record.sequence
             @.play(record)
-            @_displayResults(record)
 
         element.find('.delete').click =>
             strconfirm = confirm("Do you want to delete ?")
@@ -248,56 +273,21 @@ class exports.Recorder
         if action.selection?
             rangy.deserializeSelection action.selection, @editorBody$[0]
         if action.keyboard?
-            downEvent = jQuery.Event "keydown", action.keyboard
-            pressEvent = jQuery.Event "keypress", action.keyboard
-            upEvent = jQuery.Event "keyup", action.keyboard
-            @editorBody$.trigger downEvent
-            @editorBody$.trigger pressEvent
-            @editorBody$.trigger upEvent
+            k = action.keyboard
+            
+            @keyEvent.initKeyEvent(
+                'keydown'  ,      #  in DOMString typeArg,
+                true       ,      #  in boolean canBubbleArg,
+                true       ,      #  in boolean cancelableArg,
+                null       ,      #  in nsIDOMAbstractView viewArg,  Specifies UIEvent.view. This value may be null.
+                k.ctrlKey  ,      #  in boolean ctrlKeyArg,
+                k.altKey   ,      #  in boolean altKeyArg,
+                k.shiftKey ,      #  in boolean shiftKeyArg,
+                k.altKey   ,      #  in boolean metaKeyArg,
+                k.keyCode  ,      #  in unsigned long keyCodeArg,
+                k.which)          #  in unsigned long charCodeArg);
+            @editor.linesDiv.dispatchEvent(@keyEvent)
         action.result = @checker.checkLines(@editor)
-
-
-    ###*
-     * display result tests of each record in its corresponding line.
-    ###
-    _displayResults: (record)->
-        
-        if record?
-            @records = [record]
-
-        for record in @records
-            if !(record.finalStateOK == undefined) # check that the record has been played
-                actionsInError = []
-                for action , i in record.sequence
-                    if action.result
-                        recordResult = true
-                    else
-                        recordResult = false
-                        actionsInError.push(i)
-                    2 # for a clear compiled js 
-                el = record.element.find('.resultAction')
-                if recordResult and record.finalStateOK
-                    el.text('ok')
-                    @expectedResult(record.finalState.md)
-                    el.addClass('resultActionOK')
-                    el.removeClass('resultActionNOK')
-                else 
-                    if recordResult and !record.finalStateOK
-                        errorText = 'Actions went ok but unexpected final state - '
-                        errorText += record.finalStateTxt
-                        @expectedResult(record.finalState.md)
-                    else if !recordResult and record.finalStateOK
-                        errorText = 'Actions #{actionsInError} went wrong, but final state is what was expected - '
-                    else
-                        errorText = 'Actions #{actionsInError} went wrong, and unexpected final state - '
-                        errorText += record.finalStateTxt
-                        @expectedResult(record.finalState.md)
-                        
-                    el = record.element.find('.resultAction')
-                    el.text(errorText)
-                    el.removeClass('resultActionOK')
-                    el.addClass('resultActionNOK')
-            1 # for a clear compiled js 
 
 
     add: (record) ->

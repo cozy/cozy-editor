@@ -190,15 +190,28 @@ class exports.CNeditor
 
                 # initialize event listeners
                 @editorBody$.prop '__editorCtl', this
-                @editorBody$.on 'keydown', @_keyPressListener
-                @editorBody$.on 'mouseup', () =>
+                # listen keydown on capturing phase (before bubbling)
+                @linesDiv.addEventListener('keydown', @_keyPressListener, true)
+                @linesDiv.addEventListener('mouseup', () =>
                     @newPosition = true
+                , true)
                 @editorBody$.on 'keyup', () ->
                     iframe$.trigger jQuery.Event("onKeyUp")
                 @editorBody$.on 'click', (event) =>
                     @_lastKey = null
                 @editorBody$.on 'paste', (event) =>
                     @paste event
+
+                # the observer is used for detecting caracters inserted by the
+                # browser with the default events.
+                # Then a 'change' event is cast.
+                # @observer = new MutationObserver (mutations) ->
+                #     n=0
+                #     mutations.forEach (mutation) ->
+                #         n +=1
+                #         console.log('EVENT (mutation)', mutation, n)
+
+                #     @.disconnect()
 
                 # return a ref to the editor's controler
                 callBack.call(this)
@@ -250,11 +263,16 @@ class exports.CNeditor
             else
                 @replaceCSS("stylesheets/app-deep-4.css")
         
-    ### ------------------------------------------------------------------------
-    # Initialize the editor content from a html string
+    ###* ------------------------------------------------------------------------
+     * Initialize the editor content from a html string
+     * The html string should not been pretified because of the spaces and
+     * charriage return. 
+     * If unPretify = true then a regex tries to set up things
     ###
-    replaceContent : (htmlContent) ->
-        @linesDiv.innerHTML = htmlContent
+    replaceContent : (htmlString, unPretify) ->
+        if unPretify
+            htmlString = htmlString.replace(/>[\n ]*</g, "><")
+        @linesDiv.innerHTML = htmlString
         @_readHtml()
 
     ### ------------------------------------------------------------------------
@@ -395,10 +413,10 @@ class exports.CNeditor
         # 
         # Record last pressed shortcut and eventually update the history
         if @_lastKey != shortcut and \
-               shortcut in ["-tab", "-return", "-backspace", "-suppr",
-                            "CtrlShift-down", "CtrlShift-up",
-                            "CtrlShift-left", "CtrlShift-right",
-                            "Ctrl-V", "Shift-tab", "-space", "-other"]
+               shortcut in ['-tab', '-return', '-backspace', '-suppr',
+                            'CtrlShift-down', 'CtrlShift-up',
+                            'CtrlShift-left', 'CtrlShift-right',
+                            'Ctrl-V', 'Shift-tab', '-space', '-other', 'Alt-A']
             @_addHistory()
            
         @_lastKey = shortcut
@@ -421,11 +439,11 @@ class exports.CNeditor
             range = sel.getRangeAt(0)
             selection.normalize range
         # 2.2- Set a flag if the user moved the caret with keyboard
-        if keyCode in ["left","up","right","down",
-                              "pgUp","pgDwn","end", "home",
-                              "return", "suppr", "backspace"] and
-           shortcut not in ["CtrlShift-down", "CtrlShift-up",
-                            "CtrlShift-right", "CtrlShift-left"]
+        if keyCode in ['left','up','right','down',
+                              'pgUp','pgDwn','end', 'home',
+                              'return', 'suppr', 'backspace'] and
+           shortcut not in ['CtrlShift-down', 'CtrlShift-up',
+                            'CtrlShift-right', 'CtrlShift-left']
             @newPosition = true
         
         # 4- the current selection is cleared everytime keypress occurs.
@@ -433,54 +451,67 @@ class exports.CNeditor
                  
         # 5- launch the action corresponding to the pressed shortcut
         switch shortcut
-            when "-return"
+            when '-return'
                 @_return()
                 e.preventDefault()
-            when "-tab"
+            when '-backspace'
+                @_backspace()
+                e.preventDefault()
+            when '-tab'
                 @tab()
                 e.preventDefault()
-            # when "CtrlShift-right"
-            #     @tab()
-            #     e.preventDefault()
-            when "-backspace"
-                @_backspace(e)
-            when "-suppr"
-                @_suppr(e)
-            when "CtrlShift-down"
-                @_moveLinesDown()
-                e.preventDefault()
-            when "CtrlShift-up"
-                @_moveLinesUp()
-                e.preventDefault()
-            when "Shift-tab"
+            when 'Shift-tab'
                 @shiftTab()
                 e.preventDefault()
-            # when "CtrlShift-left"
+            when '-suppr'
+                @_suppr(e)
+            when 'CtrlShift-down'
+                @_moveLinesDown()
+                e.preventDefault()
+            when 'CtrlShift-up'
+                @_moveLinesUp()
+                e.preventDefault()
+            # when 'CtrlShift-right'
+            #     @tab()
+            #     e.preventDefault()
+            # when 'CtrlShift-left'
             #     @shiftTab()
             #     e.preventDefault()
-            when "Ctrl-A"
+            when 'Ctrl-A'
                 selection.selectAll(this)
                 e.preventDefault()
             # TOGGLE LINE TYPE (Alt + a)                  
-            when "Alt-A"
+            when 'Alt-A'
                 @toggleType()
                 e.preventDefault()
+                console.log 'EVENT (editor)'
+
             # PASTE (Ctrl + v)                  
-            when "Ctrl-V"
+            when 'Ctrl-V'
                 true
             # SAVE (Ctrl + s)                  
-            when "Ctrl-S"
-                $(@editorTarget).trigger jQuery.Event("saveRequest")
+            when 'Ctrl-S'
+                $(@editorTarget).trigger jQuery.Event('saveRequest')
                 e.preventDefault()
             # UNDO (Ctrl + z)
-            when "Ctrl-Z"
-                e.preventDefault()
+            when 'Ctrl-Z'
                 @unDo()
-            # REDO (Ctrl + y)
-            when "Ctrl-Y"
                 e.preventDefault()
+            # REDO (Ctrl + y)
+            when 'Ctrl-Y'
                 @reDo()
-            
+                e.preventDefault()
+            # else
+            #     target = @.linesDiv
+            #     config = 
+            #         attributes            : false
+            #         childList             : false
+            #         characterData         : true
+            #         attributeOldValue     : false
+            #         characterDataOldValue : false
+            #         subtree               : true
+            #     @observer.observe(target, config)
+    
 
     ### ------------------------------------------------------------------------
     #  _suppr :
@@ -541,7 +572,7 @@ class exports.CNeditor
     # 
     # Manage deletions when backspace key is pressed
     ###
-    _backspace : (e) ->
+    _backspace : () ->
         @_findLinesAndIsStartIsEnd()
 
         sel = @currentSel
@@ -600,8 +631,7 @@ class exports.CNeditor
         else
             @_deleteMultiLinesSelections()
 
-        e.preventDefault()
-        return false
+        return true
 
 
     ### ------------------------------------------------------------------------
@@ -2150,7 +2180,7 @@ class exports.CNeditor
         else if endLine == startLine
             currSel.range.deleteContents()
             # in case deleteContent left a span without text node
-            selection.normalize(currSel.range) 
+            selection.normalize(currSel.range)
         else
             @_deleteMultiLinesSelections()
             selection.normalize(currSel.range) 

@@ -62,10 +62,10 @@ cb = () ->
     editorCtrler      = this
     editorBody$       = @editorBody$
     recordButton      = $ "#record-button"
+    loadHtmlBtn       = $ "#loadHtmlBtn"
     serializerDisplay = $ "#resultText"
     playAllButton     = $ "#play-all-button"
-    playAllSlowButton = $ "#play-all-slow-button"
-    slowPlayButton    = $ "#slow-play-button"
+    playCurrentButton = $ "#play-current-button"
     recordList        = $ '#record-list'
     recordSaveButton  = $ '#record-save-button'
     recordSaveInput   = $ '#record-name'
@@ -110,18 +110,14 @@ cb = () ->
     this.replaceContent( require('views/templates/content-shortlines-all-hacked') )
     content = require('views/templates/content-shortlines-large')
     content = require('views/templates/content-shortlines-small')
-    content = require('views/templates/content-shortlines-medium')
-    ###
     content = require('views/templates/test2')
+    ###
+    content = require('views/templates/content-shortlines-medium')
     @replaceContent content()
     move_ed_2_ed2()
     # beautify(editorBody$)
 
     # editorIframe$.css('width','49%')
-
-        
-    $("#resultBtnBar_coller").on  'click' , =>
-        serializerDisplay.text beautify(@linesDiv.innerHTML)
         
     $("#printRangeBtn").on "click", () ->
         sel = editorCtrler.getEditorSelection()
@@ -215,10 +211,10 @@ cb = () ->
         st   = h+":"+m+":"+s+" - "
         if res
             checkLog += st + "Syntax test success\n" 
-            serializerDisplay.text(checkLog)
+            serializerDisplay.val(checkLog)
         else
             checkLog += st + " !!! Syntax test FAILLURE : cf console  !!!\n"
-            serializerDisplay.text(checkLog)
+            serializerDisplay.val(checkLog)
             $('#well-editor').css('background-color','#c10000')
 
     continuousCheckToggle = () =>
@@ -248,12 +244,25 @@ cb = () ->
 
     #  > translate cozy code into markdown and markdown to cozy code
     #    Note: in the markdown code there should be two \n between each line
-    $("#markdownBtn").on "click", () ->
+    
+    $("#getHtmlBtn").on  'click' , =>
+        serializerDisplay.val beautify(@linesDiv.innerHTML)
+        
+    $("#getMarkdownBtn").on "click", () ->
         content = editorCtrler.getEditorContent()
-        serializerDisplay.text content
+        serializerDisplay.val content
 
-    $("#cozyBtn").on "click", () ->
-        editorCtrler.setEditorContent serializerDisplay.text()
+    $("#loadMdBtn").on "click", () ->
+        $('#well-editor').css('background-color','')
+        editorCtrler.setEditorContent serializerDisplay[0].value
+        checkEditor()
+
+    $("#loadHtmlBtn").on "click", () ->
+        $('#well-editor').css('background-color','')
+        # htmlStrg = serializerDisplay[0].value
+        # htmlStrg = htmlStrg.replace(/>[\n ]*</g, "><")
+        editorCtrler.replaceContent serializerDisplay[0].value,  true
+        checkEditor()
 
     $("#addClass").toggle(
         () ->
@@ -362,11 +371,11 @@ cb = () ->
         $('#editorIframe').css('width','49%')
         if html
             @editor2.replaceContent strg
-            serializerDisplay.text beautify(strg)
+            serializerDisplay.val beautify(strg)
 
         else
             @editor2.setEditorContent strg
-            serializerDisplay.text strg
+            serializerDisplay.val strg
 
     Recorder = require('./recorder').Recorder
     recorder = new Recorder(editorCtrler, 
@@ -397,13 +406,9 @@ cb = () ->
         continuousCheckOff()
         recorder.playAll()
 
-    playAllSlowButton.click ->
+    playCurrentButton.click ->
         continuousCheckOff()
-        recorder.slowPlayAll()
-
-    slowPlayButton.click ->
-        continuousCheckOff()
-        recorder.slowPlay()
+        recorder.play()
 
     recordButton.click recordTest
 
