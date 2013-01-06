@@ -17,8 +17,126 @@
 #   editorBody$       : the jquery pointer on the body of the iframe
 #   _lines            : {} an objet, each property refers a line
 #   _highestId        : 
-#   _firstLine        : pointes the first line : TODO : not taken into account 
+#   _firstLine        : points the first line : TODO : not taken into account 
 ###
+
+
+# Require is use only in development mode. During production build, files are
+# concatenated.
+if require?
+    if not md2cozy?
+        md2cozy = require('./md2cozy').md2cozy
+    if not selection?
+        selection = require('./selection').selection
+  
+###*
+ * line$        : 
+ * lineID       : 
+ * lineType     : 
+ * lineDepthAbs : 
+ * lineDepthRel : 
+ * lineNext     : 
+ * linePrev     : 
+###
+class Line
+    ###*
+     * If no arguments, returns an empty object (only methods), otherwise
+     * constructs a full line. The dom element of the line is inserted according
+     * to the previous or next line given in the arguments.
+     * @param  {Array}  Array of parameters :
+     *   [ 
+            editor        , # 
+            type          , # 
+            depthAbs      , # 
+            depthRelative , # 
+            prevLine      , # The prev line, null if nextLine is given
+            nextLine      , # The next line, null if prevLine is given
+            fragment        # [optional] a fragment to insert in the line, no br at the end
+          ]
+    ###
+    constructor : ( ) ->
+        if arguments.length == 0
+            return
+        else
+            [ 
+              editor        , # 
+              type          , # 
+              depthAbs      , # 
+              depthRelative , # 
+              prevLine      , # The prev line, null if nextLine is given
+              nextLine      , # The next line, null if prevLine is given
+              fragment        # [optional] a fragment to insert in the line, no br at the end
+            ] = arguments
+
+        editor._highestId += 1
+        lineID = 'CNID_' + editor._highestId
+        newLineEl = document.createElement('div')
+        newLineEl.id = lineID
+        newLineEl.setAttribute('class', type + '-' + depthAbs)
+        if fragment?
+            newLineEl.appendChild(fragment)
+            newLineEl.appendChild(document.createElement('br'))
+        else
+            node = document.createElement('span')
+            node.appendChild(document.createTextNode(''))
+            newLineEl.appendChild(node)
+            newLineEl.appendChild(document.createElement('br'))
+        @line$ = $(newLineEl)
+        
+        if prevLine?
+            @.linePrev = prevLine
+            linesDiv = prevLine.line$[0].parentNode
+            if prevLine.lineNext?
+                nextL = prevLine.lineNext
+                linesDiv.insertBefore(newLineEl,nextL.line$[0])
+                @.lineNext     = nextL
+                nextL.linePrev = @
+            else
+                linesDiv.appendChild(newLineEl)
+                @.lineNext = null
+            prevLine.lineNext = @
+            
+        else if nextLine?
+            linesDiv = nextLine.line$[0].parentNode
+            @.lineNext = nextLine
+            linesDiv.insertBefore(newLineEl,nextLine.line$[0])
+            if nextLine.linePrev? 
+                @.linePrev = nextLine.linePrev
+                nextLine.linePrev.lineNext = @
+            else
+                @.linePrev = null
+            nextLine.linePrev = @
+            
+        @.lineID       = lineID
+        @.lineType     = type
+        @.lineDepthAbs = depthAbs
+        @.lineDepthRel = depthRelative
+        editor._lines[lineID] = @
+        
+
+    setType : (type) ->
+        @lineType = type
+        @line$.prop('class',"#{type}-#{@lineDepthAbs}")
+
+    setDepthAbs : (absDepth) ->
+        @lineDepthAbs = absDepth
+        @line$.prop('class',"#{@lineType}-#{absDepth}")
+
+    setTypeDepth : (type, absDepth) ->
+        @lineType = type
+        @lineDepthAbs = absDepth
+        @line$.prop('class',"#{type}-#{absDepth}")
+
+Line.clone = (line) ->
+    clone = new Line()
+    clone.line$        = line.line$.clone()
+    clone.lineID       = line.lineID
+    clone.lineType     = line.lineType
+    clone.lineDepthAbs = line.lineDepthAbs
+    clone.lineDepthRel = line.lineDepthRel
+    clone.linePrev     = line.linePrev
+    clone.lineNext     = line.lineNext
+    return clone
 
 class exports.CNeditor
 
@@ -28,97 +146,37 @@ class exports.CNeditor
     #       callBack     = launched when editor ready, the context 
     #                      is set to the editorCtrl (callBack.call(this))
     ###
-    constructor : (elementTarget,callBack) ->
-        #iframe$ = $('<iframe style="width:50%;height:100%"></iframe>').appendTo(iframeTarget)
-        #iframe$ = $(iframeTarget).replaceWith('<iframe  style="width:50%;height:100%"></iframe>')
-        # 
-        
-        if elementTarget.nodeName == "IFRAME"
-            console.log "et hop !"
-            # methods to deal selection on an iframe
-            @getEditorSelection = () ->
-                return rangy.getIframeSelection elementTarget
-            @saveEditorSelection = () ->
-                return rangy.saveSelection(rangy.dom.getIframeWindow elementTarget)
+    constructor : (@editorTarget, callBack) ->
+        if @editorTarget.nodeName == "IFRAME"
+
             
-            iframe$ = $(elementTarget)
+            iframe$ = $(@editorTarget)
             
             iframe$.on 'load', () =>
-
-                # 1- preparation of the iframe
+                # preparation of the iframe
                 editor_html$ = iframe$.contents().find("html")
-                editorBody$  = editor_html$.find("body")
-                editorBody$.parent().attr('id','__ed-iframe-html')
-                editorBody$.attr("contenteditable", "true")
-                editorBody$.attr("id","__ed-iframe-body")
-                @document = editorBody$[0].ownerDocument
-                editor_head$ = editor_html$.find("head")
-                editor_head$.html('<link id="editorCSS" href="stylesheets/CNeditor.css" rel="stylesheet">')
-            
-                # 2- set the properties of the editor
-                @editorBody$  = editorBody$   # label <body> of the iframe
-                @editorTarget = elementTarget # <iframe>
-                @_lines       = {}            # contains every line
-                @newPosition  = true          # true only if cursor has moved
-                @_highestId   = 0             # last inserted line identifier
-                @_deepest     = 1             # current maximum indentation
-                @_firstLine   = null          # pointer to the first line
-                @_history     =               # for history management
-                    index        : 0
-                    history      : [null]
-                    historySelect: [null]
-                    historyScroll: [null]
-                    historyPos   : [null]
-                @_lastKey     = null      # last pressed key (avoid duplication)
-                
-                # 3- initialize event listeners
-                editorBody$.prop( '__editorCtl', this)
-                editorBody$.on 'mouseup', () =>
-                    @newPosition = true
-                #editorBody$.on 'keypress', @_keyPressListener
-                editorBody$.on 'keydown', @_keyPressListener
-                editorBody$.on 'keyup', () ->
-                    iframe$.trigger jQuery.Event("onKeyUp")
-                editorBody$.on 'click', (e) =>
-                    @_lastKey = null
-                editorBody$.on 'paste', (e) =>
-                    console.log "pasting..."
-                    @paste(e)
+                @editorBody$ = editor_html$.find("body")
+                @editorBody$.parent().attr('id','__ed-iframe-html')
+                @editorBody$.attr("id","__ed-iframe-body")
 
-                # 4- init clipboard div
+                @document = @editorBody$[0].ownerDocument
+                editor_head$ = editor_html$.find("head")
+                cssLink = '<link id="editorCSS" '
+                cssLink += 'href="stylesheets/CNeditor.css" rel="stylesheet">'
+                editor_head$.html(cssLink)
+
+                # Create div that will contains line
+                @linesDiv = document.createElement 'div'
+                @linesDiv.setAttribute('id','editor-lines')
+                @linesDiv.setAttribute('contenteditable','true')
+                @editorBody$.append @linesDiv
+            
+                # init clipboard div
                 @_initClipBoard()
 
-                # 5- return a ref to the editor's controler
-                callBack.call(this)
-                return this
-            # this line is a trick : 
-            # the load event is fired on chrome if the iframe src equals '#' but not in ff.
-            # and if src= '', it's the opposite : works in ff but not in chrome
-            # with this command we force the load on every browser...
-            elementTarget.src = ''
-
-
-        # if target is not an iframe
-        else
-            console.log "target is not an iframe..."
-            # methods to deal selection on an non-iframe element
-            @getEditorSelection = () ->
-                return rangy.getSelection()
-            @saveEditorSelection = () ->
-                return rangy.saveSelection()
-                
-            node$ = $(elementTarget)
-            allSetter = () =>
-                # 1- preparation of the iframe
-                editorBody$  = node$
-                editorBody$.attr("contenteditable", "true")
-                editorBody$.attr("id","__ed-iframe-body")
-            
-                # 2- set the properties of the editor
-                @editorBody$  = editorBody$   # label <body> of the iframe
-                @editorTarget = elementTarget # <iframe>
+                # set the properties of the editor
                 @_lines       = {}            # contains every line
-                @newPosition  = true          # true only if cursor has moved
+                @newPosition  = true          # true if cursor has moved 
                 @_highestId   = 0             # last inserted line identifier
                 @_deepest     = 1             # current maximum indentation
                 @_firstLine   = null          # pointer to the first line
@@ -129,27 +187,42 @@ class exports.CNeditor
                     historyScroll: [null]
                     historyPos   : [null]
                 @_lastKey     = null      # last pressed key (avoid duplication)
-                
-                # 3- initialize event listeners
-                editorBody$.prop( '__editorCtl', this)
-                #editorBody$.on 'keypress', @_keyPressListener
-                editorBody$.on 'keydown', @_keyPressListener
-                editorBody$.on 'mouseup', () =>
+
+                # initialize event listeners
+                @editorBody$.prop '__editorCtl', this
+                # listen keydown on capturing phase (before bubbling)
+                @linesDiv.addEventListener('keydown', @_keyPressListener, true)
+                @linesDiv.addEventListener('mouseup', () =>
                     @newPosition = true
-                editorBody$.on 'keyup', () ->
-                    node$.trigger jQuery.Event("onKeyUp")
-                editorBody$.on 'click', (e) =>
+                , true)
+                @editorBody$.on 'keyup', () ->
+                    iframe$.trigger jQuery.Event("onKeyUp")
+                @editorBody$.on 'click', (event) =>
                     @_lastKey = null
-                editorBody$.on 'paste', (e) =>
-                    console.log "pasting..."
-                    @paste(e)
-                # 4- return a ref to the editor's controler
+                @editorBody$.on 'paste', (event) =>
+                    @paste event
+
+                # return a ref to the editor's controler
                 callBack.call(this)
                 return this
-            allSetter()
-            # init clipboard div
-            @_initClipBoard()
 
+            # This line is a trick : 
+            # The load event is fired on chrome if the iframe src equals '#' but
+            # not in ff.
+            # And if src= '', it's the opposite : works in ff but not in chrome.
+            # With this command we force the load event on every browser...
+            @editorTarget.src = ''
+
+    setFocus : () ->
+        @linesDiv.focus()
+
+    # methods to deal selection on an iframe
+    getEditorSelection : () ->
+        return rangy.getIframeSelection @editorTarget
+
+    saveEditorSelection : () ->
+        sel = rangy.getIframeSelection @editorTarget
+        return rangy.serializeSelection sel, true, @linesDiv
 
     ### ------------------------------------------------------------------------
     # EXTENSION : _updateDeepest
@@ -179,225 +252,99 @@ class exports.CNeditor
             else
                 @replaceCSS("stylesheets/app-deep-4.css")
         
-    ### ------------------------------------------------------------------------
-    # Initialize the editor content from a html string
+    ###* ------------------------------------------------------------------------
+     * Initialize the editor content from a html string
+     * The html string should not been pretified because of the spaces and
+     * charriage return. 
+     * If unPretify = true then a regex tries to set up things
     ###
-    replaceContent : (htmlContent) ->
-        @editorBody$.html( htmlContent )
+    replaceContent : (htmlString, unPretify) ->
+        if unPretify
+            htmlString = htmlString.replace(/>[\n ]*</g, "><")
+        @linesDiv.innerHTML = htmlString
         @_readHtml()
-        @_initClipBoard()
-        #@_buildSummary()
 
     ### ------------------------------------------------------------------------
     # Clear editor content
     ###
-    deleteContent : () ->
-        @editorBody$.html '<div id="CNID_1" class="Tu-1"><span></span><br></div>'
-        # update the controler
+    deleteContent : ->
+        emptyLine = '<div id="CNID_1" class="Tu-1"><span></span><br></div>'
+        @linesDiv.innerHTML = emptyLine
         @_readHtml()
-        @_initClipBoard()
-        #@_buildSummary()
     
     ### ------------------------------------------------------------------------
     # Returns a markdown string representing the editor content
     ###
     getEditorContent : () ->
-        cozyContent = @editorBody$.html()
-        return @_cozy2md cozyContent
-        
+        md2cozy.cozy2md $(@linesDiv)
+
     ### ------------------------------------------------------------------------
     # Sets the editor content from a markdown string
     ###
     setEditorContent : (mdContent) ->
-        cozyContent = @_md2cozy mdContent
-        @editorBody$.html cozyContent
-        # update the controler
+        cozyContent = md2cozy.md2cozy mdContent
+        @linesDiv.innerHTML = cozyContent
         @_readHtml()
-        @_initClipBoard()
                   
     ###
     # Change the path of the css applied to the editor iframe
     ###
     replaceCSS : (path) ->
-        # $(this.editorTarget).contents().find("link[rel=stylesheet]").attr({href : path})
         document = @document
         linkElm = document.querySelector('#editorCSS')
-        # linkElm = document.createElement('link')
-        # linkElm.setAttribute('rel'  , 'stylesheet')
-        # linkElm.setAttribute('type' , 'text/css')
-        # linkElm.setAttribute('id'   , 'editorCSS')
         linkElm.setAttribute('href' , path)
         document.head.appendChild(linkElm)
 
-
-
-    ### ------------------------------------------------------------------------
-    # UTILITY FUNCTIONS
-    # used to set ranges and help normalize selection
-    # 
-    # parameters: elt  :  a dom object with only textNode children
-    #
-    # note: with google chrome, it seems that non visible elements
-    #       cannot be selected with rangy (that's where 'blank' comes in)
+    ###*
+     * Return [metaKeyCode,keyCode] corresponding to the key strike combinaison. 
+     * the string structure = [meta key]-[key]
+     *   * [metaKeyCode] : (Alt)*(Ctrl)*(Shift)*
+     *   * [keyCode] : (return|end|...|A|S|V|Y|Z)|(other) 
+     * ex : 
+     *   * "AltShift" & "up" 
+     *   * "AltCtrl" & "down" 
+     *   * "Shift" & "A"
+     *   * "Ctrl" & "S"
+     *   * "" & "other"
+     * @param  {[type]} e [description]
+     * @return {[type]}   [description]
     ###
-    _putEndOnEnd : (range, elt) ->
-        if elt.lastChild?
-            offset = elt.lastChild.textContent.length
-            if offset == 0
-                elt.lastChild.data = " "
-                offset = 1
-            range.setEnd(elt.lastChild, offset)
-        else
-            blank = document.createTextNode " "
-            elt.appendChild blank
-            range.setEnd(blank, 1)
-            # range.setEnd(elt, 0)
-            
-    _putStartOnEnd : (range, elt) ->
-        if elt.lastChild?
-            offset = elt.lastChild.textContent.length
-            if offset == 0
-                elt.lastChild.data = " "
-                offset = 1
-            range.setStart(elt.lastChild, offset)
-        else
-            blank = document.createTextNode " "
-            elt.appendChild blank
-            range.setStart(blank, 0)
-            # range.setStart(elt, 0)
-            
-    _putEndOnStart : (range, elt) ->
-        if elt.firstChild?
-            offset = elt.firstChild.textContent.length
-            if offset == 0 then elt.firstChild.data = " "
-            range.setEnd(elt.firstChild, 0)
-        else
-            blank = document.createTextNode " "
-            elt.appendChild blank
-            range.setEnd(blank, 0)
-            # range.setEnd(elt, 0)
-            
-    _putStartOnStart : (range, elt) ->
-        if elt.firstChild?
-            offset = elt.firstChild.textContent.length
-            if offset == 0 then elt.firstChild.data = " "
-            range.setStart(elt.firstChild, 0)
-        else
-            blank = document.createTextNode " "
-            elt.appendChild blank
-            range.setStart(blank, 0)
-            # range.setStart(elt, 0)
-            
-
-    ### ------------------------------------------------------------------------
-    #  _normalize(range)
-    # 
-    #  Modify 'range' containers and offsets so it represent a clean selection
-    #  that it starts inside a textNode and ends inside a textNode.
-    #
-    #  Set the flag isEmptyLine to true if an empty line is being normalized
-    #  so further suppr ~ backspace work properly.
-    #
-    # 
-    ###
-    _normalize : (range) ->
-
-        # Check if the line was empty before normalization
-        if range.startContainer.nodeName == 'BODY'
-            startDiv = range.startContainer.children[range.startOffset]
-        else
-            startDiv = range.startContainer
-        if range.endContainer.nodeName == "BODY"
-            endDiv = range.endContainer.children[range.endOffset-1]
-        else
-            endDiv   = range.endContainer
-        if startDiv.nodeName != "DIV"
-            startDiv = $(startDiv).parents("div")[0]
-        if endDiv.nodeName != "DIV"
-            endDiv = $(endDiv).parents("div")[0]
-        if startDiv == endDiv and startDiv.innerHTML == '<span></span><br>'
-            @isEmptyLine = true
-
+    getShortCut : (e) ->
+        metaKeyCode = `(e.altKey ? "Alt" : "") + 
+                              (e.ctrlKey ? "Ctrl" : "") + 
+                              (e.shiftKey ? "Shift" : "")`
+        switch e.keyCode
+            when 13 then keyCode = 'return'
+            when 35 then keyCode = 'end'
+            when 36 then keyCode = 'home'
+            when 33 then keyCode = 'pgUp'
+            when 34 then keyCode = 'pgDwn'
+            when 37 then keyCode = 'left'
+            when 38 then keyCode = 'up'
+            when 39 then keyCode = 'right'
+            when 40 then keyCode = 'down'
+            when 9  then keyCode = 'tab'
+            when 8  then keyCode = 'backspace'
+            when 32 then keyCode = 'space'
+            when 27 then keyCode = 'esc'
+            when 46 then keyCode = 'suppr'
+            else
+                switch e.which
+                    when 32 then keyCode = 'space'
+                    when 8  then keyCode = 'backspace'
+                    when 65 then keyCode = 'A'
+                    when 83 then keyCode = 'S'
+                    when 86 then keyCode = 'V'
+                    when 89 then keyCode = 'Y'
+                    when 90 then keyCode = 'Z'
+                    else keyCode = 'other'
+        shortcut = metaKeyCode + '-' + keyCode
         
-        startContainer = range.startContainer
-        # 0. if startC is the body
-        if startContainer.nodeName == "BODY"
-            elt = startContainer.children[range.startOffset].firstChild
-            @_putStartOnStart(range, elt)
-        # 1. if startC is a div
-        else if startContainer.nodeName == "DIV"
-            # 1.1 if line is empty
-            if @isEmptyLine
-                elt = startContainer.childNodes[0] # span
-                @_putStartOnStart(range, elt)
-            # 1.1 if caret is between two children <div>|<></>|<></> <br> </div>
-            else if range.startOffset < startContainer.childNodes.length - 1
-                # place caret at the beginning of the next child
-                elt = startContainer.childNodes[range.startOffset]
-                @_putStartOnStart(range, elt)
-            # 1.2 if caret is around <br>          <div> <></> <></>|<br>|</div>
-            else
-                # place caret at the end of the last child (before br)
-                elt = startContainer.lastChild.previousElementSibling
-                @_putStartOnEnd(range, elt)
-               
-        # 2. if startC is a span, a, img
-        else if startContainer.nodeName in ["SPAN","IMG","A"]
-            # 2.0 if startC is empty
-            if startContainer.firstChild == null || startContainer.textContent.length == 0
-                @_putStartOnEnd(range, startContainer)
-            # 2.1 if caret is between two textNode children
-            else if range.startOffset < startContainer.childNodes.length
-                # place caret at the beginning of the next child
-                targetChild = startContainer.childNodes[range.startOffset]
-                range.setStart(targetChild, 0)
-            # 2.2 if caret is after last textNode
-            else
-                # place caret at the end of the last child
-                targetChild = startContainer.lastChild
-                offset = targetChild.data.length
-                range.setStart(targetChild, offset)
-                
-        # 3. if startC is a textNode ;   do nothing
-                
-        endContainer = range.endContainer
-        # 0. if endC is the body
-        if endContainer.nodeName == "BODY"
-            elt = endContainer.children[range.endOffset-1].lastChild
-            @_putEndOnEnd(range, elt.previousElementSibling)
-        # 1. if endC is a div
-        if endContainer.nodeName == "DIV"
-            # 1.1 if caret is between two children <div>|<></>|<></> <br> </div>
-            if range.endOffset < endContainer.childNodes.length - 1
-                # place caret at the beginning of the next child
-                elt = endContainer.childNodes[range.endOffset]
-                @_putEndOnStart(range, elt)
-            # 1.2 if caret is around <br>          <div> <></> <></>|<br>|</div>
-            else
-                # place caret at the end of the last child (before br)
-                elt = endContainer.lastChild.previousElementSibling
-                @_putEndOnEnd(range, elt)
-                
-        # 2. if endC is a span, a, img
-        else if endContainer.nodeName in ["SPAN","IMG","A"]
-            # 2.0 if endC is empty
-            if endContainer.firstChild==null || endContainer.textContent.length==0
-                @_putEndOnEnd(range, endContainer)
-            # 2.1 if caret is between two textNode children
-            if range.endOffset < endContainer.childNodes.length
-                # place caret at the beginning of the next child
-                targetChild = startContainer.childNodes[range.endOffset]
-                range.setEnd(targetChild, 0)
-            # 2.2 if caret is after last textNode
-            else
-                # place caret at the end of the last child
-                targetChild = endContainer.lastChild
-                offset = targetChild.data.length
-                range.setEnd(targetChild, offset)
-        # 3. if endC is a textNode ;   do nothing
+        # a,s,v,y,z alone are simple characters
+        if metaKeyCode == '' && keyCode in ['A', 'S', 'V', 'Y', 'Z']
+            keyCode = 'other'
 
-        return range
-
+        return [metaKeyCode,keyCode]
 
 
     ### ------------------------------------------------------------------------
@@ -434,27 +381,11 @@ class exports.CNeditor
     #                               N°102 f is stroke) or "space" ...
     #
     _keyPressListener : (e) =>
+
         # 1- Prepare the shortcut corresponding to pressed keys
-        # TODO: when pressed key is a letter, prevent the browser default action
-        #       and an unDo after a sequence of letters shoud delete it
-        metaKeyStrokesCode = `(e.altKey ? "Alt" : "") + 
-                              (e.ctrlKey ? "Ctrl" : "") + 
-                              (e.shiftKey ? "Shift" : "")`
+        [metaKeyCode,keyCode] = @getShortCut(e)
+        shortcut = metaKeyCode + '-' + keyCode
         switch e.keyCode
-            when 13 then keyStrokesCode = "return"
-            when 35 then keyStrokesCode = "end"
-            when 36 then keyStrokesCode = "home"
-            when 33 then keyStrokesCode = "pgUp"
-            when 34 then keyStrokesCode = "pgDwn"
-            when 37 then keyStrokesCode = "left"
-            when 38 then keyStrokesCode = "up"
-            when 39 then keyStrokesCode = "right"
-            when 40 then keyStrokesCode = "down"
-            when 9  then keyStrokesCode = "tab"
-            when 8  then keyStrokesCode = "backspace"
-            when 32 then keyStrokesCode = "space"
-            when 27 then keyStrokesCode = "esc"
-            when 46 then keyStrokesCode = "suppr"
             when 16 #Shift
                 e.preventDefault()
                 return
@@ -463,36 +394,18 @@ class exports.CNeditor
                 return
             when 18 #Alt
                 e.preventDefault()
-                return    
-            else
-                switch e.which # TODO : to be deleted if it works with e.keyCode
-                    when 32 then keyStrokesCode = "space"  
-                    when 8  then keyStrokesCode = "backspace"
-                    when 65 then keyStrokesCode = "A"
-                    when 83 then keyStrokesCode = "S"
-                    when 86 then keyStrokesCode = "V"
-                    when 89 then keyStrokesCode = "Y"
-                    when 90 then keyStrokesCode = "Z"
-                    #else  keyStrokesCode = e.which
-                    else keyStrokesCode = "other"
-        shortcut = metaKeyStrokesCode + '-' + keyStrokesCode
-        
-        # a,s,v,y,z alone are simple characters
-        if shortcut in ["-A", "-S", "-V", "-Y", "-Z"] then shortcut = "-other"
+                return
 
-        # for tests and check the key and caracter numbers :
-        # console.clear()
-        # console.log '__keyPressListener____________________________'
-        # console.log e
-        # console.log "ctrl #{e.ctrlKey}; Alt #{e.altKey}; Shift #{e.shiftKey}; which #{e.which}; keyCode #{e.keyCode}"
-        # console.log "metaKeyStrokesCode:'#{metaKeyStrokesCode}' keyStrokesCode:'#{keyStrokesCode}'"
- 
+        # 
+        # TODO BJA : activate history after using the serialization of range
+        # instead of insertions of markers (their deletions split text nodes...)
+        # 
         # Record last pressed shortcut and eventually update the history
-        if @_lastKey != shortcut and
-           shortcut in ["-tab", "-return", "-backspace", "-suppr",
-                        "CtrlShift-down", "CtrlShift-up",
-                        "CtrlShift-left", "CtrlShift-right",
-                        "Ctrl-V", "Shift-tab", "-space", "-other"]
+        if @_lastKey != shortcut and \
+               shortcut in ['-tab', '-return', '-backspace', '-suppr',
+                            'CtrlShift-down', 'CtrlShift-up',
+                            'CtrlShift-left', 'CtrlShift-right',
+                            'Ctrl-V', 'Shift-tab', '-space', '-other', 'Alt-A']
             @_addHistory()
            
         @_lastKey = shortcut
@@ -502,156 +415,151 @@ class exports.CNeditor
         #    newPosition == true if the position of caret or selection has been
         #    modified with keyboard or mouse.
         #    If newPosition == true and a character is typed or a suppression
-        #    key is pressed, then selection must be "normalized" before
-        #       - caret must be in a span
-        #       - selection must start and end in a span
-        # 
-        #    Note : in Google Chrome, normalization couldn't place the selection
-        #      inside an empty node, so whenever it happens, we create a " "
-        #      textNode at this location, then selection is adjusted.
-        #      I'm afraid this operation is not that safe.
-        
-        # If the previous action was a move then "normalize" the selection.
+        #    key is pressed, then selection must be "normalized" so that its
+        #    break points are in text nodes.
+        # 2.1- If the previous action was a move then "normalize" the selection.
         # Selection is normalized only if an alphanumeric character or
         # suppr/backspace/return is pressed on this new position
-        if @newPosition and shortcut in ['-other', '-space',
+        if @newPosition and shortcut in ['-other', '-space', 'Ctrl-V'
                                          '-suppr', '-backspace', '-return']
-        # if @newPosition
             @newPosition = false
             # get the current range and normalize it
-            # (following code is redundant but helpful for debugging)
             sel = @getEditorSelection()
             range = sel.getRangeAt(0)
-            normalizedRange = rangy.createRange()
-            normalizedRange = @_normalize(range)
-
-            # update window selection so it is normalized
-            normalizedSel = @getEditorSelection()
-            normalizedSel.setSingleRange(normalizedRange)
-
-        
-        # 2.1- Set a flag if the user moved the caret with keyboard
-        if keyStrokesCode in ["left","up","right","down",
-                              "pgUp","pgDwn","end", "home",
-                              "return", "suppr", "backspace"] and
-           shortcut not in ["CtrlShift-down", "CtrlShift-up",
-                            "CtrlShift-right", "CtrlShift-left"]
+            selection.normalize range
+        # 2.2- Set a flag if the user moved the caret with keyboard
+        if keyCode in ['left','up','right','down',
+                              'pgUp','pgDwn','end', 'home',
+                              'return', 'suppr', 'backspace'] and
+           shortcut not in ['CtrlShift-down', 'CtrlShift-up',
+                            'CtrlShift-right', 'CtrlShift-left']
             @newPosition = true
         
-        # 4- the current selection is initialized on each keypress
-        this.currentSel = null
+        # 4- the current selection is cleared everytime keypress occurs.
+        @currentSel = null
                  
         # 5- launch the action corresponding to the pressed shortcut
         switch shortcut
-            # RETURN
-            when "-return"
+            when '-return'
                 @_return()
                 e.preventDefault()
-            # TAB
-            when "-tab"
+            when '-backspace'
+                @_backspace()
+                e.preventDefault()
+            when '-tab'
                 @tab()
                 e.preventDefault()
-            when "CtrlShift-right"
-                @tab()
+            when 'Shift-tab'
+                @shiftTab()
                 e.preventDefault()
-            # BACKSPACE
-            when "-backspace"
-                @_backspace(e)
-            # SUPPR
-            when "-suppr"
+            when '-suppr'
                 @_suppr(e)
-            # CTRL SHIFT DOWN
-            when "CtrlShift-down"
+            when 'CtrlShift-down'
                 @_moveLinesDown()
                 e.preventDefault()
-            # CTRL SHIFT UP
-            when "CtrlShift-up"
+            when 'CtrlShift-up'
                 @_moveLinesUp()
                 e.preventDefault()
-            # SHIFT TAB
-            when "Shift-tab"
-                @shiftTab()
-                e.preventDefault()
-            when "CtrlShift-left"
-                @shiftTab()
+            # when 'CtrlShift-right'
+            #     @tab()
+            #     e.preventDefault()
+            # when 'CtrlShift-left'
+            #     @shiftTab()
+            #     e.preventDefault()
+            when 'Ctrl-A'
+                selection.selectAll(this)
                 e.preventDefault()
             # TOGGLE LINE TYPE (Alt + a)                  
-            when "Alt-A"
-                @_toggleLineType()
+            when 'Alt-A'
+                @toggleType()
                 e.preventDefault()
+                console.log 'EVENT (editor)'
+
             # PASTE (Ctrl + v)                  
-            when "Ctrl-V"
+            when 'Ctrl-V'
                 true
             # SAVE (Ctrl + s)                  
-            when "Ctrl-S"
-                $(@editorTarget).trigger jQuery.Event("saveRequest")
+            when 'Ctrl-S'
+                $(@editorTarget).trigger jQuery.Event('saveRequest')
                 e.preventDefault()
             # UNDO (Ctrl + z)
-            when "Ctrl-Z"
-                e.preventDefault()
+            when 'Ctrl-Z'
                 @unDo()
-            # REDO (Ctrl + y)
-            when "Ctrl-Y"
                 e.preventDefault()
+            # REDO (Ctrl + y)
+            when 'Ctrl-Y'
                 @reDo()
-            
+                e.preventDefault()
+    
 
     ### ------------------------------------------------------------------------
     #  _suppr :
     # 
     # Manage deletions when suppr key is pressed
     ###
-    _suppr : (e) ->
+    _suppr : (event) ->
         @_findLinesAndIsStartIsEnd()
-        sel = this.currentSel
 
-        if @isEmptyLine
-            @isEmptyLine = false
-            sel.range.deleteContents()
-            
-        startLine = sel.startLine
+        startLine = @currentSel.startLine
         # 1- Case of a caret "alone" (no selection)
-        if sel.range.collapsed
+        if @currentSel.range.collapsed
+
             # 1.1 caret is at the end of the line
-            if sel.rangeIsEndLine
+            if @currentSel.rangeIsEndLine
+
                 # if there is a next line : modify the selection to make
                 # a multiline deletion
                 if startLine.lineNext != null
-                    sel.range.setEndBefore(startLine.lineNext.line$[0].firstChild)
-                    sel.endLine = startLine.lineNext
+                    @currentSel.range.setEndBefore(startLine.lineNext.line$[0].firstChild)
+                    @currentSel.endLine = startLine.lineNext
                     @_deleteMultiLinesSelections()
-                    e.preventDefault()
+                    
                 # if there is no next line :
                 # no modification, just prevent default action
                 else
-                    e.preventDefault()
-            # 1.2 caret is in the middle of the line : nothing to do
-            # else
+                    # console.log '_suppr 2 - test '
+
+            # 1.2 caret is in the middle of the line : delete one caracter
+            else
+                # console.log '_suppr 3 - test '
+                # we consider that we are in a text node
+                textNode = @currentSel.range.startContainer
+                startOffset = @currentSel.range.startOffset
+                txt = textNode.textContent
+                textNode.textContent = txt.substr(0,startOffset) + txt.substr(startOffset+1)
+                range = rangy.createRange()
+                range.collapseToPoint textNode, startOffset
+                @currentSel.sel.setSingleRange range
 
         # 2- Case of a selection contained in a line
-        else if sel.endLine == startLine
-            sel.range.deleteContents()
-            e.preventDefault()
+        else if @currentSel.endLine == startLine
+            # sel can be safely deleted thanks to normalization that have set
+            # the selection correctly within the line.
+            # console.log '_suppr 4 - test '
+            @currentSel.range.deleteContents()
 
         # 3- Case of a multi lines selection
         else
+            # console.log '_suppr 5 - test '
             @_deleteMultiLinesSelections()
-            e.preventDefault()
 
+        event.preventDefault()
+        return false
 
     ### ------------------------------------------------------------------------
     #  _backspace
     # 
     # Manage deletions when backspace key is pressed
     ###
-    _backspace : (e) ->
+    _backspace : () ->
         @_findLinesAndIsStartIsEnd()
 
-        sel = this.currentSel
+        sel = @currentSel
 
-        if @isEmptyLine
-            @isEmptyLine = false
-            sel.range.deleteContents()
+        # TODO BJA : isEmptyLine seems obsolète - 28/12/2012
+        # if @isEmptyLine
+        #     @isEmptyLine = false
+        #     sel.range.deleteContents()
                     
         startLine = sel.startLine
 
@@ -662,27 +570,47 @@ class exports.CNeditor
                 # if there is a previous line : modify the selection to make
                 # a multiline deletion
                 if startLine.linePrev != null
+                    # console.log '_backspace 3 - test ok'
                     sel.range.setStartBefore(startLine.linePrev.line$[0].lastChild)
                     sel.startLine = startLine.linePrev
+                    startCont     = sel.range.startContainer
+                    startOffset   = sel.range.startOffset
+                    {cont,offset} = selection.normalizeBP(startCont, startOffset)
                     @_deleteMultiLinesSelections()
-                    e.preventDefault()
-                # if there is no previous line :
-                # no modification, just prevent default action
-                else
-                    e.preventDefault()
-            # 1.2 caret is in the middle of the line : nothing to do
-            # else
+                    range = rangy.createRange()
+                    range.collapseToPoint cont,offset
+                    @currentSel.sel.setSingleRange range
+
+                # if there is no previous line = backspace at the beginning of 
+                # first line : no effect, nothing to do.
+                # else
+                #     console.log '_backspace 4 - test ok'
+
+            # 1.2 caret is in the middle of the line : delete one caracter
+            else
+                # console.log '_backspace 5 - deletion of one caracter - test ok'
+                # we consider that we are in a text node
+                textNode = sel.range.startContainer
+                startOffset = sel.range.startOffset
+                txt = textNode.textContent
+                textNode.textContent = txt.substr(0,startOffset-1) + txt.substr(startOffset)
+                range = rangy.createRange()
+                range.collapseToPoint textNode, startOffset-1
+                @currentSel.sel.setSingleRange range
+                @currentSel = null
 
         # 2- Case of a selection contained in a line
         else if sel.endLine == startLine
+                # console.log '_backspace 6 - test ok'
+            # sel can be safely deleted thanks to normalization that have set
+            # the selection correctly within the line.
             sel.range.deleteContents()
-            e.preventDefault()
 
         # 3- Case of a multi lines selection
         else
             @_deleteMultiLinesSelections()
-            e.preventDefault()
 
+        return true
 
 
     ### ------------------------------------------------------------------------
@@ -690,93 +618,117 @@ class exports.CNeditor
     # 
     # Turn selected lines in a title List (Th)
     ###
-    titleList : () ->
-        # 1- Variables
-        sel   = @getEditorSelection()
-        range = sel.getRangeAt(0)
-        
-        if range.startContainer.nodeName == 'BODY'
-            startDiv = range.startContainer.children[range.startOffset]
-        else
-            startDiv = range.startContainer
-        if range.endContainer.nodeName == "BODY"
-            endDiv = range.endContainer.children[range.endOffset-1]
-        else
-            endDiv   = range.endContainer
 
-        # 2- find first and last div corresponding to the 1rst and
-        #    last selected lines
-        if startDiv.nodeName != "DIV"
-            startDiv = $(startDiv).parents("div")[0]
-        if endDiv.nodeName != "DIV"
-            endDiv = $(endDiv).parents("div")[0]
-        endLineID = endDiv.id
-        
-        # 3- loop on each line between the firts and last line selected
-        # TODO : deal the case of a multi range (multi selections). 
-        #        Currently only the first range is taken into account.
-        line = @_lines[startDiv.id]
-        endDivID = endDiv.id
+    titleList : (l) ->
+        # @_addHistory()
+        # 1- find first and last div of the lines to turn into markers
+        if l?
+            startDivID = l.lineID
+            endLineID  = startDivID
+        else
+            range = @getEditorSelection().getRangeAt(0)
+            startDiv = selection.getLineDiv(
+                    range.startContainer, 
+                    range.startOffset
+                )
+            endDiv = selection.getLineDiv(
+                    range.endContainer, 
+                    range.endOffset
+                )
+            startDivID =  startDiv.id
+            endLineID = endDiv.id
+            
+        # 2- loop on each line between the first and last line selected
+        # TODO : deal the case of a multi range (multi selections).
+        line = @_lines[startDivID]
         loop
-            @_line2titleList(line)
-            if line.lineID == endDivID
+            switch line.lineType
+                when 'Tu','To'
+                    @_toggleLineType(line)
+                when 'Lh'
+                    line.setType('Th')
+                when 'Lu'
+                    line.setType('Tu')
+                    @_toggleLineType(line)
+
+            if line.lineID == endLineID
                 break
-            else 
-                line = line.lineNext
+            line = line.lineNext
 
 
-    ### ------------------------------------------------------------------------
-    #  _line2titleList
-    # 
-    #  Turn a given line in a title List Line (Th)
-    ###
-    _line2titleList : (line)->
-        if line.lineType != 'Th'
-            if line.lineType[0] == 'L'
-                line.lineType = 'Tu'
-                line.lineDepthAbs += 1    
-            @_titilizeSiblings(line)
-            parent1stSibling = @_findParent1stSibling(line)
-            while parent1stSibling!=null and parent1stSibling.lineType != 'Th'
-                @_titilizeSiblings(parent1stSibling)
-                parent1stSibling = @_findParent1stSibling(parent1stSibling)
+    # titleList : () ->
+    #     sel   = @getEditorSelection()
+    #     range = sel.getRangeAt(0)
+        
+    #     # find first and last div corresponding to the 1rst and
+    #     # last selected lines
+    #     startDiv = selection.getLineDiv range.startContainer, range.startOffset
+    #     endDiv = selection.getLineDiv range.endContainer, range.endOffset
+        
+    #     # loop on each line between the first and last line selected
+    #     # TODO : deal the case of a multi range (multi selections). 
+    #     #        Currently only the first range is taken into account.
+    #     line = @_lines[startDiv.id]
+    #     loop
+    #         @_line2titleList(line)
+    #         if line.lineID == endDiv.id
+    #             break
+    #         else
+    #             line = line.lineNext
 
 
-    ### ------------------------------------------------------------------------
-    # turn in Th or Lh of the siblings of line (and line itself of course)
-    # the children are note modified
-    ### 
-    _titilizeSiblings : (line) ->
-        lineDepthAbs = line.lineDepthAbs
-        # 1- transform all its next siblings in Th
-        l = line
-        while l!=null and l.lineDepthAbs >= lineDepthAbs
-            if l.lineDepthAbs == lineDepthAbs
-                switch l.lineType 
-                    when 'Tu','To'
-                        l.line$.prop("class","Th-#{lineDepthAbs}")
-                        l.lineType = 'Th'
-                        l.lineDepthRel = 0
-                    when 'Lu','Lo'
-                        l.line$.prop("class","Lh-#{lineDepthAbs}")
-                        l.lineType = 'Lh'
-                        l.lineDepthRel = 0
-            l=l.lineNext
-        # 2- transform all its previous siblings in Th
-        l = line.linePrev 
-        while l!=null and l.lineDepthAbs >= lineDepthAbs
-            if l.lineDepthAbs == lineDepthAbs
-                switch l.lineType
-                    when 'Tu','To'
-                        l.line$.prop("class","Th-#{lineDepthAbs}")
-                        l.lineType = 'Th'
-                        l.lineDepthRel = 0
-                    when 'Lu','Lo'
-                        l.line$.prop("class","Lh-#{lineDepthAbs}")
-                        l.lineType = 'Lh'
-                        l.lineDepthRel = 0
-            l=l.linePrev
-        return true
+    # ### ------------------------------------------------------------------------
+    # #  _line2titleList
+    # # 
+    # #  Turn a given line in a title List Line (Th)
+    # ###
+    # _line2titleList : (line)->
+    #     if line.lineType != 'Th'
+    #         if line.lineType[0] == 'L'
+    #             line.lineType = 'Tu'
+    #             line.lineDepthAbs += 1
+    #         @_titilizeSiblings(line)
+    #         parent1stSibling = @_findParent1stSibling(line)
+    #         while parent1stSibling!=null and parent1stSibling.lineType != 'Th'
+    #             @_titilizeSiblings(parent1stSibling)
+    #             parent1stSibling = @_findParent1stSibling(parent1stSibling)
+
+
+    # ### ------------------------------------------------------------------------
+    # # turn in Th or Lh of the siblings of line (and line itself of course)
+    # # the children are not modified
+    # ###
+    # _titilizeSiblings : (line) ->
+    #     lineDepthAbs = line.lineDepthAbs
+    #     # 1- transform all its next siblings in Th
+    #     l = line
+    #     while l!=null and l.lineDepthAbs >= lineDepthAbs
+    #         if l.lineDepthAbs == lineDepthAbs
+    #             switch l.lineType
+    #                 when 'Tu','To'
+    #                     l.line$.prop("class","Th-#{lineDepthAbs}")
+    #                     l.lineType = 'Th'
+    #                     l.lineDepthRel = 0
+    #                 when 'Lu','Lo'
+    #                     l.line$.prop("class","Lh-#{lineDepthAbs}")
+    #                     l.lineType = 'Lh'
+    #                     l.lineDepthRel = 0
+    #         l=l.lineNext
+    #     # 2- transform all its previous siblings in Th
+    #     l = line.linePrev
+    #     while l!=null and l.lineDepthAbs >= lineDepthAbs
+    #         if l.lineDepthAbs == lineDepthAbs
+    #             switch l.lineType
+    #                 when 'Tu','To'
+    #                     l.line$.prop("class","Th-#{lineDepthAbs}")
+    #                     l.lineType = 'Th'
+    #                     l.lineDepthRel = 0
+    #                 when 'Lu','Lo'
+    #                     l.line$.prop("class","Lh-#{lineDepthAbs}")
+    #                     l.lineType = 'Lh'
+    #                     l.lineDepthRel = 0
+    #         l=l.linePrev
+    #     return true
 
 
     ### ------------------------------------------------------------------------
@@ -784,79 +736,41 @@ class exports.CNeditor
     # 
     #  Turn selected lines in a Marker List
     ###
+
     markerList : (l) ->
-        # 1- Variables
-        if l? 
+        @_addHistory()
+        # 1- find first and last div of the lines to turn into markers
+        if l?
             startDivID = l.lineID
             endLineID  = startDivID
         else
             range = @getEditorSelection().getRangeAt(0)
-            if range.startContainer.nodeName == 'BODY'
-                startDiv = range.startContainer.children[range.startOffset]
-            else
-                startDiv = range.startContainer
-            if range.endContainer.nodeName == "BODY"
-                endDiv = range.endContainer.children[range.endOffset-1]
-            else
-                endDiv   = range.endContainer
-                
-            # 2- find first and last div corresponding to the 1rst and
-            #    last selected lines
-            if startDiv.nodeName != "DIV"
-                startDiv = $(startDiv).parents("div")[0]
+            startDiv = selection.getLineDiv(
+                    range.startContainer, 
+                    range.startOffset
+                )
+            endDiv = selection.getLineDiv(
+                    range.endContainer, 
+                    range.endOffset
+                )
             startDivID =  startDiv.id
-            if endDiv.nodeName != "DIV"
-                endDiv = $(endDiv).parents("div")[0]
             endLineID = endDiv.id
             
-        # 3- loop on each line between the firts and last line selected
-        # TODO : deal the case of a multi range (multi selections). 
-        #        Currently only the first range is taken into account.
+        # 2- loop on each line between the first and last line selected
+        # TODO : deal the case of a multi range (multi selections).
         line = @_lines[startDivID]
         loop
             switch line.lineType
-                when 'Th'
-                    lineTypeTarget = 'Tu'
-                    # transform all next Th & Lh siblings in Tu & Lu
-                    l = line.lineNext
-                    while l!=null and l.lineDepthAbs >= line.lineDepthAbs
-                        switch l.lineType
-                            when 'Th'
-                                l.line$.prop("class","Tu-#{l.lineDepthAbs}")
-                                l.lineType = 'Tu'
-                                l.lineDepthRel = @_findDepthRel(l)
-                            when 'Lh'
-                                l.line$.prop("class","Lu-#{l.lineDepthAbs}")
-                                l.lineType = 'Lu'
-                                l.lineDepthRel = @_findDepthRel(l)
-                        l=l.lineNext
-                    # transform all previous Th &vLh siblings in Tu & Lu
-                    l = line.linePrev
-                    while l!=null and l.lineDepthAbs >= line.lineDepthAbs
-                        switch l.lineType
-                            when 'Th'
-                                l.line$.prop("class","Tu-#{l.lineDepthAbs}")
-                                l.lineType = 'Tu'
-                                l.lineDepthRel = @_findDepthRel(l)
-                            when 'Lh'
-                                l.line$.prop("class","Lu-#{l.lineDepthAbs}")
-                                l.lineType = 'Lu'
-                                l.lineDepthRel = @_findDepthRel(l)
-                        l=l.linePrev
-                when 'Lh', 'Lu'
-                    # remember : the default indentation action is to make 
-                    # a marker list, that's why it works here.
-                    @tab(line) 
-                else
-                    lineTypeTarget = false
-            # TODO: à supprimer en mettant commençant les boucles par la ligne elle meme et non la suivante
-            if lineTypeTarget 
-                line.line$.prop("class","#{lineTypeTarget}-#{line.lineDepthAbs}")
-                line.lineType = lineTypeTarget
+                when 'Th','To'
+                    @_toggleLineType(line)
+                when 'Lh', 'Lo'
+                    line.setTypeDepth('Tu',line.lineDepthAbs+1)
+                when 'Lu'
+                    line.setType('Tu')
+
             if line.lineID == endLineID
                 break
-            else 
-                line = line.lineNext
+            line = line.lineNext
 
 
     ### ------------------------------------------------------------------------
@@ -874,7 +788,7 @@ class exports.CNeditor
                 return 0
             else
                 return 1
-        else 
+        else
             linePrev = line.linePrev
             while linePrev!=null and linePrev.lineDepthAbs >= line.lineDepthAbs
                 linePrev = linePrev.linePrev
@@ -885,101 +799,101 @@ class exports.CNeditor
 
 
     ### ------------------------------------------------------------------------
-    #  _toggleLineType
-    # 
-    # Toggle line type
-    #   usage : cycle : Tu => To => Lx => Th
-    #   param :
-    #       e = event
+    # Toggle the selected lines type
+    #   cycle : Tu <=> Th
     ###
-    _toggleLineType : () ->
+    toggleType : () ->
         # 1- Variables
         sel   = @getEditorSelection()
         range = sel.getRangeAt(0)
         
-        if range.startContainer.nodeName == 'BODY'
-            startDiv = range.startContainer.children[range.startOffset]
-        else
-            startDiv = range.startContainer
-        if range.endContainer.nodeName == "BODY"
-            endDiv = range.endContainer.children[range.endOffset-1]
-        else
-            endDiv   = range.endContainer
-
+        startDiv = selection.getLineDiv range.startContainer, range.startOffset
+        endDiv = selection.getLineDiv range.endContainer, range.endOffset
+                
         # 2- find first and last div corresponding to the 1rst and
         #    last selected lines
-        if startDiv.nodeName != "DIV"
-            startDiv = $(startDiv).parents("div")[0]
-        if endDiv.nodeName != "DIV"
-            endDiv = $(endDiv).parents("div")[0]
         endLineID = endDiv.id
-        
-        # 3- loop on each line between the firts and last line selected
+
+        # 3- loop on each line between the first and last line selected
         # TODO : deal the case of a multi range (multi selections). 
         #        Currently only the first range is taken into account.
         line = @_lines[startDiv.id]
+        depthIsTreated = {}
+        currentDepth = line.lineDepthAbs
+        depthIsTreated[currentDepth] = false
         loop
-            switch line.lineType
-                when 'Tu' # can be turned in a Th only if his parent is a Th
-                    lineTypeTarget = 'Th'
-                    # transform all its siblings in Th
-                    l = line.lineNext 
-                    while l!=null and l.lineDepthAbs >= line.lineDepthAbs
-                        if l.lineDepthAbs == line.lineDepthAbs
-                            if l.lineType == 'Tu'
-                                l.line$.prop("class","Th-#{line.lineDepthAbs}")
-                                l.lineType = 'Th'
-                            else
-                                l.line$.prop("class","Lh-#{line.lineDepthAbs}")
-                                l.lineType = 'Lh'
-                        l=l.lineNext
-                    l = line.linePrev 
-                    while l!=null and l.lineDepthAbs >= line.lineDepthAbs
-                        if l.lineDepthAbs == line.lineDepthAbs
-                            if l.lineType == 'Tu'
-                                l.line$.prop("class","Th-#{line.lineDepthAbs}")
-                                l.lineType = 'Th'
-                            else
-                                l.line$.prop("class","Lh-#{line.lineDepthAbs}")
-                                l.lineType = 'Lh'
-                        l=l.linePrev
-
-                when 'Th'
-                    lineTypeTarget = 'Tu'
-                    # transform all its siblings in Tu
-                    l = line.lineNext
-                    while l!=null and l.lineDepthAbs >= line.lineDepthAbs
-                        if l.lineDepthAbs == line.lineDepthAbs
-                            if l.lineType == 'Th'
-                                l.line$.prop("class","Tu-#{line.lineDepthAbs}")
-                                l.lineType = 'Tu'
-                            else
-                                l.line$.prop("class","Lu-#{line.lineDepthAbs}")
-                                l.lineType = 'Lu'
-                        l=l.lineNext
-                    l = line.linePrev
-                    while l!=null and l.lineDepthAbs >= line.lineDepthAbs
-                        if l.lineDepthAbs == line.lineDepthAbs
-                            if l.lineType == 'Th'
-                                l.line$.prop("class","Tu-#{line.lineDepthAbs}")
-                                l.lineType = 'Tu'
-                            else
-                                l.line$.prop("class","Lu-#{line.lineDepthAbs}")
-                                l.lineType = 'Lu'
-                        l=l.linePrev
-                # when 'Lh'
-                #     lineTypeTarget = 'Th'
-                # when 'Lu'
-                #     lineTypeTarget = 'Tu'
-                else
-                    lineTypeTarget = false
-            if lineTypeTarget 
-                line.line$.prop("class","#{lineTypeTarget}-#{line.lineDepthAbs}")
-                line.lineType = lineTypeTarget
+            if ! depthIsTreated[currentDepth]
+                done = @_toggleLineType(line)
+                depthIsTreated[line.lineDepthAbs] = done
             if line.lineID == endDiv.id
-                break
-            else 
-                line = line.lineNext
+                return
+            line = line.lineNext
+            if line.lineDepthAbs < currentDepth
+                depthIsTreated[currentDepth] = false
+                currentDepth = line.lineDepthAbs
+            else
+                currentDepth = line.lineDepthAbs
+                
+
+    _toggleLineType : (line) ->
+        switch line.lineType
+            
+            when 'Tu'
+                lineTypeTarget = 'Th'
+                # transform all its next siblings and lines in Th or Lh
+                l = line.lineNext
+                while l!=null and l.lineDepthAbs >= line.lineDepthAbs
+                    if l.lineDepthAbs == line.lineDepthAbs
+                        if l.lineType == 'Tu'
+                            l.setType('Th')
+                        else if l.lineType == 'Lu'
+                            l.setType('Lh')
+                        else # when on the same level there are both u and h
+                            break # manage only contiguous lines and siblings
+                    l = l.lineNext
+                # transform all its previous siblings and lines in Th or Lh
+                l = line.linePrev
+                while l!=null and l.lineDepthAbs >= line.lineDepthAbs
+                    if l.lineDepthAbs == line.lineDepthAbs
+                        if l.lineType == 'Tu'
+                            l.setType('Th')
+                        else if l.lineType == 'Lu'
+                            l.setType('Lh')
+                        else
+                            break
+                    l = l.linePrev
+
+            when 'Th'
+                lineTypeTarget = 'Tu'
+                # transform all its next siblings and lines in Tu or Lu
+                l = line.lineNext
+                while l!=null and l.lineDepthAbs >= line.lineDepthAbs
+                    if l.lineDepthAbs == line.lineDepthAbs
+                        if l.lineType == 'Th'
+                            l.setType('Tu')
+                        else if l.lineType == 'Lh'
+                            l.setType('Lu')
+                        else
+                            break
+                    l = l.lineNext
+                l = line.linePrev
+                # transform all its previous siblings and lines in Tu or Lu
+                while l!=null and l.lineDepthAbs >= line.lineDepthAbs
+                    if l.lineDepthAbs == line.lineDepthAbs
+                        if l.lineType == 'Th'
+                            l.setType('Tu')
+                        else if l.lineType == 'Lh'
+                            l.setType('Lu')
+                        else
+                            break
+                    l = l.linePrev
+
+            else
+                return false
+
+        line.setType(lineTypeTarget)
+        return true
+
 
 
     ### ------------------------------------------------------------------------
@@ -990,181 +904,166 @@ class exports.CNeditor
     ###
     tab :  (l) ->
         # 1- Variables
-        if l? 
+        if l?
             startDiv = l.line$[0]
             endDiv   = startDiv
         else
             sel   = @getEditorSelection()
             range = sel.getRangeAt(0)
-            if range.startContainer.nodeName == 'BODY'
-                startDiv = range.startContainer.children[range.startOffset]
-            else
-                startDiv = range.startContainer
-            if range.endContainer.nodeName == "BODY"
-                endDiv = range.endContainer.children[range.endOffset-1]
-            else
-                endDiv   = range.endContainer
-       
-        # 2- find first and last div corresponding to the 1rst and
-        #    last selected lines
-        if startDiv.nodeName != "DIV"
-            startDiv = $(startDiv).parents("div")[0]
-        if endDiv.nodeName != "DIV"
-            endDiv = $(endDiv).parents("div")[0]
+
+            startDiv = selection.getLineDiv(
+                    range.startContainer, 
+                    range.startOffset
+                )
+            endDiv = selection.getLineDiv(
+                    range.endContainer, 
+                    range.endOffset
+                )
+        
         endLineID = endDiv.id
-        # 3- loop on each line between the firts and last line selected
+
+        # 2- loop on each line between the first and last line selected
         # TODO : deal the case of a multi range (multi selections). 
         #        Currently only the first range is taken into account.
         line = @_lines[startDiv.id]
         loop
-            switch line.lineType
-                when 'Tu','Th'
-                    # find previous sibling to check if a tab is possible.
-                    linePrevSibling = @_findPrevSibling(line)
-                    if linePrevSibling == null
-                        isTabAllowed=false
-                    else 
-                        isTabAllowed=true
-                        # determine new lineType
-                        if linePrevSibling.lineType == 'Th'
-                            lineTypeTarget = 'Lh'
-                        else 
-                            if linePrevSibling.lineType == 'Tu'
-                                lineTypeTarget = 'Lu'
-                            else
-                                lineTypeTarget = 'Lo'
-                            if line.lineType == 'Th'
-                                # in case of a Th => Lx then all the following 
-                                # siblings must be turned to Tx and Lh into Lx
-                                # first we must find the previous sibling line                                
-                                # linePrevSibling = @_findPrevSibling(line)
-                                # linePrev = line.linePrev
-                                # while linePrev.lineDepthAbs > firstChild
-                                #     textContent
-                                lineNext = line.lineNext
-                                while lineNext != null and lineNext.lineDepthAbs > line.lineDepthAbs
-                                    switch lineNext.lineType
-                                        when 'Th'
-                                            lineNext.lineType = 'Tu'
-                                            line.line$.prop("class","Tu-#{lineNext.lineDepthAbs}")
-                                            nextLineType = prevTxType
-                                        when 'Tu'
-                                            nextLineType = 'Lu'
-                                        when 'To'
-                                            nextLineType = 'Lo'
-                                        when 'Lh'
-                                            lineNext.lineType = nextLineType
-                                            line.line$.prop("class","#{nextLineType}-#{lineNext.lineDepthAbs}")
-                when 'Lh', 'Lu', 'Lo'
-                    # TODO : if there are new siblings, the target type must be 
-                    # the one of those, otherwise Tu is default.
-                    lineNext = line.lineNext
-                    lineTypeTarget = null
-                    while lineNext != null and lineNext.lineDepthAbs >= line.lineDepthAbs
-                        if lineNext.lineDepthAbs != line.lineDepthAbs + 1
-                            lineNext = lineNext.lineNext
-                        else
-                            lineTypeTarget = lineNext.lineType
-                            lineNext=null
-                    if lineTypeTarget == null
-                        linePrev = line.linePrev
-                        while linePrev != null and linePrev.lineDepthAbs >= line.lineDepthAbs
-                            if linePrev.lineDepthAbs==line.lineDepthAbs + 1
-                                lineTypeTarget = linePrev.lineType
-                                linePrev=null
-                            else
-                                linePrev = linePrev.linePrev
-                    if lineTypeTarget == null
-                        isTabAllowed       = true
-                        lineTypeTarget     = 'Tu'
-                        line.lineDepthAbs += 1
-                        line.lineDepthRel += 1
-                    else
-                        if lineTypeTarget == 'Th'
-                            isTabAllowed       = true
-                            line.lineDepthAbs += 1
-                            line.lineDepthRel  = 0
-                        if lineTypeTarget == 'Tu' or  lineTypeTarget == 'To'
-                            isTabAllowed       = true
-                            line.lineDepthAbs += 1
-                            line.lineDepthRel += 1
-            if isTabAllowed
-                line.line$.prop("class","#{lineTypeTarget}-#{line.lineDepthAbs}")
-                line.lineType = lineTypeTarget
+            @_tabLine(line)
             if line.lineID == endLineID
                 break
-            else 
+            else
                 line = line.lineNext
 
+
+    _tabLine : (line) ->
+        switch line.lineType
+            when 'Tu','Th','To'
+                # find previous sibling to check if a tab is possible 
+                # (no tab if no previous sibling)
+                prevSibling = @_findPrevSibling(line)
+                if prevSibling == null
+                    return
+                # determine new lineType
+                if prevSibling.lineType == 'Th'
+                    typeTarget = 'Lh'
+                else if prevSibling.lineType == 'Tu'
+                    typeTarget = 'Lu'
+                else
+                    typeTarget = 'Lo'
+
+            when 'Lh', 'Lu', 'Lo'
+                depthAbsTarget = line.lineDepthAbs + 1
+
+                # find next sibling
+                nextSib = @_findNextSibling(line, depthAbsTarget)
+                nextSibType = if nextSib == null then null else nextSib.lineType
+
+                # find previous sibling
+                prevSib = @_findPrevSibling(line, depthAbsTarget)
+                prevSibType = if prevSib == null then null else prevSib.lineType
+
+                typeTarget = @_chooseTypeTarget(prevSibType,nextSibType)
+                
+                if typeTarget == 'Th'
+                    line.lineDepthAbs += 1
+                    line.lineDepthRel  = 0
+                else
+                    line.lineDepthAbs += 1
+                    line.lineDepthRel += 1
+
+        line.setType(typeTarget)
+
+    _chooseTypeTarget : (prevSibType,nextSibType) ->
+        # If there are no siblings => Tu
+        if  prevSibType == nextSibType == null
+            typeTarget = 'Tu'
+        # If There are 2 identical, => use their type
+        else if prevSibType == nextSibType
+            typeTarget = nextSibType
+        # If only one sibling, use its type
+        else if prevSibType == null
+            typeTarget = nextSibType
+        # If only one sibling, use its type
+        else if nextSibType == null
+            typeTarget = prevSibType
+        # If the two siblings have differents types => Tu
+        else
+            typeTarget = 'Tu'
+        return typeTarget
 
     ### ------------------------------------------------------------------------
     #  shiftTab
     #   param : myRange : if defined, refers to a specific region to untab
     ###
-    shiftTab : (myRange) ->
+    shiftTab : (range) ->
 
         # 1- Variables
-        if myRange?
-            range = myRange
-        else
+        unless range?
             sel   = @getEditorSelection()
             range = sel.getRangeAt(0)
             
-        if range.startContainer.nodeName == 'BODY'
-            startDiv = range.startContainer.children[range.startOffset]
-        else
-            startDiv = range.startContainer
-        if range.endContainer.nodeName == "BODY"
-            endDiv = range.endContainer.children[range.endOffset-1]
-        else
-            endDiv   = range.endContainer
+        startDiv = selection.getLineDiv range.startContainer, range.startOffset
+        endDiv = selection.getLineDiv range.endContainer, range.endOffset
         
-        # 2- find first and last div corresponding to the 1rst and
-        #    last selected lines
-        if startDiv.nodeName != "DIV"
-            startDiv = $(startDiv).parents("div")[0]
-        if endDiv.nodeName != "DIV"
-            endDiv = $(endDiv).parents("div")[0]
         endLineID = endDiv.id
         
-        # 3- loop on each line between the firts and last line selected
+        # 2- loop on each line between the first and last line selected
         line = @_lines[startDiv.id]
         loop
-            switch line.lineType
-                when 'Tu','Th','To'
-                    # find the closest parent to choose the new lineType.
-                    parent = line.linePrev
-                    while parent != null and parent.lineDepthAbs >= line.lineDepthAbs
-                        parent = parent.linePrev
-                    if parent != null
-                        isTabAllowed   = true
-                        lineTypeTarget = parent.lineType
-                        lineTypeTarget = "L" + lineTypeTarget.charAt(1)
-                        line.lineDepthAbs -= 1
-                        line.lineDepthRel -= parent.lineDepthRel
-                        # if lineNext is a Lx, then it must be turned in a Tx
-                        if line.lineNext? and line.lineNext.lineType[0]=='L'
-                            nextL = line.lineNext
-                            nextL.lineType='T'+nextL.lineType[1] 
-                            nextL.line$.prop('class',"#{nextL.lineType}-#{nextL.lineDepthAbs}")
-                    else 
-                        isTabAllowed = false
-                when 'Lh'
-                    isTabAllowed=true
-                    lineTypeTarget     = 'Th'
-                when 'Lu'
-                    isTabAllowed=true
-                    lineTypeTarget     = 'Tu'
-                when 'Lo'
-                    isTabAllowed=true
-                    lineTypeTarget     = 'To'
-            if isTabAllowed
-                line.line$.prop("class","#{lineTypeTarget}-#{line.lineDepthAbs}")
-                line.lineType = lineTypeTarget
+            @_shiftTabLine(line)
             if line.lineID == endDiv.id
                 break
-            else 
+            else
                 line = line.lineNext
+    ###*
+     * un-tab a single line
+     * @param  {line} line the line to un-tab
+    ###
+    _shiftTabLine : (line) ->
+        switch line.lineType
+            when 'Tu','Th','To'
+                # find the closest parent to choose the new lineType.
+                parent = line.linePrev
+                while parent != null and parent.lineDepthAbs >= line.lineDepthAbs
+                    parent = parent.linePrev
+                if parent == null
+                    return
+
+                # if lineNext is a Lx of line, then it must be turned in a Tx
+                if line.lineNext? and 
+                  line.lineNext.lineType[0] == 'L' and
+                  line.lineNext.lineDepthAbs == line.lineDepthAbs
+                    nextL = line.lineNext
+                    nextL.setType('T'+nextL.lineType[1])
+                # if the line under is already deaper, all sons must have
+                # their depth reduced
+                if line.lineNext? and line.lineNext.lineDepthAbs > line.lineDepthAbs
+                    nextL = line.lineNext
+                    while nextL.lineDepthAbs > line.lineDepthAbs
+                        nextL.setDepthAbs(nextL.lineDepthAbs - 1)
+                        nextL = nextL.lineNext
+                    if nextL? and nextL.lineType[0]=='L'
+                        nextL.setType('T'+nextL.lineType[1])
+                typeTarget = parent.lineType
+                typeTarget = "L" + typeTarget.charAt(1)
+                line.lineDepthAbs -= 1
+                line.lineDepthRel -= parent.lineDepthRel
+
+            when 'Lh', 'Lu', 'Lo'
+                depthAbsTarget = line.lineDepthAbs
+
+                # find next sibling
+                nextSib = @_findNextSibling(line, depthAbsTarget)
+                nextSibType = if nextSib == null then null else nextSib.lineType
+                
+                # find previous sibling
+                prevSib = @_findPrevSibling(line, depthAbsTarget)
+                prevSibType = if prevSib == null then null else prevSib.lineType
+
+                typeTarget = @_chooseTypeTarget(prevSibType,nextSibType)
+
+        line.setType(typeTarget)
+
+
 
     ### ------------------------------------------------------------------------
     #  _return
@@ -1198,7 +1097,7 @@ class exports.CNeditor
             )
             # Position caret
             range4sel = rangy.createRange()
-            range4sel.collapseToPoint(newLine.line$[0].firstChild,0)
+            range4sel.collapseToPoint(newLine.line$[0].firstChild.firstChild,0)
             currSel.sel.setSingleRange(range4sel)
 
         # 3- Caret is at the beginning of the line
@@ -1215,7 +1114,7 @@ class exports.CNeditor
             currSel.sel.setSingleRange(range4sel)
 
         # 4- Caret is in the middle of the line
-        else                     
+        else
             # Deletion of the end of the original line
             currSel.range.setEndBefore( startLine.line$[0].lastChild )
             endOfLineFragment = currSel.range.extractContents()
@@ -1230,7 +1129,6 @@ class exports.CNeditor
             )
             # Position caret
             range4sel = rangy.createRange()
-            #range4sel.collapseToPoint(newLine.line$[0].firstChild.childNodes[0],0)
             range4sel.collapseToPoint(newLine.line$[0].firstChild,0)
             
             currSel.sel.setSingleRange(range4sel)
@@ -1250,7 +1148,7 @@ class exports.CNeditor
     #      . line     : the line in argument
     # returns null if no previous sibling, the line otherwise
     # the sibling is a title (Th, Tu or To), not a line (Lh nor Lu nor Lo)
-    ### 
+    ###
     _findParent1stSibling : (line) ->
         lineDepthAbs = line.lineDepthAbs
         linePrev = line.linePrev
@@ -1262,174 +1160,222 @@ class exports.CNeditor
                 linePrev = linePrev.linePrev
             return linePrev
         else
-            while linePrev != null and linePrev.lineDepthAbs > (lineDepthAbs - 2)
+            while linePrev != null and linePrev.lineDepthAbs > (lineDepthAbs-2)
                 linePrev = linePrev.linePrev
             return linePrev.lineNext
 
-
-    ### ------------------------------------------------------------------------
-    #  _findPrevSibling
-    # 
-    # find the previous sibling line.
-    # returns null if no previous sibling, the line otherwise
-    # the sibling is a title (Th, Tu or To), not a line (Lh nor Lu nor Lo)
+    ###* -----------------------------------------------------------------------
+     * Find the next sibling line.
+     * Returns null if no next sibling, the line otherwise.
+     * The sibling is a title (Th, Tu or To), not a line (Lh nor Lu nor Lo)
+     * @param  {line} line     The starting line for which we search a sibling
+     * @param  {number} depthAbs [optional] If the siblings we search is not
+     *                           of the same absolute depth
+     * @return {line}          The next sibling if one, null otherwise
     ###
-    _findPrevSibling : (line)->
-        lineDepthAbs = line.lineDepthAbs
-        linePrevSibling = line.linePrev
-        if linePrevSibling == null
-            # nothing to do if first line
-            return null
-        else if linePrevSibling.lineDepthAbs < lineDepthAbs
-            # If AbsDepth of previous line is lower : we are on the first
-            # line of a list of paragraphes, there is no previous sibling
-            return null
-        else
-            while linePrevSibling.lineDepthAbs > lineDepthAbs
-                linePrevSibling = linePrevSibling.linePrev
-            while linePrevSibling.lineType[0] == 'L'
-                linePrevSibling = linePrevSibling.linePrev
-            return linePrevSibling
+    _findNextSibling : (line, depth)->
+        if !depth?
+            depth = line.lineDepthAbs
+
+        nextSib = line.lineNext
+        loop    
+            if nextSib == null or nextSib.lineDepthAbs < depth
+                nextSib = null
+                break
+            else if nextSib.lineDepthAbs == depth && nextSib.lineType[0] == 'T'
+                break
+            nextSib = nextSib.lineNext
+        return nextSib
 
 
-    ### ------------------------------------------------------------------------
-    #  _deleteMultiLinesSelections
-    # 
-    # Delete the user multi line selection
-    #
-    # prerequisite : at least 2 different lines must be selected
-    # parameters   : startLine = first line to be deleted
-    #                endLine   = last line to be deleted
+    ###* -----------------------------------------------------------------------
+     * Find the previous sibling line.
+     * Returns null if no previous sibling, the line otherwise.
+     * The sibling is a title (Th, Tu or To), not a line (Lh nor Lu nor Lo)
+     * @param  {line} line     Rhe starting line for which we search a sibling
+     * @param  {number} depthAbs [optional] If the siblings we search is not
+     *                           of the same absolute depth
+     * @return {line}          The previous sibling if one, null otherwise
+    ###
+    _findPrevSibling : (line, depth)->
+        if !depth?
+            depth = line.lineDepthAbs
+
+        prevSib = line.linePrev
+        loop    
+            if prevSib == null or prevSib.lineDepthAbs < depth
+                prevSib = null
+                break
+            else if prevSib.lineDepthAbs == depth && prevSib.lineType[0] == 'T'
+                break
+            prevSib = prevSib.linePrev
+        return prevSib
+
+
+
+    ###*
+    # Delete the user multi line selection :
+    #    * The 2 lines (selected of given in param) must be distinct
+    #    * If no params, @currentSel will be used to find the lines to delete
+    #    * Carret is positioned at the end of the line before startLine.
+    #    * startLine, endLine and lines between are deleted
+    # @param  {[line]} startLine [optional] if exists, the whole line will be deleted
+    # @param  {[line]} endLine   [optional] if exists, the whole line will be deleted
+    # @return {[none]}           [nothing]
     ###
     _deleteMultiLinesSelections : (startLine, endLine) ->
-        # If startLine and endLine are specified, lines included between these
-        # two are removed. This is useful when making line's depth inheritance
         
-        # true when the caret needs to be repositioned after deletion
-        replaceCaret = true
+        # TODO  BJA : to remove when _moveLinesDown and _moveLinesUp will be
+        # debugged
+        if startLine == null or endLine == null
+            throw new Error(
+                'CEeditor._deleteMultiLinesSelections called with a null param'
+                )
 
-        # 0 - variables
-        if startLine != undefined
-            replaceCaret = false
+        # Get start and end positions of the selection.
+        if startLine?
             range = rangy.createRange()
-            
-            # If the very first line must be deleted
-            if startLine == null
-                startLine = endLine
-                endLine = endLine.lineNext
-                @_putStartOnStart(range, startLine.line$[0].firstElementChild)
-                endLine.line$.prepend '<span></span>'
-                @_putEndOnStart(range, endLine.line$[0].firstElementChild)
-            else
-                startNode = startLine.line$[0].lastElementChild.previousElementSibling
-                endNode = endLine.line$[0].lastElementChild.previousElementSibling
-                range.setStartAfter(startNode,0)
-                range.setEndAfter(endNode,0)
+            selection.cleanSelection startLine, endLine, range
+            replaceCaret = false
         else
-            @_findLines()
-            range = this.currentSel.range
+            # curSel = @_findLines() # should be done be the caller
+            curSel = @currentSel
+            range = curSel.range
             startContainer = range.startContainer
-            startOffset    = range.startOffset
-            startLine      = this.currentSel.startLine
-            endLine        = this.currentSel.endLine
+            startOffset = range.startOffset
+            startLine = curSel.startLine
+            endLine = curSel.endLine
+            if startLine?
+                prevStartLine = startLine.linePrev
+            if endLine?
+                nextEndLine = endLine.lineNext
+            replaceCaret = true
             
-        endLineDepthAbs   = endLine.lineDepthAbs
-        startLineDepthAbs = startLine.lineDepthAbs
-        deltaDepth        = endLineDepthAbs - startLineDepthAbs
+        # Calculate depth for start and end line
+        startLineDepth = startLine.lineDepthAbs
+        endLineDepth = endLine.lineDepthAbs
+        deltaDepth = endLineDepth - startLineDepth
 
-        # 1- copy the end of endLine in a fragment
-        range4fragment = rangy.createRangyRange()
-        range4fragment.setStart(range.endContainer, range.endOffset)
-        range4fragment.setEndAfter(endLine.line$[0].lastChild)
-        endOfLineFragment = range4fragment.cloneContents()
+        # Copy the un-selected end of endLine in a fragment
+        endOfLineFragment = selection.cloneEndFragment range, endLine
 
-        # 2- adapt the type of endLine and of its children to startLine 
-        # the only useful case is when endLine must be changed from Th to Tu or To
-        if endLine.lineType[1] == 'h' and startLine.lineType[1] != 'h'
-            if endLine.lineType[0] == 'L'
-                endLine.lineType = 'T' + endLine.lineType[1]
-                endLine.line$.prop("class","#{endLine.lineType}-#{endLine.lineDepthAbs}")
-            @markerList(endLine)
+        # Adapt end line type if needed.
+        @_adaptEndLineType startLine, endLine, endLineDepth
 
-        # 3- delete lines
+        # Delete selection and adapt remaining parts consequently.
         range.deleteContents()
 
-        # 4- append fragment and delete endLine
-        # TODO : consider using _insertFrag 
-        if startLine.line$[0].lastChild.nodeName == 'BR'
-            startLine.line$[0].removeChild( startLine.line$[0].lastChild)
-        startFrag = endOfLineFragment.childNodes[0]
-        myEndLine = startLine.line$[0].lastElementChild
-        # if startFrag et myEndLine are SPAN and they both have the same class
-        # then we concatenate both
-        if startFrag.tagName == myEndLine.tagName == 'SPAN' and
-           startFrag.className == myEndLine.className             
-            startOffset = myEndLine.textContent.length
-            newText = myEndLine.textContent + startFrag.textContent
-            myEndLine.innerHTML = newText
-            startContainer = myEndLine.firstChild
-            
-            l=1
-            while l < endOfLineFragment.childNodes.length
-                $(endOfLineFragment.childNodes[l]).appendTo startLine.line$
-                l++
-        else
-            startLine.line$.append( endOfLineFragment )
-            
-        startLine.lineNext = endLine.lineNext
-        if endLine.lineNext != null
-            endLine.lineNext.linePrev=startLine
-        endLine.line$.remove()
-        delete this._lines[endLine.lineID]
+        # Insert the copied end of line at the end of startLine
+        @_addMissingFragment startLine, endOfLineFragment
 
-        # 5- adapt the depth of the children and following siblings of end line
-        #    in case the depth delta between start and end line is
-        #    greater than 0, then the structure is not correct : we reduce
-        #    the depth of all the children and siblings of endLine.
+        # Remove endLine from this.lines and updates links
+        @_removeEndLine startLine, endLine
+
+        # Adapt depth
+        @_adaptDepth startLine, startLineDepth, endLineDepth, deltaDepth
+
+        # Place caret
+        if replaceCaret
+            @_setCaret(startContainer, startOffset)
+
+
+    #  adapt the depth of the children and following siblings of end line
+    #    in case the depth delta between start and end line is
+    #    greater than 0, then the structure is not correct : we reduce
+    #    the depth of all the children and siblings of endLine.
+    #
+    #  Then adapt the type of the first line after the children and siblings of
+    #    end line. Its previous sibling or parent might have been deleted, 
+    #    we then must find its new one in order to adapt its type.
+    _adaptDepth: (startLine, startLineDepthAbs, endLineDepthAbs, deltaDepth) ->
         line = startLine.lineNext
         if line != null
             deltaDepth1stLine = line.lineDepthAbs - startLineDepthAbs
-            if deltaDepth1stLine >= 1 
+            if deltaDepth1stLine > 1
                 while line!= null and line.lineDepthAbs >= endLineDepthAbs
                     newDepth = line.lineDepthAbs - deltaDepth
-                    line.lineDepthAbs = newDepth
-                    line.line$.prop("class","#{line.lineType}-#{newDepth}")
+                    line.setDepthAbs(newDepth)
                     line = line.lineNext
                     
-        # 6- adapt the type of the first line after the children and siblings of
-        #    end line. Its previous sibling or parent might have been deleted, 
-        #    we then must find its new one in order to adapt its type.
         if line != null
             # if the line is a line (Lx), then make it "independant"
-            # by turning it in a Tx
+            # by turning it in a Tx, except if unecessary (previou is same
+            # type and same prof)
             if line.lineType[0] == 'L'
-                line.lineType = 'T' + line.lineType[1]
-                line.line$.prop("class","#{line.lineType}-#{line.lineDepthAbs}")
+                if !(     startLine.lineType[1]  == line.lineType[1]      \
+                      and startLine.lineDepthAbs == line.lineDepthAbs )
+                    line.setType('T' + line.lineType[1])
+
             # find the previous sibling, adjust type to its type.
             firstLineAfterSiblingsOfDeleted = line
             depthSibling = line.lineDepthAbs
             
-            line = line.linePrev
             while line != null and line.lineDepthAbs > depthSibling
                 line = line.linePrev
-            if line != null
+
+            if line != null and line != firstLineAfterSiblingsOfDeleted
                 prevSiblingType = line.lineType
-                if firstLineAfterSiblingsOfDeleted.lineType!=prevSiblingType
-                    if prevSiblingType[1]=='h'
-                        @_line2titleList(firstLineAfterSiblingsOfDeleted)
+                if firstLineAfterSiblingsOfDeleted.lineType != prevSiblingType
+                    if prevSiblingType[1] == 'h'
+                        @titleList(firstLineAfterSiblingsOfDeleted)
                     else
                         @markerList(firstLineAfterSiblingsOfDeleted)
 
-        # 7- position caret
-        if replaceCaret
-            range4caret = rangy.createRange()
-            range4caret.collapseToPoint(startContainer, startOffset)
-            this.currentSel.sel.setSingleRange(range4caret)
-            this.currentSel = null
-        # else
-        #   do nothing
+
+    # Add back missing unselected fragment that have been deleted by our rough
+    # deletion.
+    # If startFrag et myEndLine are SPAN and they both have the same class
+    # then we concatenate both
+    _addMissingFragment: (line, fragment) ->
+        startFrag = fragment.childNodes[0]
+        lineEl = line.line$[0]
+
+        if lineEl.lastChild is null
+            node = document.createElement('span')
+            lineEl.insertBefore(node,lineEl.firstChild)
         
+        if lineEl.lastChild.nodeName is 'BR'
+            lineEl.removeChild(lineEl.lastChild)
+        lastNode = lineEl.lastChild
+
+        if startFrag.tagName == lastNode.tagName == 'SPAN' and 
+           startFrag.className == lastNode.className
+            startOffset = lastNode.textContent.length
+            newText = lastNode.textContent + startFrag.textContent
+            lastNode.firstChild.textContent = newText
+            fragment.removeChild(fragment.firstChild)
+            lineEl.appendChild fragment
+        else
+            lineEl.appendChild fragment
+            null
+
+
+    # Remove end line and update line links of the start line.
+    _removeEndLine: (startLine, endLine) ->
+        startLine.lineNext = endLine.lineNext
+        endLine.lineNext.linePrev = startLine if endLine.lineNext != null
+        endLine.line$.remove()
+        delete @_lines[endLine.lineID]
+
+
+    # adapt the type of endLine and of its children to startLine 
+    # the only useful case is when endLine must be changed from Th to Tu or To
+    _adaptEndLineType: (startLine, endLine, endLineDepth) ->
+        endLineType = endLine.lineType
+        startLineType = startLine.lineType
+        if endLineType[1] is 'h' and startLineType[1] isnt 'h'
+            if endLineType[0] is 'L'
+                endLine.setType('T' + endLineType[1])
+            @markerList endLine
+
+
+    # Put caret at given position. Regitser current selection.
+    _setCaret: (startContainer, startOffset) ->
+        range = rangy.createRange()
+        range.collapseToPoint startContainer, startOffset
+        @currentSel.sel.setSingleRange range
                 
+
     ### ------------------------------------------------------------------------
     #  _insertLineAfter
     # 
@@ -1440,41 +1386,22 @@ class exports.CNeditor
     #     sourceLine         : line after which the line will be added
     #     fragment           : [optionnal] - an html fragment that will be added
     #                          in the div of the line.
-    #     innerHTML          : [optionnal] - an html string that will be added
+    #     innerHTML          : [optionnal] - if no fragment is given, an html
+    #                          string that will be added to the new line.
     #     targetLineType     : type of the line to add
     #     targetLineDepthAbs : absolute depth of the line to add
     #     targetLineDepthRel : relative depth of the line to add
     ###
     _insertLineAfter : (p) ->
-        @_highestId += 1
-        lineID          = 'CNID_' + @_highestId
-        if p.fragment? 
-            newLine$ = $("<div id='#{lineID}' class='#{p.targetLineType}-#{p.targetLineDepthAbs}'></div>")
-            newLine$.append( p.fragment )
-            if newLine$[0].childNodes.length == 0 or newLine$[0].lastChild.nodeName != 'BR'
-                newLine$.append('<br>')
-        else if p.innerHTML?
-            newLine$ = $("<div id='#{lineID}' class='#{p.targetLineType}-#{p.targetLineDepthAbs}'>
-                #{p.innerHTML}</div>")
-            if newLine$[0].lastChild.nodeName != 'BR'
-                newLine$.append('<br>')
-        else
-            newLine$ = $("<div id='#{lineID}' class='#{p.targetLineType}-#{p.targetLineDepthAbs}'></div>")
-            newLine$.append( $('<span></span><br>') )
-        sourceLine = p.sourceLine
-        newLine$   = newLine$.insertAfter(sourceLine.line$)
-        newLine    =  
-            line$        : newLine$
-            lineID       : lineID
-            lineType     : p.targetLineType
-            lineDepthAbs : p.targetLineDepthAbs
-            lineDepthRel : p.targetLineDepthRel
-            lineNext     : sourceLine.lineNext
-            linePrev     : sourceLine
-        @_lines[lineID] = newLine
-        if sourceLine.lineNext != null
-            sourceLine.lineNext.linePrev = newLine
-        sourceLine.lineNext = newLine
+        newLine    = new Line(
+                @                    , # editor
+                p.targetLineType     , # type
+                p.targetLineDepthAbs , # depth abs
+                p.targetLineDepthRel , # depth relative
+                p.sourceLine         , # previous line
+                null                 , # next line
+                p.fragment             # fragment
+            )
         return newLine
 
 
@@ -1484,40 +1411,28 @@ class exports.CNeditor
     # 
     # Insert a line before a source line
     # p = 
-    #     sourceLine         : ID of the line before which a line will be added
+    #     sourceLine         : Line before which a line will be added
     #     fragment           : [optionnal] - an html fragment that will be added
+    #                          the fragment is not supposed to end with a <br>
     #     targetLineType     : type of the line to add
     #     targetLineDepthAbs : absolute depth of the line to add
     #     targetLineDepthRel : relative depth of the line to add
     ###
     _insertLineBefore : (p) ->
-        @_highestId += 1
-        lineID = 'CNID_' + @_highestId
-        newLine$ = $("<div id='#{lineID}' class='#{p.targetLineType}-#{p.targetLineDepthAbs}'></div>")
-        if p.fragment? 
-            newLine$.append( p.fragment )
-            newLine$.append( $('<br>') )
-        else
-            newLine$.append( $('<span></span><br>') )
-        sourceLine = p.sourceLine
-        newLine$ = newLine$.insertBefore(sourceLine.line$)
-        newLine = 
-            line$        : newLine$
-            lineID       : lineID
-            lineType     : p.targetLineType
-            lineDepthAbs : p.targetLineDepthAbs
-            lineDepthRel : p.targetLineDepthRel
-            lineNext     : sourceLine
-            linePrev     : sourceLine.linePrev
-        @_lines[lineID] = newLine
-        if sourceLine.linePrev != null
-            sourceLine.linePrev.lineNext = newLine
-        sourceLine.linePrev=newLine
+        newLine    = new Line(
+                @                    , # editor
+                p.targetLineType     , # type
+                p.targetLineDepthAbs , # depth abs
+                p.targetLineDepthRel , # depth relative
+                null                 , # previous line
+                p.sourceLine         , # next line
+                p.fragment             # fragment
+            )
         return newLine
 
 
     ### ------------------------------------------------------------------------
-    #  _findLines
+    #  _endDiv
     #  
     # Finds :
     #   First and last line of selection. 
@@ -1530,38 +1445,21 @@ class exports.CNeditor
     #   endLine : the last line of the range
     ###
     _findLines : () ->
-        if this.currentSel == null
-            # 1- Variables
-            sel                = @getEditorSelection()
-            range              = sel.getRangeAt(0)
-            startContainer     = range.startContainer
-            endContainer       = range.endContainer
-            initialStartOffset = range.startOffset
-            initialEndOffset   = range.endOffset
+        if @currentSel is null
+            sel = @getEditorSelection()
+            range = sel.getRangeAt(0)
             
-            # 2- find endLine 
-            # endContainer refers to a div of a line
-            if endContainer.id? and endContainer.id.substr(0,5) == 'CNID_'  
-                endLine = @_lines[ endContainer.id ]
-            # means the range ends inside a div (span, textNode...)
-            else   
-                endLine = @_lines[ $(endContainer).parents("div")[0].id ]
-            
-            # 3- find startLine
-            if startContainer.nodeName == 'DIV'
-                # startContainer refers to a div of a line
-                startLine = @_lines[ startContainer.id ]
-            else   # means the range starts inside a div (span, textNode...)
-                startLine = @_lines[ $(startContainer).parents("div")[0].id ]
-            
-            # 4- return
-            return this.currentSel = 
+            startLine = @_lines[selection.getLineDiv(range.startContainer).id]
+            endLine   = @_lines[selection.getLineDiv(range.endContainer  ).id]
+
+            @currentSel =
                 sel              : sel
                 range            : range
                 startLine        : startLine
                 endLine          : endLine
                 rangeIsStartLine : null
                 rangeIsEndLine   : null
+        return @currentSel
 
 
     ### ------------------------------------------------------------------------
@@ -1583,102 +1481,44 @@ class exports.CNeditor
     #   rangeIsEndLine   : true if the range ends at the end of the last line
     #   rangeIsStartLine : true if the range starts at the start of 1st line
     ###
-    _findLinesAndIsStartIsEnd : () ->
-        if this.currentSel == null
-            
-            # 1- Variables
-            sel                = @getEditorSelection()
-            range              = sel.getRangeAt(0)
-            startContainer     = range.startContainer
-            endContainer       = range.endContainer
-            initialStartOffset = range.startOffset
-            initialEndOffset   = range.endOffset
+    _findLinesAndIsStartIsEnd : ->
+        
+        sel                = @getEditorSelection()
+        range              = sel.getRangeAt(0)
+        startContainer     = range.startContainer
+        endContainer       = range.endContainer
+        initialStartOffset = range.startOffset
+        initialEndOffset   = range.endOffset
 
-            # 2- find endLine and the rangeIsEndLine
-            # endContainer refers to a div of a line
-            if endContainer.id? and endContainer.id.substr(0,5) == 'CNID_'
-                endLine = @_lines[ endContainer.id ]
-                # rangeIsEndLine if endOffset points on the last node of the div
-                # or on the one before the last which is a <br>
-                rangeIsEndLine = endContainer.children.length < initialEndOffset or endContainer.children[initialEndOffset].nodeName=="BR"
-            # means the range ends inside a div (span, textNode...)
-            else
-                endLine = @_lines[ $(endContainer).parents("div")[0].id ]
-                # rangeIsEndLine if the selection is at the end of the
-                # endContainer and of each of its parents (this approach is more
-                # robust than just considering that the line is a flat
-                # succession of span : maybe one day there will be a table for
-                # instance...)
-                rangeIsEndLine = false
-                # case of a textNode: it must have no nextSibling
-                # and offset must be its length
-                if endContainer.nodeType == Node.TEXT_NODE
-                    rangeIsEndLine = endContainer.nextSibling == null and
-                                     initialEndOffset == endContainer.textContent.length
-                # case of another node : it must be a br;
-                # or be followed by a br and have maximal offset.
-                else
-                    rangeIsEndLine = endContainer.nodeName=='BR' or
-                                     (endContainer.nextSibling.nodeName=='BR' and
-                                     endContainer.childNodes.length==initialEndOffset)
-                    #nextSibling    = endContainer.nextSibling
-                    #rangeIsEndLine = (nextSibling == null or nextSibling.nodeName=='BR')
-                    #(nextSibling == null or (initialEndOffset==parentEndContainer.textContent.length and nextSibling.nodeName=='BR'))
-                    
-                parentEndContainer = endContainer.parentNode
-                while rangeIsEndLine and parentEndContainer.nodeName != "DIV"
-                    nextSibling = parentEndContainer.nextSibling
-                    rangeIsEndLine = (nextSibling == null or nextSibling.nodeName=='BR')
-                    # rangeIsEndLine = endContainer.nodeName=='BR' or
-                    #                  (nextSibling.nodeName=='BR' and
-                    #                  endContainer.childNodes.length==initialEndOffset)
-                    parentEndContainer = parentEndContainer.parentNode
-            
-            # 3- find startLine and rangeIsStartLine
-            if startContainer.nodeName == 'DIV' # startContainer refers to a div of a line
-                startLine = @_lines[ startContainer.id ]
-                rangeIsStartLine = initialStartOffset == 0
-                
-            else   # means the range starts inside a div (span, textNode...)
-            
-                startLine = @_lines[ $(startContainer).parents("div")[0].id ]
-                # case of a textNode: it must have no previousSibling nor offset
-                if startContainer.nodeType == Node.TEXT_NODE
-                    rangeIsStartLine = endContainer.previousSibling == null and
-                                       initialStartOffset == 0
-                else
-                    rangeIsStartLine = initialStartOffset == 0
-                
-                parentStartContainer = startContainer.parentNode
-                while rangeIsStartLine && parentStartContainer.nodeName != "DIV"
-                    rangeIsStartLine = parentStartContainer.previousSibling == null
-                    parentStartContainer = parentStartContainer.parentNode
+        # find startLine and the rangeIsStartLine
+        {div,isStart,noMatter} = selection.getLineDivIsStartIsEnd(
+                                            startContainer, initialStartOffset)
+        startLine = @_lines[div.id]
 
-            # Special case of an "empty" line (<span><""></span><br>)
-            if endLine.line$[0].innerHTML == "<span></span><br>"
-                rangeIsEndLine = true
-            if startLine.line$[0].innerHTML == "<span></span><br>"
-                rangeIsStartLine = true
+        # find endLine and the rangeIsEndLine
+        {div,noMatter,isEnd,} = selection.getLineDivIsStartIsEnd(
+                                            endContainer, initialEndOffset)
+        endLine = @_lines[div.id]
 
-            # 4- return
-            return this.currentSel = 
-                sel              : sel
-                range            : range
-                startLine        : startLine
-                endLine          : endLine
-                rangeIsStartLine : rangeIsStartLine
-                rangeIsEndLine   : rangeIsEndLine
-        # return [sel,range,endLine,rangeIsEndLine,startLine,rangeIsStartLine]
+        # result
+        @currentSel =
+            sel              : sel
+            range            : range
+            startLine        : startLine
+            endLine          : endLine
+            rangeIsStartLine : isStart
+            rangeIsEndLine   : isEnd
 
+        return @currrentSel
 
 
     ###  -----------------------------------------------------------------------
     #   _readHtml
     # 
-    # Parse a raw html inserted in the iframe in order to update the controler
+    # Parse a raw html inserted in the iframe in order to update the controller
     ###
-    _readHtml : () ->
-        linesDiv$    = @editorBody$.children()  # linesDiv$= $[Div of lines]
+    _readHtml: () ->
+        linesDiv$    = $(@linesDiv).children()  # linesDiv$= $[Div of lines]
         # loop on lines (div) to initialise the editor controler
         lineDepthAbs = 0
         lineDepthRel = 0
@@ -1695,24 +1535,32 @@ class exports.CNeditor
                 lineDepthAbs_old = lineDepthAbs
                 # hypothesis : _readHtml is called only on an html where 
                 #              class="Tu-xx" where xx is the absolute depth
-                lineDepthAbs     = +lineClass[1] 
-                DeltaDepthAbs    = lineDepthAbs - lineDepthAbs_old
+                lineDepthAbs     = +lineClass[1]
+                deltaDepthAbs    = lineDepthAbs - lineDepthAbs_old
                 lineDepthRel_old = lineDepthRel
                 if lineType == "Th"
                     lineDepthRel = 0
-                else 
-                    lineDepthRel = lineDepthRel_old + DeltaDepthAbs
+                else
+                    lineDepthRel = lineDepthRel_old + deltaDepthAbs
                 lineID=(parseInt(lineID,10)+1)
                 lineID_st = "CNID_"+lineID
                 htmlLine$.prop("id",lineID_st)
-                lineNew = 
-                    line$        : htmlLine$
-                    lineID       : lineID_st
-                    lineType     : lineType
-                    lineDepthAbs : lineDepthAbs
-                    lineDepthRel : lineDepthRel
-                    lineNext     : null
-                    linePrev     : linePrev
+                lineNew = new Line()
+                lineNew.line$        = htmlLine$
+                lineNew.lineID       = lineID_st
+                lineNew.lineType     = lineType
+                lineNew.lineDepthAbs = lineDepthAbs
+                lineNew.lineDepthRel = lineDepthRel
+                lineNew.lineNext     = null
+                lineNew.linePrev     = linePrev
+                # lineNew =
+                #     line$        : htmlLine$
+                #     lineID       : lineID_st
+                #     lineType     : lineType
+                #     lineDepthAbs : lineDepthAbs
+                #     lineDepthRel : lineDepthRel
+                #     lineNext     : null
+                #     linePrev     : linePrev
                 if linePrev != null then linePrev.lineNext = lineNew
                 linePrev = lineNew
                 @_lines[lineID_st] = lineNew
@@ -1725,7 +1573,7 @@ class exports.CNeditor
     # 
     # Functions to perform the motion of an entire block of lines
     # BUG : when doubleclicking on an end of line then moving this line
-    #       down, selection does not behaves as expected :-)
+    #       down, selection does not behave as expected :-)
     # TODO: correct behavior when moving the second line up
     # TODO: correct behavior when moving the first line down
     # TODO: improve re-insertion of the line swapped with the block
@@ -1758,22 +1606,13 @@ class exports.CNeditor
         sel   = @getEditorSelection()
         range = sel.getRangeAt(0)
         
-        if range.startContainer.nodeName == 'BODY'
-            startDiv = range.startContainer.children[range.startOffset]
-        else
-            startDiv = range.startContainer
-        if range.endContainer.nodeName == "BODY"
-            endDiv = range.endContainer.children[range.endOffset-1]
-        else
-            endDiv   = range.endContainer
-
+        # TODO BJA : use findlines ?
+        startDiv = selection.getLineDiv range.startContainer, range.startOffset
+        endDiv = selection.getLineDiv range.endContainer, range.endOffset
+        
         # Find first and last div corresponding to the first and last
         # selected lines
-        if startDiv.nodeName != "DIV"
-            startDiv = $(startDiv).parents("div")[0]
         startLineID = startDiv.id
-        if endDiv.nodeName != "DIV"
-            endDiv = $(endDiv).parents("div")[0]
         endLineID = endDiv.id
         
         lineStart = @_lines[startLineID]
@@ -1785,18 +1624,10 @@ class exports.CNeditor
         if lineNext != null
             
             # 1 - save lineNext
-            cloneLine =
-                line$        : lineNext.line$.clone()
-                lineID       : lineNext.lineID
-                lineType     : lineNext.lineType
-                lineDepthAbs : lineNext.lineDepthAbs
-                lineDepthRel : lineNext.lineDepthRel
-                linePrev     : lineNext.linePrev
-                lineNext     : lineNext.lineNext
-
-            # savedSel = @saveEditorSelection()
+            cloneLine = Line.clone(lineNext)
                 
             # 2 - Delete lineNext content then restore initial selection
+            # TODO BJA : ensure this call don't pass a null param
             @_deleteMultiLinesSelections(lineEnd, lineNext)
             
             # rangy.restoreSelection(savedSel)
@@ -1901,22 +1732,13 @@ class exports.CNeditor
         sel   = @getEditorSelection()
         range = sel.getRangeAt(0)
         
-        if range.startContainer.nodeName == 'BODY'
-            startDiv = range.startContainer.children[range.startOffset]
-        else
-            startDiv = range.startContainer
-        if range.endContainer.nodeName == "BODY"
-            endDiv = range.endContainer.children[range.endOffset-1]
-        else
-            endDiv   = range.endContainer
+        # TODO BJA : use findlines ?
+        startDiv = selection.getLineDiv range.startContainer, range.startOffset
+        endDiv = selection.getLineDiv range.endContainer, range.endOffset
 
         # Find first and last div corresponding to the first and last
         # selected lines
-        if startDiv.nodeName != "DIV"
-            startDiv = $(startDiv).parents("div")[0]
         startLineID = startDiv.id
-        if endDiv.nodeName != "DIV"
-            endDiv = $(endDiv).parents("div")[0]
         endLineID = endDiv.id
         
         lineStart = @_lines[startLineID]
@@ -1931,22 +1753,12 @@ class exports.CNeditor
             isSecondLine = (linePrev.linePrev == null)
                         
             # 1 - save linePrev
-            cloneLine =
-                line$        : linePrev.line$.clone()
-                lineID       : linePrev.lineID
-                lineType     : linePrev.lineType
-                lineDepthAbs : linePrev.lineDepthAbs
-                lineDepthRel : linePrev.lineDepthRel
-                linePrev     : linePrev.linePrev
-                lineNext     : linePrev.lineNext
-
-            # savedSel = @saveEditorSelection()
+            cloneLine = Line.clone(linePrev)
             
             # 2 - Delete linePrev content then restore initial selection
+            # TODO BJA : ensure this call don't pass a null param
             @_deleteMultiLinesSelections(linePrev.linePrev, linePrev)
             
-            # rangy.restoreSelection(savedSel)
-
             # 3 - Restore linePrev below the last selected line (lineEnd )
             # 3.1 - if isSecondLine, line objects must be fixed
             if isSecondLine
@@ -1988,7 +1800,7 @@ class exports.CNeditor
                 if line.lineNext != null
                     line = line.lineNext
                 # select the block from first line to untab (lineNext)
-                #                    to last  line to untab (line)
+                # to last  line to untab (line)
                 myRange = rangy.createRange()
                 myRange.setStart(lineNext.line$[0], 0)
                 myRange.setEnd(line.line$[0], 0)
@@ -2028,7 +1840,7 @@ class exports.CNeditor
                     numOfUntab -= 1
 
 
-    ### ------------------------------------------------------------------------
+    ###
     #  HISTORY MANAGEMENT:
     # 1. _addHistory (Save html code, selection markers, positions...)
     # 2. undoPossible (Return true only if unDo can be called)
@@ -2043,7 +1855,7 @@ class exports.CNeditor
     #  - the boolean newPosition
     ###
 
-    ### -------------------------------------------------------------------------
+    ###
     #  _addHistory
     # 
     # Add html code and selection markers and scrollbar positions to the history
@@ -2054,17 +1866,16 @@ class exports.CNeditor
         # save html selection
         @_history.historySelect.push savedSel
         # save scrollbar position
-        savedScroll = 
+        savedScroll =
             xcoord: @editorBody$.scrollTop()
             ycoord: @editorBody$.scrollLeft()
         @_history.historyScroll.push savedScroll
-        # save newPosition
+        # save newPosition flag
         @_history.historyPos.push @newPosition
         # 1- add the html content with markers to the history
-        @_history.history.push @editorBody$.html()
-        rangy.removeMarkers(savedSel)
+        @_history.history.push @linesDiv.innerHTML
         # 2 - update the index
-        @_history.index = @_history.history.length-1
+        @_history.index = @_history.history.length - 1
 
     ### -------------------------------------------------------------------------
     #  undoPossible
@@ -2097,11 +1908,10 @@ class exports.CNeditor
             # restore newPosition
             @newPosition = @_history.historyPos[@_history.index]
             # 0 - restore html
-            @editorBody$.html @_history.history[@_history.index]
+            @linesDiv.innerHTML = @_history.history[@_history.index]
             # 1 - restore selection
             savedSel = @_history.historySelect[@_history.index]
-            savedSel.restored = false
-            rangy.restoreSelection(savedSel)
+            rangy.deserializeSelection savedSel, @linesDiv
             # 2 - restore scrollbar position
             xcoord = @_history.historyScroll[@_history.index].xcoord
             ycoord = @_history.historyScroll[@_history.index].ycoord
@@ -2124,7 +1934,7 @@ class exports.CNeditor
             # 0 - update the index
             @_history.index += 1
             # 1 - restore html
-            @editorBody$.html @_history.history[@_history.index+1]
+            @linesDiv.innerHTML = @_history.history[@_history.index+1]
             # 2 - restore selection
             savedSel = @_history.historySelect[@_history.index+1]
             savedSel.restored = false
@@ -2196,13 +2006,14 @@ class exports.CNeditor
             #         2 - put data in the sandbox
             #         3 - clean the sandbox
             #         4 - cancel event (otherwise it pastes twice)
+            
             if event.clipboardData.types == "text/html"
-                mySandBox.innerHTML = event.clipboardData.getData('text/html');
+                mySandBox.innerHTML = event.clipboardData.getData('text/html')
             else if event.clipboardData.types == "text/plain"
-                mySandBox.innerHTML = event.clipboardData.getData('text/plain');
+                mySandBox.innerHTML = event.clipboardData.getData('text/plain')
             else
                 mySandBox.innerHTML = ""
-            @_waitForPasteData(mySandBox, @_processPaste)
+            @_waitForPasteData mySandBox
             if event.preventDefault
                 event.stopPropagation()
                 event.preventDefault()
@@ -2211,32 +2022,34 @@ class exports.CNeditor
             # not a Webkit: 1 - empty the sandBox
             #               2 - paste in sandBox
             #               3 - cleanup the sandBox
-            mySandBox.innerHTML = ""
-            @_waitForPasteData(mySandBox, @_processPaste)
+            # mySandBox.innerHTML = ""
+            @_waitForPasteData mySandBox
             return true
 
 
 
     ###*
-     * init the div where the browser will actualy paste.
-     * this method is called after each refresh of the content of the editor (
-     * replaceContent, deleteContent, setEditorContent)
-     * TODO : should be called just once at editor init : for this the editable
-     * content shouldn't be directly in the body of the iframe but in a div.
-     * @return {obj} a ref to the clipboard div
+    # * init the div where the browser will actualy paste.
+    # * this method is called after each refresh of the content of the editor (
+    # * replaceContent, deleteContent, setEditorContent)
+    # * TODO : should be called just once at editor init : for this the editable
+    # * content shouldn't be directly in the body of the iframe but in a div.
+    # * @return {obj} a ref to the clipboard div
     ###
     _initClipBoard : () ->
-        clipboard$ = $ document.createElement('div')
+        clipboardEl = document.createElement('div')
+        clipboardEl.setAttribute('contenteditable','true')
+        @clipboard$ = $ clipboardEl
+        @clipboard$.attr('id', 'editor-clipboard')
         getOffTheScreen =
-            left: -300 
-        clipboard$.offset getOffTheScreen
-        clipboard$.prependTo @editorBody$
-        clipboard = clipboard$[0]
-        clipboard.style.setProperty('width','280px')
-        clipboard.style.setProperty('position','fixed')
-        clipboard.style.setProperty('overflow','hidden')
-        @clipboard = clipboard
-        return clipboard
+            left: -300
+        @clipboard$.offset getOffTheScreen
+        @clipboard$.prependTo @editorBody$
+        @clipboard = @clipboard$[0]
+        @clipboard.style.setProperty('width','280px')
+        @clipboard.style.setProperty('position','fixed')
+        @clipboard.style.setProperty('overflow','hidden')
+        @clipboard
     
 
 
@@ -2247,46 +2060,39 @@ class exports.CNeditor
      * @param  {function} processpaste the function to call back whan paste 
      * is ok
     ###
-    _waitForPasteData : (sandbox, processpaste) ->
-        ( waitforpastedata = (elem) ->
-            # if the clipboard div has child => paste is done => can continue
-            if elem.childNodes and elem.childNodes.length > 0
-                processpaste()
-            # else : paste not ready => wait
-            else
-                that = {e: elem}
-                that.callself = () ->
-                    waitforpastedata that.e
-                setTimeout(that.callself, 10) )(sandbox)
-           
+    _waitForPasteData : =>
+    # if the clipboard div has child => paste is done => can continue
+        if @clipboard.childNodes and @clipboard.childNodes.length > 0
+            @_processPaste()
+        # else : paste not ready => wait
+        else
+            setTimeout @_waitForPasteData, 100
+       
 
 
     ###
-     * Called when the browser has pasted data in the clipboard div. Its role is to
-     * insert the content of the clipboard into the editor.
+     * Called when the browser has pasted data in the clipboard div. 
+     * Its role is to insert the content of the clipboard into the editor.
      * @param  {element} sandbox 
     ###
 
     _processPaste : () =>
-        # var
         sandbox = @.clipboard
         currSel = @currentSel
-
+        
         # 1- Sanitize clipboard content with node-validator 
         # (https://github.com/chriso/node-validator)
         # may be improved with google caja sanitizer :
         # http://code.google.com/p/google-caja/wiki/JsHtmlSanitizer
-        pasteddata = sandbox.innerHTML
-        pasteddata = sanitize(pasteddata).xss();
-        sandbox.innerHTML = pasteddata
-
+        sandbox.innerHTML = sanitize(sandbox.innerHTML).xss()
+        
         # 2- Prepare a fragment where the lines (<div id="CNID_xx" ... </div>)
         # will be prepared before to be inserted in the editor.
         # _insertLineAfter() will work to insert new lines in the frag and 
         # will correctly update the editor. For that we insert a dummyLine 
         # at the beginning so that the first insertLineAfter works.
         frag = document.createDocumentFragment()
-        dummyLine = 
+        dummyLine =
             lineNext : null
             linePrev : null
             line$    : $("<div id='dummy' class='Tu-1'></div>")
@@ -2294,7 +2100,7 @@ class exports.CNeditor
 
         # 3- _domWalk will parse the clipboard in order to insert lines in frag.
         # Each line will be prepared in its own fragment before being inserted
-        # inserted in frag.
+        # into frag.
         # _domWalk is recursive and the variables of the context of the parse 
         # are stored in the parameter "domWalkContext" that is transmited at
         # each recursion.
@@ -2302,30 +2108,31 @@ class exports.CNeditor
         absDepth = currSel.startLine.lineDepthAbs
         if currSel.startLine.lineType == 'Th'
             absDepth += 1
-        domWalkContext = 
-            # Absolute depth of the current explored node.
-            absDepth           : absDepth,
-            # level of the Previous  <hx> element (ex : if last title parsed 
-            # was h3 => prevHxLevel==)
-            prevHxLevel        : null,
-            # the fragment where new lines will be added during the parse of the
+        domWalkContext =
+            # The fragment where new lines will be added during the parse of the
             # clipboard div
             frag               : frag,
-            # previous Cozy Note Line Abs Depth, used for the insertion of 
-            # internal lines with  _clipBoard_Insert_InternalLine()
-            prevCNLineAbsDepth : null, 
-            # refers to the record of editor.lines[] of the last inserted 
-            # line in the frag
+            # Refers to the last inserted line in the frag
             lastAddedLine      : dummyLine,
             # Fragment where a line is under construction
             currentLineFrag    : currentLineFrag,
-            # last element of currentLineFrag being populated by _domWalk
+            # Element (or node) of currentLineFrag being populated by _domWalk
             currentLineEl      : currentLineFrag,
-            # boolean indicating wether currentLineFrag has already be appended
-            # an element.
+            # Absolute depth of the current explored node of clip board
+            absDepth           : absDepth,
+            # Level of the Previous  <hx> element (ex : if last title parsed 
+            # was h3 => prevHxLevel==3)
+            prevHxLevel        : null,
+            # Previous Cozy Note Line Abs Depth, used for the insertion of 
+            # internal lines with  _clipBoard_Insert_InternalLine()
+            prevCNLineAbsDepth : null,
+            # Boolean wether currentLineFrag has already had an 
+            # element appended.
             isCurrentLineBeingPopulated : false
+
         # go for the walk !
-        htmlStr = @_domWalk(sandbox,domWalkContext)
+        htmlStr = @_domWalk sandbox, domWalkContext
+        
         # empty the clipboard div
         sandbox.innerHTML = ""
         # delete dummy line from the fragment
@@ -2335,13 +2142,11 @@ class exports.CNeditor
         # TODO : the following steps removes all the styles of the lines in frag
         # Later this will be removed in order to take into account styles.
         ###
-        i = 0
-        while i<frag.childNodes.length
-            line = frag.childNodes[i]
-            txt = line.textContent
-            line.innerHTML = '<span></span><br>'
-            line.firstChild.appendChild(document.createTextNode(txt))
-            i += 1
+        # for line in frag.childNodes.length
+        #     line = frag.childNodes[i]
+        #     txt = line.textContent
+        #     line.innerHTML = '<span></span><br>'
+        #     line.firstChild.appendChild(document.createTextNode(txt))
         ###
         # END TODO
         ###
@@ -2353,40 +2158,68 @@ class exports.CNeditor
             # nothing to do
         else if endLine == startLine
             currSel.range.deleteContents()
+            # in case deleteContent left a span without text node
+            selection.normalize(currSel.range)
         else
             @_deleteMultiLinesSelections()
-            currSel   = @_findLinesAndIsStartIsEnd()
+            selection.normalize(currSel.range) 
+            @_findLinesAndIsStartIsEnd()
+            currSel = @currentSel
             startLine = currSel.startLine
 
-        # 5- insert first line of the frag in the target line
-        # we assume that the structure of lines in frag and in the editor are :
-        # <div><span>(TextNode)</span><br></div>
-        # what is incorrect when styles will be taken into account.
-        targetNode   = currSel.range.startContainer
+        ### 5- Insert first line of the frag in the target line
+        # We assume that the structure of lines in frag and in the editor are :
+        #   <div><span>(TextNode)</span><br></div>
+        # what will be incorrect when styles will be taken into account.
+        # 
+        ###
+        targetNode   = currSel.range.startContainer # a text node because of selection.normalize()
         startOffset  = currSel.range.startOffset
-        if targetNode.length
-            endOffset = targetNode.length - startOffset
+        endOffset = targetNode.length - startOffset
+        # prepare lineElements
+        if frag.childNodes.length > 0
+            lineElements = Array.prototype.slice.call(frag.firstChild.childNodes)
         else
-            endOffset = targetNode.childNodes.length - startOffset
-        i=0
-        lineElements = frag.firstChild.childNodes
-        nbElements   = lineElements.length
-        while i < nbElements-1
-            elToInsert = lineElements[i]
-            i += 1
-            # if targetNode & elToInsert are SPAN or TextNode and both have 
+            lineElements = [frag]
+        # loop on each element to insert (only one for now)
+        for elToInsert in lineElements
+            @_insertElement
+            # If targetNode & elToInsert are SPAN or TextNode and both have 
             # the same class, then we concatenate them
-            if (elToInsert.tagName=='SPAN') and
-            (targetNode.tagName=='SPAN' or targetNode.nodeType==Node.TEXT_NODE )
-                targetText   = targetNode.textContent
-                newText      = targetText.substr(0,startOffset)
-                newText     += elToInsert.textContent
-                newText     += targetText.substr(startOffset)
-                targetNode.textContent = newText
-                startOffset += elToInsert.textContent.length
+            if (elToInsert.tagName=='SPAN')
+                if (targetNode.tagName=='SPAN' or targetNode.nodeType==Node.TEXT_NODE )
+                    targetText   = targetNode.textContent
+                    newText      = targetText.substr(0,startOffset)
+                    newText     += elToInsert.textContent
+                    newText     += targetText.substr(startOffset)
+                    targetNode.textContent = newText
+                    startOffset += elToInsert.textContent.length
+                else if targetNode.tagName=='A'
+                    targetNode.parentElement.insertBefore(elToInsert,targetNode.nextSibling)
+                    targetNode = targetNode.parentElement
+                    startOffset = $(targetNode).children().index(elToInsert) + 1
+                else if targetNode.tagName=='DIV'
+                    targetNode.insertBefore(elToInsert,targetNode[startOffset])
+                    startOffset += 1
 
-        # 6- if the clipboard has more than one line, insert the end of target
+            else if (elToInsert.tagName=='A')
+                if targetNode.nodeName=='#text'
+                    parent = targetNode.parentElement
+                    parent.parentElement.insertBefore(elToInsert,parent.nextSibling)
+                    targetNode = parent.parentElement
+                    startOffset = $(targetNode).children().index(elToInsert) + 1
+                else if targetNode.tagName in ['SPAN' ,'A']
+                    targetNode.parentElement.insertBefore(elToInsert,targetNode.nextSibling)
+                    targetNode = targetNode.parentElement
+                    startOffset = $(targetNode).children().index(elToInsert) + 1
+                else if targetNode.tagName == 'DIV'
+                    targetNode.insertBefore(elToInsert,targetNode[startOffset])
+                    startOffset += 1
+
+        ###
+        # 6- If the clipboard has more than one line, insert the end of target
         #    line in the last line of frag and delete it
+        ###
         if frag.childNodes.length > 1
             range = document.createRange()
             range.setStart(targetNode,startOffset)
@@ -2401,31 +2234,37 @@ class exports.CNeditor
                 frag.lastChild.children.length-1,  # penultimate node of last line
                 endTargetLineFrag)                 # the frag to insert
             # TODO : the next 3 lines are required for firebug to detect
-            # breakpoints ! ! !   ????????
+            # breakpoints ! ! !   ???????? (otherwise could be deleted)
             parendDiv = targetNode
             while parendDiv.tagName != 'DIV'
                 parendDiv = parendDiv.parentElement
-
-        # remove the firstAddedLine from the fragment
+        ###*
+         * remove the firstAddedLine from the fragment
+        ###
         firstAddedLine = dummyLine.lineNext
-        secondAddedLine = firstAddedLine.lineNext
-        frag.removeChild(frag.firstChild)
-        delete this._lines[firstAddedLine.lineID]
+        secondAddedLine = firstAddedLine?.lineNext
+        if frag.firstChild?
+            frag.removeChild(frag.firstChild)
+        if firstAddedLine?
+            delete this._lines[firstAddedLine.lineID]
 
-        # 7- updates nextLine and prevLines, insert frag in the editor
-        if secondAddedLine != null
+        ###*
+         * 7- updates nextLine and prevLines, insert frag in the editor
+        ###
+        if secondAddedLine?
             lineNextStartLine          = currSel.startLine.lineNext
             currSel.startLine.lineNext = secondAddedLine
             secondAddedLine.linePrev   = currSel.startLine
             if lineNextStartLine == null
-                @editorBody$[0].appendChild(frag)
+                @linesDiv.appendChild(frag)
             else
                 domWalkContext.lastAddedLine.lineNext = lineNextStartLine
                 lineNextStartLine.linePrev = domWalkContext.lastAddedLine
-                @editorBody$[0].insertBefore(frag, lineNextStartLine.line$[0])
-        
-        # 8- position caret
-        if secondAddedLine != null
+                @linesDiv.insertBefore(frag, lineNextStartLine.line$[0])
+        ###*
+         * 8- position caret
+        ###
+        if secondAddedLine?
             # Assumption : last inserted line always has at least one <span> with only text inside
             caretTextNodeTarget = lineNextStartLine.linePrev.line$[0].childNodes[0].firstChild
             caretOffset = caretTextNodeTarget.length - endOffset
@@ -2447,27 +2286,17 @@ class exports.CNeditor
      * @return {nothing}                nothing
     ###
     _insertFrag : (targetContainer, targetOffset, frag) ->
-            # for sourceNode in frag
-            #     if targetContainer.nodeName == sourceNode.nodeName
-            #         switch targetContainer.nodeName 
-            #             when '#text'
-            #                 # insert text
-            #                 targetContainer.textContent = targetContainer.textContent.substring(0,targetOffset)+sourceNode.textContent+targetContainer.textContent.substring(targetOffset)
-            #             when 'SPAN'
-            #                 _insertFrag()
-            #                 targetContainer = targetContainer.childNodes[targetOffset]
 
-            if targetOffset == 0
-                range = document.createRange()
-                range.setStart(startContainer,startOffset)
-                range.setEnd(startContainer,startOffset)
-                range.insertNode(frag)
-                range.detach()
-            else
-                if frag.childNodes.length>0
-                    targetNode = targetContainer.childNodes[targetOffset-1]
-                    targetNode.textContent += frag.firstChild.textContent
-
+        if targetOffset == 0
+            range = document.createRange()
+            range.setStart(startContainer,startOffset)
+            range.setEnd(startContainer,startOffset)
+            range.insertNode(frag)
+            range.detach()
+        else
+            if frag.childNodes.length>0
+                targetNode = targetContainer.childNodes[targetOffset-1]
+                targetNode.textContent += frag.firstChild.textContent
 
 
     ###*
@@ -2482,14 +2311,13 @@ class exports.CNeditor
         this.__domWalk(elemt, context)
         # if a line was being populated, append it to the frag
         if context.currentLineFrag.childNodes.length > 0
-            p = 
+            p =
                 sourceLine         : context.lastAddedLine
                 fragment           : context.currentLineFrag
                 targetLineType     : "Tu"
                 targetLineDepthAbs : context.absDepth
                 targetLineDepthRel : context.absDepth
             context.lastAddedLine = @_insertLineAfter(p)
-
 
 
     ###*
@@ -2511,14 +2339,17 @@ class exports.CNeditor
             switch child.nodeName
 
                 when '#text'
-                    # text nodes are inserted
-                    txtNode = document.createTextNode(child.textContent)
+                    # text nodes are inserted in the current populated 
+                    # element if its a "textual" element
                     if context.currentLineEl.nodeName in ['SPAN','A']
-                        context.currentLineEl.appendChild(txtNode)
+                        context.currentLineEl.textContent += child.textContent
+                    # otherwise in a new span
                     else
-                        spaneEl = document.createElement('span')
-                        spaneEl.appendChild(txtNode)
-                        context.currentLineEl.appendChild(spaneEl)
+                        txtNode = document.createTextNode(child.textContent)
+                        spanEl = document.createElement('span')
+                        spanEl.appendChild txtNode
+                        context.currentLineEl.appendChild spanEl
+                    
                     context.isCurrentLineBeingPopulated = true
 
                 when 'P', 'UL', 'OL'
@@ -2565,21 +2396,50 @@ class exports.CNeditor
                     if context.isCurrentLineBeingPopulated
                         @_appendCurrentLineFrag(context,absDepth,absDepth)
 
+                when 'TR'
+                    # if a line was being populated, append it to the frag
+                    if context.isCurrentLineBeingPopulated
+                        @_appendCurrentLineFrag(context,absDepth,absDepth)
+                    # walk throught the child and append it to the frag
+                    @__domWalk(child, context)
+                    if context.isCurrentLineBeingPopulated
+                        @_appendCurrentLineFrag(context,absDepth,absDepth)
+
                 when 'BR'
                     # append the line that was being populated to the frag (even
                     # if this one had not yet been populated by any element)
                     @_appendCurrentLineFrag(context,absDepth,absDepth)
                 
                 when 'A'
-                    lastInsertedEl = context.currentLineEl.lastChild
-                    if lastInsertedEl != null and lastInsertedEl.nodeName=='SPAN'
-                        lastInsertedEl.textContent += '[[' + child.textContent + '|'+ child.href+']]'
-                    else
-                        spanNode = document.createElement('span')
-                        spanNode.textContent = child.textContent + ' [[' + child.href+']] '
-                        context.currentLineEl.appendChild(spanNode)
-                    context.isCurrentLineBeingPopulated = true
-                
+                    # without <a> element :
+                    # lastInsertedEl = context.currentLineEl.lastChild
+                    # if lastInsertedEl != null and lastInsertedEl.nodeName=='SPAN'
+                    #     lastInsertedEl.textContent += '[' + child.textContent + ']('+ child.href+')'
+                    # else
+                    #     spanNode = document.createElement('span')
+                    #     spanNode.textContent = child.textContent + ' [[' + child.href+']] '
+                    #     context.currentLineEl.appendChild(spanNode)
+                    # context.isCurrentLineBeingPopulated = true
+                    
+                    # with <a> element :
+                    aNode = document.createElement('a')
+                    aNode.textContent = child.textContent
+                    aNode.href        = child.href
+                    context.currentLineEl.appendChild(aNode)
+
+
+                    # if context.currentLineEl.nodeName == 'A'
+                    #     context.currentLineEl.textContent += child.textContent
+                    # # otherwise in a new span
+                    # else
+                    #     txtNode = document.createTextNode(child.textContent)
+                    #     spanEl = document.createElement('span')
+                    #     spanEl.appendChild txtNode
+                    #     context.currentLineEl.appendChild spanEl
+                    
+                    # context.isCurrentLineBeingPopulated = true
+
+
                 # ###
                 # ready for styles to be taken into account
                 # when 'A'
@@ -2605,7 +2465,6 @@ class exports.CNeditor
                 #     spanNode = document.createElement('EM')
                 #     initialCurrentLineEl = context.currentLineEl
                 #     context.currentLineEl.appendChild(spanNode)
-                #     context.currentLineEl = spanNode
                 #     @__domWalk(child, context)
                 #     context.currentLineEl = initialCurrentLineEl
                 #     context.isCurrentLineBeingPopulated = true
@@ -2618,7 +2477,7 @@ class exports.CNeditor
                 #     @__domWalk(child, context)
                 #     context.currentLineEl = initialCurrentLineEl
                 #     context.isCurrentLineBeingPopulated = true
-                when 'DIV'
+                when 'DIV', 'TABLE', 'TBODY'
                     if child.id.substr(0,5)=='CNID_'
                         @_clipBoard_Insert_InternalLine(child, context)
                     else
@@ -2633,7 +2492,7 @@ class exports.CNeditor
                         context.currentLineEl.appendChild(spanNode)
                     context.isCurrentLineBeingPopulated = true
 
-        return true    
+        true
 
 
 
@@ -2647,13 +2506,15 @@ class exports.CNeditor
         # if the line is empty, add an empty Span before the <br>
         if context.currentLineFrag.childNodes.length == 0
             spanNode = document.createElement('span')
+            spanNode.appendChild(document.createTextNode(''))
             context.currentLineFrag.appendChild(spanNode)
-        p = 
+
+        p =
             sourceLine         : context.lastAddedLine
             fragment           : context.currentLineFrag
             targetLineType     : "Tu"
             targetLineDepthAbs : absDepth
-            targetLineDepthRel : absDepth
+            targetLineDepthRel : relDepth
         context.lastAddedLine = @_insertLineAfter(p)
         # prepare the new lingFrag & lineEl
         context.currentLineFrag = document.createDocumentFragment()
@@ -2678,211 +2539,22 @@ class exports.CNeditor
             # context.absDepth += 1
         else
             # context.absDepth += deltaDepth
-        p = 
+        elemtFrag = document.createDocumentFragment()
+        n = elemt.childNodes.length
+        i = 0
+        while i < n 
+            elemtFrag.appendChild(elemt.childNodes[0])
+            i++
+        p =
             sourceLine         : context.lastAddedLine
-            innerHTML          : elemt.innerHTML
+            fragment           : elemtFrag
             targetLineType     : "Tu"
             targetLineDepthAbs : context.absDepth
             targetLineDepthRel : context.absDepth
         context.lastAddedLine = @_insertLineAfter(p)
 
         
-   
-    ### ------------------------------------------------------------------------
-    #  MARKUP LANGUAGE CONVERTERS
-    # _cozy2md (Read a string of editor html code format and turns it into a
-    #           string in markdown format)
-    # _md2cozy (Read a string of html code given by showdown and turns it into
-    #           a string of editor html code)
-    ###
-
-    #  BUG --> : an odd bug occurs around the 19-th line in the example :
-    #           ./templates/content-shortlines-marker
-    #           (there are some empty lines around)
-     
-    ### ------------------------------------------------------------------------
-    #  _cozy2md
-    # Read a string of editor html code format and turns it into a string in
-    #  markdown format
-    ###
-    _cozy2md : (text) ->
-        
-        # Writes the string into a jQuery object
-        htmlCode = $(document.createElement 'div').html text
-        
-        # The future converted line
-        markCode = ''
-
-        # current depth
-        currDepth = 0
-        
-        # converts a fragment of a line
-        converter = {
-            'A': (obj) ->
-                title = if obj.attr('title')? then obj.attr('title') else ""
-                href  = if obj.attr('href')? then obj.attr('href') else ""
-                return '[' + obj.html() + '](' + href + ' "' + title + '")'
-                    
-            'IMG': (obj) ->
-                title = if obj.attr('title')? then obj.attr('title') else ""
-                alt   = if obj.attr('alt')? then obj.attr('alt') else ""
-                src   = if obj.attr('src')? then obj.attr('src') else ""
-                return '![' + alt + '](' + src + ' "' + title + '")'
-                
-            'SPAN': (obj) ->
-                return obj.text()
-            }
-
-        
-        # markup symbols
-        markup = {
-            'Th' : (blanks, depth) ->
-                # a title is a section rupture
-                currDepth = depth
-                dieses = ''
-                i = 0
-                while i < depth
-                    dieses += '#'
-                    i++
-                return "\n" + dieses + ' '
-            'Lh' : (blanks, depth) ->
-                return "\n"
-            'Tu' : (blanks, depth) ->
-                return "\n" + blanks + "+   "
-            'Lu' : (blanks, depth) ->
-                return "\n" + blanks + "    "
-            'To' : (blanks, depth) ->
-                return "\n" + blanks + "1.   "
-            'Lo' : (blanks, depth) ->
-                return "\n" + blanks + "    "
-            }
-
-        # adds structure depending of the line's class
-        classType = (className) ->
-            tab   = className.split "-"
-            type  = tab[0]               # type of class (Tu,Lu,Th,Lh,To,Lo)
-            depth = parseInt(tab[1], 10) # depth (1,2,3...)
-            blanks = ''
-            i = 1
-            while i < depth - currDepth
-                blanks += '    '
-                i++
-            return markup[type](blanks, depth)
-        
-        # iterate on direct children
-        children = htmlCode.children()
-        for i in [0..children.length-1]
-            
-            # fetch the i-th line of the text
-            lineCode = $ children.get i
-            
-            # indent and structure the line
-            if lineCode.attr('class')?
-                # console.log classType lineCode.attr 'class'
-                markCode += classType lineCode.attr 'class'
-
-            # completes the text depending of the line's content
-            l = lineCode.children().length
-            j = 0
-            space = ' '
-            while j < l
-                lineElt = lineCode.children().get j
-                if (j+2==l) then space='' #be sure not to insert spaces after BR
-                if lineElt.nodeType == 1 && converter[lineElt.nodeName]?
-                    markCode += converter[lineElt.nodeName]($ lineElt) + space
-                else
-                    markCode += $(lineElt).text() + space
-                j++
-                
-            # adds a new line at the end
-            markCode += "\n"
-        
-        return markCode
-
-
-    ### ------------------------------------------------------------------------
-    # Read a string of html code given by showdown and turns it into a string
-    # of editor html code
-    ###
-    _md2cozy: (text) ->
-    
-        conv = new Showdown.converter()
-        text = conv.makeHtml text
-       
-        # Writes the string into a jQuery object
-        htmlCode = $(document.createElement 'ul').html text
-
-        # final string
-        cozyCode = ''
-        
-        # current line
-        id = 0
-
-        # Returns the corresponding fragment of cozy Code
-        cozyTurn = (type, depth, p) ->
-            # p is a (jquery) object that looks like this :
-            # <p> some text <a>some link</a> again <img>some img</img> poof </p>
-            # OR like this:  <li> some text <a>some link</a> ...
-            # We are treating a line again, thus id must be increased
-            id++
-            code = ''
-            p.contents().each () ->
-                name = @nodeName
-                if name == "#text"
-                    code += "<span>#{$(@).text()}</span>"
-                else if @tagName?
-                    $(@).wrap('<div></div>')
-                    code += "#{$(@).parent().html()}"
-                    $(@).unwrap()
-            return "<div id=CNID_#{id} class=#{type}-#{depth}>" + code +
-                "<br></div>"
-                
-        # current depth
-        depth = 0
-        
-        # Read sections sequentially
-        readHtml = (obj) ->
-            tag = obj[0].tagName
-            if tag[0] == "H"       # c'est un titre (h1...h6)
-                depth = parseInt(tag[1],10)
-                cozyCode += cozyTurn("Th", depth, obj)
-            else if tag == "P"     # ligne de titre
-                cozyCode += cozyTurn("Lh", depth, obj)
-            else
-                recRead(obj, "u")
-                
-        # Reads recursively through the lists
-        recRead = (obj, status) ->
-            tag = obj[0].tagName
-            if tag == "UL"
-                depth++
-                obj.children().each () ->
-                    recRead($(@), "u")
-                depth--
-            else if tag == "OL"
-                depth++
-                obj.children().each () ->
-                    recRead($(@), "o")
-                depth--
-            else if tag == "LI" && obj.contents().get(0)?
-                # cas du <li>Un seul titre sans lignes en-dessous</li>
-                if obj.contents().get(0).nodeName == "#text"
-                    obj = obj.clone().wrap('<p></p>').parent()
-                for i in [0..obj.children().length-1]
-                    child = $ obj.children().get i
-                    if i == 0
-                        cozyCode += cozyTurn("T#{status}", depth, child)
-                    else
-                        recRead(child, status)
-            else if tag == "P"
-                cozyCode += cozyTurn("L#{status}", depth, obj)
-
-        htmlCode.children().each () ->
-            readHtml $ @
-        
-        return cozyCode
-
-
+  
     ### ------------------------------------------------------------------------
     # EXTENSION  :  cleaned up HTML parsing
     #
@@ -2970,3 +2642,14 @@ class exports.CNeditor
                 # return tree.innerHTML || tree.textContent
 
         # leafReader(htmlFrag)
+
+    # Debug purpose only
+    logKeyPress: (e) ->
+        #console.clear()
+        #console.log '__keyPressListener____________________________'
+        #console.log e
+        #console.log "ctrl #{e.ctrlKey}; Alt #{e.altKey}; Shift #{e.shiftKey}; "
+        #console.log "which #{e.which}; keyCode #{e.keyCode}"
+        #console.log "metaKeyStrokesCode:'#{metaKeyStrokesCode}' keyStrokesCode:'#{keyStrokesCode}'"
+
+CNeditor = exports.CNeditor

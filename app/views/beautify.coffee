@@ -43,21 +43,12 @@ unpacker_filter = (source) ->
   # source = unpacker_filter(MyObfuscate.unpack(source))  if MyObfuscate.detect(source)
   # trailing_comments + source
 
-exports.beautify = (ed$) ->
+exports.beautify = (source) ->
   return  if the.beautify_in_progress
   the.beautify_in_progress = true
-  source = ed$.html()
-  indent_size = $("#tabsize").val()
-  indent_char = (if indent_size is 1 then "\t" else " ")
-  preserve_newlines = $("#preserve-newlines").attr("checked")
-  keep_array_indentation = $("#keep-array-indentation").attr("checked")
-  indent_scripts = $("#indent-scripts").val()
-  brace_style = $("#brace-style").val()
-  space_before_conditional = $("#space-before-conditional").attr("checked")
-  source = unpacker_filter(source)  if $("#detect-packers").attr("checked")
   comment_mark = "<-" + "-"
   opts =
-    indent_size: 4
+    indent_size: 2
     indent_char: " "
     preserve_newlines: true
     brace_style: "collapse"
@@ -66,10 +57,7 @@ exports.beautify = (ed$) ->
     space_before_conditional: true
     indent_scripts: "normal"
 
-  if source and source[0] is "<" and source.substring(0, 4) isnt comment_mark
-    $("#resultText").val style_html(source, opts)
-  else
-    $("#resultText").val js_beautify(unpacker_filter(source), opts)
   the.beautify_in_progress = false
+  return style_html(source, opts)
 
 the = beautify_in_progress: false

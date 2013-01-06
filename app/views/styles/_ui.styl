@@ -1,23 +1,16 @@
 // UI
-
+bgcolor = #818181
 // app ui
-#main
-  background-color: #EEEEEE
+body
+  background-color: bgcolor
 
-.table-ly-wrpr
-  display: table
-  width: 100%
-  height: 100%
-  table-layout: fixed
-
-.table-ly-hder
-  display: table-row
-  width: 100%
-  border-spacing: 0px
-
-.table-ly-ctnt
-  display: table-cell
-  height: 100%
+#main-div
+  display: block
+  position: absolute
+  top:50px
+  right:0
+  left:0
+  bottom:0
 
 .monWell
   border: 1px solid rgba(0, 0, 0, 0.12)
@@ -25,77 +18,185 @@
   box-shadow: 0 1px 1px rgba(0, 0, 0, 0.05) inset
   padding: 0px
   margin: 0px
-  height: 100%
+  position:absolute
+  top:0px
+  right:0
+  left:0
+  bottom:7px
 
 #well-editor
   background-color: #333333
+  left:7px
 
 #well-result
   background-color: #ffffff
+  right:7px
 
 #col-wrap
-  display: table
-  border-spacing:10px
   width: 100%
   height: 100%
 
-#editor-col
-  display: table-cell
-  width: 50%
-  height:100%
-  padding-right: 0px
+#generalBtnBarDiv
+  width:700px
+  display:inline-block
+  padding-left: 7px
 
-#result-col
-  display: table-cell
-  vertical-align: top
+.btn-bar-editor
+  display:inline-block
 
-#generalBtnBar
-  padding: 0px 7px 0px 10px
-  position:relative
-  top:10px
+#contentSelectDiv
+  position: relative
+  top:-15px
+  display:inline-block
 
 #editorDiv
-  height: 100%
-  border-spacing: 7px
+  position: absolute
+  top:0px
+  right:0
+  left:0
+  bottom:0
 
 #editorContent
-  padding: 0px
-  overflow: hidden
-  word-wrap: break-word
+  position: absolute
+  top:48px
+  right:8px
+  left:8px
+  bottom:15px
 
 #editorIframe
   width: 100%
   height: 100%
   overflow: hidden
   display: inline-block
+  position: absolute
   font-size: 13px
   border:0
   width:100%
   height:100%
   margin-bottom: 9px
 
-#resultDiv
-  border-spacing: 7px
 
-#resultContent
-
-#resultText
-  background-color: #E9EEF2
+#editorIframe2
   width: 100%
   height: 100%
-  padding:0px
-  margin: 0
-  position:relative
-  top:-2px
-  left:-1px
+  overflow: hidden
+  display: inline-block
+  position: absolute
+  font-size: 13px
+  border:0
+  width:49%
+  right:0
+  height:100%
+  margin-bottom: 9px
+
+#resultDiv
+  width:100%
+  height:100%
+
+#resultContent
+  position: absolute
+  top:50px
+  right:8px
+  left:8px
+  bottom:15px
+
+#resultTextDiv
+  position   :absolute
+  top        :48px
+  right      :8px
+  left       :8px
+  bottom     :15px
+  overflow-y :auto
+  overflow-x :hidden
+  background-color: #E9EEF2
+
+#resultText
+  padding:0
+  margin:0
+  border:0
+  width:100%
+  height:100%
+  font-size:12px
+  background-color: #E9EEF2
+
+#recordings
+  padding:0px 7px 7px 7px 
+  overflow-y:auto
 
 #editorBtnBar
-  padding: 7px 7px 0px 7px
+  padding-left: 10px
+
+#record-form
+  // border:1px 1px 0px 0px 
+  border-bottom:1px
+  border-top:1px
+  border-right:0px
+  border-left:0px
+  border-style: solid
+  border-color:#EEEEEE
+  padding-top:10px
+  padding-bottom:0px
+  margin-bottom:7px
+
+#record-list
+  font-size:13px
+  
+.btnDiv-RecordLine
+  height:20px
+  top:-6px
+  display:inline-block
+  position:relative
+
+
+#record-name
+  margin:0
+  width:98%
+
+.resultActionOK
+  color:green
+
+.resultActionNOK
+  color:red
+
+.finalHTMLNOK
+  color:red
+
+.finalMdNOK
+  color:faad40
 
 #resultBtnBar
-  padding: 7px 7px 0px 7px
+  position:absolute
+  left:8px
 
-#divMainBtn *
-  display: inline-block
-  vertical-align: middle
 
+.ui-layout-resizer-open:hover
+  background white
+
+#col-wrap > .ui-layout-resizer
+  background-color: bgcolor
+  border-right: 1px solid bgcolor
+  border-left: 1px solid bgcolor
+
+.ui-layout-resizer
+  background-color: white
+  border-right: 1px solid #eeeeee
+  border-left: 1px solid #eeeeee
+  
+#col-wrap > .ui-layout-resizer > .ui-layout-toggler
+  background-color: bgcolor
+  border: 0px
+  position: absolute
+  right: 0px
+
+
+#col-wrap > .ui-layout-resizer-open:hover .ui-layout-toggler
+  background-color: #bbbbbb
+
+.ui-layout-toggler
+  background-color: white
+  border: 0px
+  position: absolute
+  right: 0px
+
+.ui-layout-resizer-open:hover .ui-layout-toggler
+  background-color: #BFBFBF

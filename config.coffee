@@ -19,12 +19,10 @@ exports.config =
     files:
         javascripts:
             joinTo:
-                'javascripts/app.js'     : /(^app)(?!(\/views\/CNeditor))/  # /app but not /app/views/CNeditor, it would be redundant
-                'javascripts/CNeditor.js': /^app\/views\/CNeditor/  # the editor class is seperated in order to use the compiled files in other projects
+                'javascripts/app.js'     : /^app/
                 'javascripts/vendor.js'  : /^vendor/
+                'javascripts/tests.js'   : /^test/
             order:
-                # Files in `vendor` directories are compiled before other files
-                # even if they aren't specified in order.
                 before: [
                     'vendor/scripts/jquery-1.8.2.js'
                     'vendor/scripts/lodash-v0.8.2.js'
@@ -32,10 +30,9 @@ exports.config =
                 ]
 
         stylesheets:
-            joinTo: 
-                'stylesheets/CNeditor.css': /^app\/views\/CNeditor/ # the editor css is seperated in order to use the compiled files in other projects
-                'stylesheets/app.css': /(^vendor\/styles)|(^app\/views\/styles)/ # /vendor/sytles or app/views/styles but not /app/views/CNeditor, it would be redundant
-
+            joinTo:
+                'stylesheets/app.css': /(^vendor\/styles)|(^app\/views\/styles)/
+                'stylesheets/CNeditor.css': /(^app\/views\/CNeditor\/)/
             order:
                 before: ['vendor/styles/normalize.css']
                 after: ['vendor/styles/helpers.css']
@@ -43,3 +40,9 @@ exports.config =
         templates:
             defaultExtension: 'jade'
             joinTo: 'javascripts/app.js'
+
+        #modules:
+            #definition: (path, data) ->
+                #data += """
+                #selection = exports.selection;
+                #"""
