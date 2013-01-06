@@ -202,17 +202,6 @@ class exports.CNeditor
                 @editorBody$.on 'paste', (event) =>
                     @paste event
 
-                # the observer is used for detecting caracters inserted by the
-                # browser with the default events.
-                # Then a 'change' event is cast.
-                # @observer = new MutationObserver (mutations) ->
-                #     n=0
-                #     mutations.forEach (mutation) ->
-                #         n +=1
-                #         console.log('EVENT (mutation)', mutation, n)
-
-                #     @.disconnect()
-
                 # return a ref to the editor's controler
                 callBack.call(this)
                 return this
@@ -501,16 +490,6 @@ class exports.CNeditor
             when 'Ctrl-Y'
                 @reDo()
                 e.preventDefault()
-            # else
-            #     target = @.linesDiv
-            #     config = 
-            #         attributes            : false
-            #         childList             : false
-            #         characterData         : true
-            #         attributeOldValue     : false
-            #         characterDataOldValue : false
-            #         subtree               : true
-            #     @observer.observe(target, config)
     
 
     ### ------------------------------------------------------------------------
@@ -2163,11 +2142,11 @@ class exports.CNeditor
         # TODO : the following steps removes all the styles of the lines in frag
         # Later this will be removed in order to take into account styles.
         ###
-        for line in frag.childNodes.length
-            line = frag.childNodes[i]
-            txt = line.textContent
-            line.innerHTML = '<span></span><br>'
-            line.firstChild.appendChild(document.createTextNode(txt))
+        # for line in frag.childNodes.length
+        #     line = frag.childNodes[i]
+        #     txt = line.textContent
+        #     line.innerHTML = '<span></span><br>'
+        #     line.firstChild.appendChild(document.createTextNode(txt))
         ###
         # END TODO
         ###
@@ -2199,20 +2178,44 @@ class exports.CNeditor
         endOffset = targetNode.length - startOffset
         # prepare lineElements
         if frag.childNodes.length > 0
-            lineElements = frag.firstChild.childNodes
+            lineElements = Array.prototype.slice.call(frag.firstChild.childNodes)
         else
             lineElements = [frag]
         # loop on each element to insert (only one for now)
         for elToInsert in lineElements
+            @_insertElement
             # If targetNode & elToInsert are SPAN or TextNode and both have 
             # the same class, then we concatenate them
-            if (elToInsert.tagName=='SPAN') and (targetNode.tagName=='SPAN' or targetNode.nodeType==Node.TEXT_NODE )
-                targetText   = targetNode.textContent
-                newText      = targetText.substr(0,startOffset)
-                newText     += elToInsert.textContent
-                newText     += targetText.substr(startOffset)
-                targetNode.textContent = newText
-                startOffset += elToInsert.textContent.length
+            if (elToInsert.tagName=='SPAN')
+                if (targetNode.tagName=='SPAN' or targetNode.nodeType==Node.TEXT_NODE )
+                    targetText   = targetNode.textContent
+                    newText      = targetText.substr(0,startOffset)
+                    newText     += elToInsert.textContent
+                    newText     += targetText.substr(startOffset)
+                    targetNode.textContent = newText
+                    startOffset += elToInsert.textContent.length
+                else if targetNode.tagName=='A'
+                    targetNode.parentElement.insertBefore(elToInsert,targetNode.nextSibling)
+                    targetNode = targetNode.parentElement
+                    startOffset = $(targetNode).children().index(elToInsert) + 1
+                else if targetNode.tagName=='DIV'
+                    targetNode.insertBefore(elToInsert,targetNode[startOffset])
+                    startOffset += 1
+
+            else if (elToInsert.tagName=='A')
+                if targetNode.nodeName=='#text'
+                    parent = targetNode.parentElement
+                    parent.parentElement.insertBefore(elToInsert,parent.nextSibling)
+                    targetNode = parent.parentElement
+                    startOffset = $(targetNode).children().index(elToInsert) + 1
+                else if targetNode.tagName in ['SPAN' ,'A']
+                    targetNode.parentElement.insertBefore(elToInsert,targetNode.nextSibling)
+                    targetNode = targetNode.parentElement
+                    startOffset = $(targetNode).children().index(elToInsert) + 1
+                else if targetNode.tagName == 'DIV'
+                    targetNode.insertBefore(elToInsert,targetNode[startOffset])
+                    startOffset += 1
+
         ###
         # 6- If the clipboard has more than one line, insert the end of target
         #    line in the last line of frag and delete it
@@ -2408,15 +2411,21 @@ class exports.CNeditor
                     @_appendCurrentLineFrag(context,absDepth,absDepth)
                 
                 when 'A'
-                    lastInsertedEl = context.currentLineEl.lastChild
-                    if lastInsertedEl != null and lastInsertedEl.nodeName=='SPAN'
-                        lastInsertedEl.textContent += '[' + child.textContent + ']('+ child.href+')'
-                    else
-                        spanNode = document.createElement('span')
-                        spanNode.textContent = child.textContent + ' [[' + child.href+']] '
-                        context.currentLineEl.appendChild(spanNode)
-                    context.isCurrentLineBeingPopulated = true
+                    # without <a> element :
+                    # lastInsertedEl = context.currentLineEl.lastChild
+                    # if lastInsertedEl != null and lastInsertedEl.nodeName=='SPAN'
+                    #     lastInsertedEl.textContent += '[' + child.textContent + ']('+ child.href+')'
+                    # else
+                    #     spanNode = document.createElement('span')
+                    #     spanNode.textContent = child.textContent + ' [[' + child.href+']] '
+                    #     context.currentLineEl.appendChild(spanNode)
+                    # context.isCurrentLineBeingPopulated = true
                     
+                    # with <a> element :
+                    aNode = document.createElement('a')
+                    aNode.textContent = child.textContent
+                    aNode.href        = child.href
+                    context.currentLineEl.appendChild(aNode)
 
 
                     # if context.currentLineEl.nodeName == 'A'
