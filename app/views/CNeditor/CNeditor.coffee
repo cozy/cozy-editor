@@ -555,11 +555,6 @@ class exports.CNeditor
         @_findLinesAndIsStartIsEnd()
 
         sel = @currentSel
-
-        # TODO BJA : isEmptyLine seems obsolète - 28/12/2012
-        # if @isEmptyLine
-        #     @isEmptyLine = false
-        #     sel.range.deleteContents()
                     
         startLine = sel.startLine
 

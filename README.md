@@ -8,10 +8,12 @@ Simple, yet Towerfull : one day it will be !
     + `brunch build --minify -c config-prod.coffee`
     + `js & css are in public/bin`
 * for developement :
-    + `cd inTheFolder`
+    + `cd server-test`
+    + `coffee server-test.coffee`
+    + `cd ..`
     + `brunch w`
     + code...
-    + open public/index.html in your browser
+    + open localhost:3000 in your browser
 
 ## How to use
 * put in your project the js and css that are in public/bin
