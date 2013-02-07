@@ -153,14 +153,18 @@ selection.cloneEndFragment = (range, endLine) ->
         | offset = cont.length |                       |
 ###
 selection.normalize = (range) ->
+    console.log 'selection.normalize'
+    console.log '  range.startContainer = ', range.startContainer, range.startOffset
     isCollapsed = range.collapsed
     newStartBP = selection.normalizeBP(range.startContainer, range.startOffset)
-    range.setStart(newStartBP.cont,newStartBP.offset)
+    range.setStart(newStartBP.cont,newStartBP.offset,)
     if isCollapsed
         range.collapse(true)
     else
         newEndBP = selection.normalizeBP(range.endContainer, range.endOffset)
         range.setEnd(newEndBP.cont,newEndBP.offset)
+
+    console.log '  return : range.startContainer = ', range.startContainer, range.startOffset
     return range
 
 

@@ -77,10 +77,11 @@ class Line
             newLineEl.appendChild(fragment)
             newLineEl.appendChild(document.createElement('br'))
         else
-            node = document.createElement('span')
-            node.appendChild(document.createTextNode(''))
-            newLineEl.appendChild(node)
-            newLineEl.appendChild(document.createElement('br'))
+            newLineEl.innerHTML = '<span></span><br/>'
+            # node = document.createElement('span')
+            # node.appendChild(document.createTextNode(''))
+            # newLineEl.appendChild(node)
+            # newLineEl.appendChild(document.createElement('br'))
         @line$ = $(newLineEl)
         
         if prevLine?
@@ -149,7 +150,6 @@ class exports.CNeditor
     constructor : (@editorTarget, callBack) ->
         if @editorTarget.nodeName == "IFRAME"
 
-            
             iframe$ = $(@editorTarget)
             
             iframe$.on 'load', () =>
@@ -205,21 +205,84 @@ class exports.CNeditor
                 # return a ref to the editor's controler
                 callBack.call(this)
                 return this
-
-            # This line is a trick : 
-            # The load event is fired on chrome if the iframe src equals '#' but
-            # not in ff.
-            # And if src= '', it's the opposite : works in ff but not in chrome.
-            # With this command we force the load event on every browser...
             @editorTarget.src = ''
+
+        else if @editorTarget.nodeName == "DIV"
+
+            iframe$ = $(@editorTarget)
+            
+            # preparation of the iframe
+            # editor_html$ = iframe$.contents().find("html")
+            @editorBody$ = iframe$
+            # @editorBody$.parent().attr('id','__ed-iframe-html')
+            # @editorBody$.attr("id","__ed-iframe-body")
+
+            @document = $(document)
+            editor_head$ = $(document).find("head")
+            cssLink = '<link id="editorCSS" '
+            cssLink += 'href="stylesheets/CNeditor.css" rel="stylesheet">'
+            cssEl = $(cssLink)
+            editor_head$.append(cssEl)
+
+            # Create div that will contains line
+            @linesDiv = document.createElement 'div'
+            @linesDiv.setAttribute('id','editor-lines')
+            @linesDiv.setAttribute('contenteditable','true')
+            @editorBody$.append @linesDiv
+            @getEditorSelection = () ->
+                return rangy.getSelection()
+
+            @saveEditorSelection = () ->
+                sel = rangy.getSelection()
+                return rangy.serializeSelection sel, true, @linesDiv
+        
+            # init clipboard div
+            @_initClipBoard()
+
+            # set the properties of the editor
+            @_lines       = {}            # contains every line
+            @newPosition  = true          # true if cursor has moved 
+            @_highestId   = 0             # last inserted line identifier
+            @_deepest     = 1             # current maximum indentation
+            @_firstLine   = null          # pointer to the first line
+            @_history     =               # for history management
+                index        : 0
+                history      : [null]
+                historySelect: [null]
+                historyScroll: [null]
+                historyPos   : [null]
+            @_lastKey     = null      # last pressed key (avoid duplication)
+
+            # initialize event listeners
+            @editorBody$.prop '__editorCtl', this
+            # listen keydown on capturing phase (before bubbling)
+            @linesDiv.addEventListener('keydown', @_keyPressListener, true)
+            @linesDiv.addEventListener('mouseup', () =>
+                @newPosition = true
+            , true)
+            @editorBody$.on 'keyup', () ->
+                iframe$.trigger jQuery.Event("onKeyUp")
+            @editorBody$.on 'click', (event) =>
+                @_lastKey = null
+            @editorBody$.on 'paste', (event) =>
+                @paste event
+
+            # return a ref to the editor's controler
+            callBack.call(this)
+            return this
 
     setFocus : () ->
         @linesDiv.focus()
 
     # methods to deal selection on an iframe
+    # this method is modified during construction if the editor target is not
+    # an iframe
     getEditorSelection : () ->
         return rangy.getIframeSelection @editorTarget
 
+
+    # this method is modified during construction if the editor target is not
+    # an iframe
     saveEditorSelection : () ->
         sel = rangy.getIframeSelection @editorTarget
         return rangy.serializeSelection sel, true, @linesDiv
@@ -381,7 +444,6 @@ class exports.CNeditor
     #                               N°102 f is stroke) or "space" ...
     #
     _keyPressListener : (e) =>
-
         # 1- Prepare the shortcut corresponding to pressed keys
         [metaKeyCode,keyCode] = @getShortCut(e)
         shortcut = metaKeyCode + '-' + keyCode
@@ -1092,7 +1154,7 @@ class exports.CNeditor
             )
             # Position caret
             range4sel = rangy.createRange()
-            range4sel.collapseToPoint(newLine.line$[0].firstChild.firstChild,0)
+            range4sel.collapseToPoint(newLine.line$[0].firstChild,0)
             currSel.sel.setSingleRange(range4sel)
 
         # 3- Caret is at the beginning of the line

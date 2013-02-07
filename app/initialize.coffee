@@ -80,13 +80,13 @@ cb = () ->
         parentWidth = editorIframe$.parent().css('width')
         if editorIframe$.css('width') == parentWidth
             editorIframe$.css('width','49%')
-        @editor2.replaceContent @.linesDiv.innerHTML
+        editor2.replaceContent @.linesDiv.innerHTML
 
     move_ed2_2_ed = () =>
         parentWidth = editorIframe$.parent().css('width')
         if editorIframe$.css('width') == parentWidth
             editorIframe$.css('width','49%')
-        @.replaceContent @editor2.linesDiv.innerHTML
+        @.replaceContent editor2.linesDiv.innerHTML
 
     editor2Btn.on 'click', () =>
         parentWidth = editorIframe$.parent().css('width')
@@ -94,7 +94,7 @@ cb = () ->
             editorIframe$.css('width','100%')
         else
             editorIframe$.css('width','49%')
-            @editor2.replaceContent @.linesDiv.innerHTML
+            editor2.replaceContent @.linesDiv.innerHTML
     
     ed_2_ed2_Btn.on 'click', move_ed_2_ed2
 
@@ -368,11 +368,11 @@ cb = () ->
     editor2Display = (strg,html) =>
         $('#editorIframe').css('width','49%')
         if html
-            @editor2.replaceContent strg
+            editor2.replaceContent strg
             serializerDisplay.val beautify(strg)
 
         else
-            @editor2.setEditorContent strg
+            editor2.setEditorContent strg
             serializerDisplay.val strg
 
     Recorder = require('./recorder').Recorder
@@ -426,8 +426,14 @@ cb = () ->
  * 3 - creation of the editor
 ###
 
+editor2 = 0
+
 $ ->
     editor2 = new CNeditor( document.querySelector('#editorIframe2'), () ->
         editor = new CNeditor document.querySelector('#editorIframe'), cb 
-        editor.editor2 = editor2
+        # editor.editor2 = editor2
+        editor3 = new CNeditor( document.querySelector('#editorDiv3'), () ->
+            content = require('views/templates/content-shortlines-small')
+            @replaceContent content()
+        )
     )
