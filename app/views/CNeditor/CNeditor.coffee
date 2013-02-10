@@ -9,7 +9,7 @@
 #                  is set to the editorCtrl (callBack.call(this))
 # properties & methods :
 #   replaceContent    : (htmlContent) ->  # TODO: replace with markdown
-#   _keyPressListener : (e) =>
+#   _keyDownCallBack : (e) =>
 #   _insertLineAfter  : (param) ->
 #   _insertLineBefore : (param) ->
 #   
@@ -77,11 +77,10 @@ class Line
             newLineEl.appendChild(fragment)
             newLineEl.appendChild(document.createElement('br'))
         else
-            newLineEl.innerHTML = '<span></span><br/>'
-            # node = document.createElement('span')
-            # node.appendChild(document.createTextNode(''))
-            # newLineEl.appendChild(node)
-            # newLineEl.appendChild(document.createElement('br'))
+            node = document.createElement('span')
+            node.appendChild(document.createTextNode(''))
+            newLineEl.appendChild(node)
+            newLineEl.appendChild(document.createElement('br'))
         @line$ = $(newLineEl)
         
         if prevLine?
@@ -190,11 +189,24 @@ class exports.CNeditor
 
                 # initialize event listeners
                 @editorBody$.prop '__editorCtl', this
+
                 # listen keydown on capturing phase (before bubbling)
-                @linesDiv.addEventListener('keydown', @_keyPressListener, true)
+                @linesDiv.addEventListener('keydown', @_keyDownCallBack, true)
+
+                # if chrome => listen to keyup to correct the insertion of the
+                # first caracter of an empty line
+                @isSafari = Object.prototype.toString.call(window.HTMLElement)
+                @isSafari = @isSafari.indexOf('Constructor') > 0
+                @isChrome = !@isSafari && 
+                         (`'WebkitTransform' in document.documentElement.style`)
+                if @isChrome
+                   @linesDiv.addEventListener('keyup', @_keyUpCorrection, false)
+
+                # Listen to mouse to detect when caret is moved
                 @linesDiv.addEventListener('mouseup', () =>
                     @newPosition = true
                 , true)
+
                 @editorBody$.on 'keyup', () ->
                     iframe$.trigger jQuery.Event("onKeyUp")
                 @editorBody$.on 'click', (event) =>
@@ -255,11 +267,24 @@ class exports.CNeditor
 
             # initialize event listeners
             @editorBody$.prop '__editorCtl', this
+
             # listen keydown on capturing phase (before bubbling)
-            @linesDiv.addEventListener('keydown', @_keyPressListener, true)
+            @linesDiv.addEventListener('keydown', @_keyDownCallBack, true)
+
+            # if chrome => listen to keyup to correct the insertion of the
+            # first caracter of an empty line
+            @isSafari = Object.prototype.toString.call(window.HTMLElement)
+            @isSafari = @isSafari.indexOf('Constructor') > 0
+            @isChrome = !@isSafari && 
+                     (`'WebkitTransform' in document.documentElement.style`)
+            if @isChrome
+               @linesDiv.addEventListener('keyup', @_keyUpCorrection, false)
+
+            # Listen to mouse to detect when caret is moved
             @linesDiv.addEventListener('mouseup', () =>
                 @newPosition = true
             , true)
+
             @editorBody$.on 'keyup', () ->
                 iframe$.trigger jQuery.Event("onKeyUp")
             @editorBody$.on 'click', (event) =>
@@ -411,7 +436,7 @@ class exports.CNeditor
 
 
     ### ------------------------------------------------------------------------
-    #   _keyPressListener
+    #   _keyDownCallBack
     # 
     # The listener of keyPress event on the editor's iframe... the king !
     ###
@@ -443,10 +468,11 @@ class exports.CNeditor
     #   keyStrokesCode     : ex : ="return" or "_102" (when the caracter 
     #                               N°102 f is stroke) or "space" ...
     #
-    _keyPressListener : (e) =>
+    _keyDownCallBack : (e) =>
         # 1- Prepare the shortcut corresponding to pressed keys
         [metaKeyCode,keyCode] = @getShortCut(e)
         shortcut = metaKeyCode + '-' + keyCode
+        # console.log '_keyDownCallBack', shortcut
         switch e.keyCode
             when 16 #Shift
                 e.preventDefault()
@@ -458,11 +484,6 @@ class exports.CNeditor
                 e.preventDefault()
                 return
 
-        # 
-        # TODO BJA : activate history after using the serialization of range
-        # instead of insertions of markers (their deletions split text nodes...)
-        # 
-        # Record last pressed shortcut and eventually update the history
         if @_lastKey != shortcut and \
                shortcut in ['-tab', '-return', '-backspace', '-suppr',
                             'CtrlShift-down', 'CtrlShift-up',
@@ -553,6 +574,61 @@ class exports.CNeditor
                 @reDo()
                 e.preventDefault()
     
+
+
+
+
+
+
+
+    _keyUpCorrection : (e) =>
+        
+        # loop on all elements of the div of the line. If there are textnodes,
+        # insert them in the previous span, if none, to the next, if none create
+        # one. Then delete the textnode.
+        
+        curSel = @_findLines()
+        line   = curSel.startLine.line$[0]
+        nodes  = line.childNodes
+        l = nodes.length
+        i = 0
+        while i < l
+            node = nodes[i]
+            if node.nodeName == '#text'
+                t = node.textContent
+                if node.previousSibling
+                    if node.previousSibling.nodeName in ['SPAN','A']
+                        node.previousSibling.textContent += t
+                    else
+                        throw new Error('A line should be constituted of 
+                            only <span> and <a>')
+                else if node.nextSibling
+                    if node.nextSibling.nodeName in ['SPAN','A']
+                        node.nextSibling.textContent = t + 
+                            node.nextSibling.textContent
+                        # TODO : position of carret should be at the end of t
+                    else if node.nextSibling.nodeName in ['BR']
+                        newSpan = document.createElement('span')
+                        newSpan.textContent = t
+                        line.replaceChild(newSpan,node)
+                        l += 1
+                        i += 1
+                    else
+                        throw new Error('A line should be constituted of 
+                            only <span> and <a>')
+                else
+                    throw new Error('A line should be constituted of a final
+                            <br/>')
+                line.removeChild(node)
+                l -= 1 
+            else
+                i += 1
+
+        # the final <br/> may be deleted by chrome : if so : add it.
+        if nodes[l-1].nodeName != 'BR'
+            brNode = document.createElement('br')
+            line.appendChild(brNode)
+
 
     ### ------------------------------------------------------------------------
     #  _suppr :
@@ -1154,7 +1230,7 @@ class exports.CNeditor
             )
             # Position caret
             range4sel = rangy.createRange()
-            range4sel.collapseToPoint(newLine.line$[0].firstChild,0)
+            range4sel.collapseToPoint(newLine.line$[0].firstChild.firstChild,0)
             currSel.sel.setSingleRange(range4sel)
 
         # 3- Caret is at the beginning of the line
@@ -1295,11 +1371,16 @@ class exports.CNeditor
             selection.cleanSelection startLine, endLine, range
             replaceCaret = false
         else
-            # curSel = @_findLines() # should be done be the caller
+            # curSel = @_findLines() # has been done be the caller
             curSel = @currentSel
             range = curSel.range
             startContainer = range.startContainer
             startOffset = range.startOffset
+            # if chrome the curSel.range might not be in a text node...
+            if @isChrome
+                breakPoint = selection.normalizeBP(startContainer, startOffset)
+                startContainer = breakPoint.cont
+                startOffset = breakPoint.offset
             startLine = curSel.startLine
             endLine = curSel.endLine
             if startLine?
@@ -2220,8 +2301,7 @@ class exports.CNeditor
         else
             @_deleteMultiLinesSelections()
             selection.normalize(currSel.range) 
-            @_findLinesAndIsStartIsEnd()
-            currSel = @currentSel
+            currSel = @_findLinesAndIsStartIsEnd()
             startLine = currSel.startLine
 
         ### 5- Insert first line of the frag in the target line
@@ -2230,8 +2310,16 @@ class exports.CNeditor
         # what will be incorrect when styles will be taken into account.
         # 
         ###
-        targetNode   = currSel.range.startContainer # a text node because of selection.normalize()
+        # a text node because of selection.normalize()
+        targetNode   = currSel.range.startContainer 
         startOffset  = currSel.range.startOffset
+        # except if we are in chrome : normalise can't work in empty line, so we
+        # have to get the theorical breakpoint where the selection should be.
+        if @isChrome && targetNode.nodeName != '#text'
+            breakPoint = selection.normalizeBP(targetNode, startOffset)
+            targetNode = breakPoint.cont
+            startOffset = breakPoint.offset
+
         endOffset = targetNode.length - startOffset
         # prepare lineElements
         if frag.childNodes.length > 0
