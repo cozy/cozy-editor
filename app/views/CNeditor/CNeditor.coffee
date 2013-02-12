@@ -199,7 +199,8 @@ class exports.CNeditor
                 @isSafari = @isSafari.indexOf('Constructor') > 0
                 @isChrome = !@isSafari && 
                          (`'WebkitTransform' in document.documentElement.style`)
-                if @isChrome
+                @isChromeOrSafari = @isChrome or @isSafari
+                if @isChromeOrSafari
                    @linesDiv.addEventListener('keyup', @_keyUpCorrection, false)
 
                 # Listen to mouse to detect when caret is moved
@@ -277,7 +278,8 @@ class exports.CNeditor
             @isSafari = @isSafari.indexOf('Constructor') > 0
             @isChrome = !@isSafari && 
                      (`'WebkitTransform' in document.documentElement.style`)
-            if @isChrome
+            @isChromeOrSafari = @isChrome or @isSafari
+            if @isChromeOrSafari
                @linesDiv.addEventListener('keyup', @_keyUpCorrection, false)
 
             # Listen to mouse to detect when caret is moved
@@ -610,7 +612,7 @@ class exports.CNeditor
         range = sel.getRangeAt(0)
 
         # normalize if carret has been moved or if we are in Chrome
-        if @newPosition or @isChrome
+        if @newPosition or @isChromeOrSafari
             [newStartBP, newEndBP] = selection.normalize(range)
             theoricalRange = document.createRange()
             theoricalRange.setStart(newStartBP.cont,newStartBP.offset)
@@ -665,7 +667,7 @@ class exports.CNeditor
         range              = sel.getRangeAt(0)
 
         # normalize if carret has been moved or if we are in Chrome
-        if @newPosition or @isChrome
+        if @newPosition or @isChromeOrSafari
             [newStartBP, newEndBP] = selection.normalize(range)
             theoricalRange = document.createRange()
             theoricalRange.setStart(newStartBP.cont,newStartBP.offset)
@@ -2290,7 +2292,7 @@ class exports.CNeditor
         startOffset  = currSel.range.startOffset
         # except if we are in chrome : normalise can't work in empty line, so we
         # have to get the theorical breakpoint where the selection should be.
-        if @isChrome && targetNode.nodeName != '#text'
+        if @isChromeOrSafari && targetNode.nodeName != '#text'
             breakPoint = selection.normalizeBP(targetNode, startOffset)
             targetNode = breakPoint.cont
             startOffset = breakPoint.offset
