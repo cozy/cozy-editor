@@ -160,11 +160,12 @@ selection.normalize = (range) ->
     range.setStart(newStartBP.cont,newStartBP.offset)
     if isCollapsed
         range.collapse(true)
+        newEndBP = newStartBP
     else
         newEndBP = selection.normalizeBP(range.endContainer, range.endOffset)
         range.setEnd(newEndBP.cont,newEndBP.offset)
 
-    return range
+    return [newStartBP, newEndBP]
 
 
 ###*
