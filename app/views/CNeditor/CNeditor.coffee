@@ -698,7 +698,6 @@ class exports.CNeditor
             rangeIsEndLine   : isEnd
             theoricalRange   : theoricalRange
 
-
         return @currentSel
 
 
