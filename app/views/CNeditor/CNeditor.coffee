@@ -167,6 +167,7 @@ class exports.CNeditor
                 # Create div that will contains line
                 @linesDiv = document.createElement 'div'
                 @linesDiv.setAttribute('id','editor-lines')
+                @linesDiv.setAttribute('class','editor-frame')
                 @linesDiv.setAttribute('contenteditable','true')
                 @editorBody$.append @linesDiv
             
@@ -230,16 +231,17 @@ class exports.CNeditor
             # @editorBody$.parent().attr('id','__ed-iframe-html')
             # @editorBody$.attr("id","__ed-iframe-body")
 
-            @document = $(document)
-            editor_head$ = $(document).find("head")
-            cssLink = '<link id="editorCSS" '
-            cssLink += 'href="stylesheets/CNeditor.css" rel="stylesheet">'
-            cssEl = $(cssLink)
-            editor_head$.append(cssEl)
+            # @document = $(document)
+            # editor_head$ = $(document).find("head")
+            # cssLink = '<link id="editorCSS" '
+            # cssLink += 'href="stylesheets/CNeditor.css" rel="stylesheet">'
+            # cssEl = $(cssLink)
+            # editor_head$.append(cssEl)
 
             # Create div that will contains line
             @linesDiv = document.createElement 'div'
             @linesDiv.setAttribute('id','editor-lines')
+            @linesDiv.setAttribute('class','editor-frame')
             @linesDiv.setAttribute('contenteditable','true')
             @editorBody$.append @linesDiv
             @getEditorSelection = () ->
@@ -423,6 +425,7 @@ class exports.CNeditor
                     when 32 then keyCode = 'space'
                     when 8  then keyCode = 'backspace'
                     when 65 then keyCode = 'A'
+                    when 76 then keyCode = 'L'
                     when 83 then keyCode = 'S'
                     when 86 then keyCode = 'V'
                     when 89 then keyCode = 'Y'
@@ -431,7 +434,7 @@ class exports.CNeditor
         shortcut = metaKeyCode + '-' + keyCode
         
         # a,s,v,y,z alone are simple characters
-        if metaKeyCode == '' && keyCode in ['A', 'S', 'V', 'Y', 'Z']
+        if metaKeyCode == '' && keyCode in ['A', 'L', 'S', 'V', 'Y', 'Z']
             keyCode = 'other'
 
         return [metaKeyCode,keyCode]
@@ -556,11 +559,13 @@ class exports.CNeditor
             when 'Ctrl-A'
                 selection.selectAll(this)
                 e.preventDefault()
+            when 'Alt-L'
+                @markerList()
+                e.preventDefault()
             # TOGGLE LINE TYPE (Alt + a)                  
             when 'Alt-A'
                 @toggleType()
                 e.preventDefault()
-                console.log 'EVENT (editor)'
             when '-other', '-space'
                 @updateCurrentSel() if @newPosition
                 @newPosition = false
