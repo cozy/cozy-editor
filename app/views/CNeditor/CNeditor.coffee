@@ -1084,7 +1084,10 @@ class exports.CNeditor
                         else
                             break
                     l = l.linePrev
-
+            # when 'Lu'
+            #     @markerList(line)
+            # when 'Lh'
+            #     @titleList(line)
             else
                 return false
 
