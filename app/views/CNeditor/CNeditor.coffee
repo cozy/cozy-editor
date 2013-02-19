@@ -1085,11 +1085,17 @@ class exports.CNeditor
                             break
                     l = l.linePrev
 
+            # when 'Lu'
+            #     @markerList(line)
+
+            # when 'Lh'
+            #     @titleList( line)
+
             when 'Lu'
-                @markerList(line)
+                lineTypeTarget = 'Tu'
 
             when 'Lh'
-                @titleList(line)
+                lineTypeTarget = 'Th'
 
             else
                 return false
