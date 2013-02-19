@@ -9,7 +9,7 @@
 #                  is set to the editorCtrl (callBack.call(this))
 # properties & methods :
 #   replaceContent    : (htmlContent) ->  # TODO: replace with markdown
-#   _keyPressListener : (e) =>
+#   _keyDownCallBack : (e) =>
 #   _insertLineAfter  : (param) ->
 #   _insertLineBefore : (param) ->
 #   
@@ -149,7 +149,6 @@ class exports.CNeditor
     constructor : (@editorTarget, callBack) ->
         if @editorTarget.nodeName == "IFRAME"
 
-            
             iframe$ = $(@editorTarget)
             
             iframe$.on 'load', () =>
@@ -168,6 +167,7 @@ class exports.CNeditor
                 # Create div that will contains line
                 @linesDiv = document.createElement 'div'
                 @linesDiv.setAttribute('id','editor-lines')
+                @linesDiv.setAttribute('class','editor-frame')
                 @linesDiv.setAttribute('contenteditable','true')
                 @editorBody$.append @linesDiv
             
@@ -190,11 +190,25 @@ class exports.CNeditor
 
                 # initialize event listeners
                 @editorBody$.prop '__editorCtl', this
+
                 # listen keydown on capturing phase (before bubbling)
-                @linesDiv.addEventListener('keydown', @_keyPressListener, true)
+                @linesDiv.addEventListener('keydown', @_keyDownCallBack, true)
+
+                # if chrome => listen to keyup to correct the insertion of the
+                # first caracter of an empty line
+                @isSafari = Object.prototype.toString.call(window.HTMLElement)
+                @isSafari = @isSafari.indexOf('Constructor') > 0
+                @isChrome = !@isSafari && 
+                         (`'WebkitTransform' in document.documentElement.style`)
+                @isChromeOrSafari = @isChrome or @isSafari
+                if @isChromeOrSafari
+                   @linesDiv.addEventListener('keyup', @_keyUpCorrection, false)
+
+                # Listen to mouse to detect when caret is moved
                 @linesDiv.addEventListener('mouseup', () =>
                     @newPosition = true
                 , true)
+
                 @editorBody$.on 'keyup', () ->
                     iframe$.trigger jQuery.Event("onKeyUp")
                 @editorBody$.on 'click', (event) =>
@@ -205,21 +219,99 @@ class exports.CNeditor
                 # return a ref to the editor's controler
                 callBack.call(this)
                 return this
-
-            # This line is a trick : 
-            # The load event is fired on chrome if the iframe src equals '#' but
-            # not in ff.
-            # And if src= '', it's the opposite : works in ff but not in chrome.
-            # With this command we force the load event on every browser...
             @editorTarget.src = ''
+
+        else if @editorTarget.nodeName == "DIV"
+
+            iframe$ = $(@editorTarget)
+            
+            # preparation of the iframe
+            # editor_html$ = iframe$.contents().find("html")
+            @editorBody$ = iframe$
+            # @editorBody$.parent().attr('id','__ed-iframe-html')
+            # @editorBody$.attr("id","__ed-iframe-body")
+
+            # @document = $(document)
+            # editor_head$ = $(document).find("head")
+            # cssLink = '<link id="editorCSS" '
+            # cssLink += 'href="stylesheets/CNeditor.css" rel="stylesheet">'
+            # cssEl = $(cssLink)
+            # editor_head$.append(cssEl)
+
+            # Create div that will contains line
+            @linesDiv = document.createElement 'div'
+            @linesDiv.setAttribute('id','editor-lines')
+            @linesDiv.setAttribute('class','editor-frame')
+            @linesDiv.setAttribute('contenteditable','true')
+            @editorBody$.append @linesDiv
+            @getEditorSelection = () ->
+                return rangy.getSelection()
+
+            @saveEditorSelection = () ->
+                sel = rangy.getSelection()
+                return rangy.serializeSelection sel, true, @linesDiv
+        
+            # init clipboard div
+            @_initClipBoard()
+
+            # set the properties of the editor
+            @_lines       = {}            # contains every line
+            @newPosition  = true          # true if cursor has moved 
+            @_highestId   = 0             # last inserted line identifier
+            @_deepest     = 1             # current maximum indentation
+            @_firstLine   = null          # pointer to the first line
+            @_history     =               # for history management
+                index        : 0
+                history      : [null]
+                historySelect: [null]
+                historyScroll: [null]
+                historyPos   : [null]
+            @_lastKey     = null      # last pressed key (avoid duplication)
+
+            # initialize event listeners
+            @editorBody$.prop '__editorCtl', this
+
+            # listen keydown on capturing phase (before bubbling)
+            @linesDiv.addEventListener('keydown', @_keyDownCallBack, true)
+
+            # if chrome => listen to keyup to correct the insertion of the
+            # first caracter of an empty line
+            @isSafari = Object.prototype.toString.call(window.HTMLElement)
+            @isSafari = @isSafari.indexOf('Constructor') > 0
+            @isChrome = !@isSafari && 
+                     (`'WebkitTransform' in document.documentElement.style`)
+            @isChromeOrSafari = @isChrome or @isSafari
+            if @isChromeOrSafari
+               @linesDiv.addEventListener('keyup', @_keyUpCorrection, false)
+
+            # Listen to mouse to detect when caret is moved
+            @linesDiv.addEventListener('mouseup', () =>
+                @newPosition = true
+            , true)
+
+            @editorBody$.on 'keyup', () ->
+                iframe$.trigger jQuery.Event("onKeyUp")
+            @editorBody$.on 'click', (event) =>
+                @_lastKey = null
+            @editorBody$.on 'paste', (event) =>
+                @paste event
+
+            # return a ref to the editor's controler
+            callBack.call(this)
+            return this
 
     setFocus : () ->
         @linesDiv.focus()
 
     # methods to deal selection on an iframe
+    # this method is modified during construction if the editor target is not
+    # an iframe
     getEditorSelection : () ->
         return rangy.getIframeSelection @editorTarget
 
+
+    # this method is modified during construction if the editor target is not
+    # an iframe
     saveEditorSelection : () ->
         sel = rangy.getIframeSelection @editorTarget
         return rangy.serializeSelection sel, true, @linesDiv
@@ -333,6 +425,7 @@ class exports.CNeditor
                     when 32 then keyCode = 'space'
                     when 8  then keyCode = 'backspace'
                     when 65 then keyCode = 'A'
+                    when 76 then keyCode = 'L'
                     when 83 then keyCode = 'S'
                     when 86 then keyCode = 'V'
                     when 89 then keyCode = 'Y'
@@ -341,14 +434,14 @@ class exports.CNeditor
         shortcut = metaKeyCode + '-' + keyCode
         
         # a,s,v,y,z alone are simple characters
-        if metaKeyCode == '' && keyCode in ['A', 'S', 'V', 'Y', 'Z']
+        if metaKeyCode == '' && keyCode in ['A', 'L', 'S', 'V', 'Y', 'Z']
             keyCode = 'other'
 
         return [metaKeyCode,keyCode]
 
 
     ### ------------------------------------------------------------------------
-    #   _keyPressListener
+    #   _keyDownCallBack
     # 
     # The listener of keyPress event on the editor's iframe... the king !
     ###
@@ -380,11 +473,11 @@ class exports.CNeditor
     #   keyStrokesCode     : ex : ="return" or "_102" (when the caracter 
     #                               N°102 f is stroke) or "space" ...
     #
-    _keyPressListener : (e) =>
-
+    _keyDownCallBack : (e) =>
         # 1- Prepare the shortcut corresponding to pressed keys
         [metaKeyCode,keyCode] = @getShortCut(e)
         shortcut = metaKeyCode + '-' + keyCode
+        # console.log '_keyDownCallBack', shortcut
         switch e.keyCode
             when 16 #Shift
                 e.preventDefault()
@@ -396,11 +489,6 @@ class exports.CNeditor
                 e.preventDefault()
                 return
 
-        # 
-        # TODO BJA : activate history after using the serialization of range
-        # instead of insertions of markers (their deletions split text nodes...)
-        # 
-        # Record last pressed shortcut and eventually update the history
         if @_lastKey != shortcut and \
                shortcut in ['-tab', '-return', '-backspace', '-suppr',
                             'CtrlShift-down', 'CtrlShift-up',
@@ -410,41 +498,47 @@ class exports.CNeditor
            
         @_lastKey = shortcut
 
+        @currentSel =
+            sel              : null
+            range            : null
+            startLine        : null
+            endLine          : null
+            rangeIsStartLine : null
+            rangeIsEndLine   : null
+            startBP          : null
+            endBP            : null
 
         # 2- manage the newPosition flag
         #    newPosition == true if the position of caret or selection has been
         #    modified with keyboard or mouse.
         #    If newPosition == true and a character is typed or a suppression
         #    key is pressed, then selection must be "normalized" so that its
-        #    break points are in text nodes.
-        # 2.1- If the previous action was a move then "normalize" the selection.
-        # Selection is normalized only if an alphanumeric character or
-        # suppr/backspace/return is pressed on this new position
-        if @newPosition and shortcut in ['-other', '-space', 'Ctrl-V'
-                                         '-suppr', '-backspace', '-return']
-            @newPosition = false
-            # get the current range and normalize it
-            sel = @getEditorSelection()
-            range = sel.getRangeAt(0)
-            selection.normalize range
+        #    break points are in text nodes. Normalization is done by 
+        #    updateCurrentSel or updateCurrentSelIsStartIsEnd that is chosen 
+        #    before to run the action corresponding to the shorcut.
+
         # 2.2- Set a flag if the user moved the caret with keyboard
         if keyCode in ['left','up','right','down',
                               'pgUp','pgDwn','end', 'home',
-                              'return', 'suppr', 'backspace'] and
-           shortcut not in ['CtrlShift-down', 'CtrlShift-up',
+                              'return', 'suppr', 'backspace']      \
+           and shortcut not in ['CtrlShift-down', 'CtrlShift-up',
                             'CtrlShift-right', 'CtrlShift-left']
             @newPosition = true
         
         # 4- the current selection is cleared everytime keypress occurs.
-        @currentSel = null
+        # @currentSel = null
                  
         # 5- launch the action corresponding to the pressed shortcut
         switch shortcut
             when '-return'
+                @updateCurrentSelIsStartIsEnd()
                 @_return()
+                @newPosition = false
                 e.preventDefault()
             when '-backspace'
+                @updateCurrentSelIsStartIsEnd()
                 @_backspace()
+                @newPosition = false
                 e.preventDefault()
             when '-tab'
                 @tab()
@@ -453,28 +547,28 @@ class exports.CNeditor
                 @shiftTab()
                 e.preventDefault()
             when '-suppr'
+                @updateCurrentSelIsStartIsEnd()
                 @_suppr(e)
+                @newPosition = false
             when 'CtrlShift-down'
                 @_moveLinesDown()
                 e.preventDefault()
             when 'CtrlShift-up'
                 @_moveLinesUp()
                 e.preventDefault()
-            # when 'CtrlShift-right'
-            #     @tab()
-            #     e.preventDefault()
-            # when 'CtrlShift-left'
-            #     @shiftTab()
-            #     e.preventDefault()
             when 'Ctrl-A'
                 selection.selectAll(this)
+                e.preventDefault()
+            when 'Alt-L'
+                @markerList()
                 e.preventDefault()
             # TOGGLE LINE TYPE (Alt + a)                  
             when 'Alt-A'
                 @toggleType()
                 e.preventDefault()
-                console.log 'EVENT (editor)'
-
+            when '-other', '-space'
+                @updateCurrentSel() if @newPosition
+                @newPosition = false
             # PASTE (Ctrl + v)                  
             when 'Ctrl-V'
                 true
@@ -492,13 +586,198 @@ class exports.CNeditor
                 e.preventDefault()
     
 
+    ###*
+     * updates @currentSel =
+            sel              : {Selection} of the editor's document
+            range            : sel.getRangeAt(0)
+            startLine        : the 1st line of the current selection
+            endLine          : the last line of the current selection
+            rangeIsStartLine : {boolean} true if the selection ends at 
+                               the end of its line : NOT UPDATE HERE - see
+                               updateCurrentSelIsStartIsEnd
+            rangeIsEndLine   : {boolean} true if the selection starts at 
+                               the start of its line : NOT UPDATE HERE - see
+                               updateCurrentSelIsStartIsEnd
+            theoricalRange   : theoricalRange : normalization of the selection 
+                               should put each break points in a node text. It 
+                               doesn't work in chrome due to a bug. We therefore
+                               store here the "theorical range" that the
+                               selection should match. It means that if you are
+                               not in chrome this is equal to range.
+       If the caret position has just changed (@newPosition == true) then we
+       normalise the selection (put its break points in text nodes)
+       We also normalize if in Chrome because in order to have a range wit
+       break points in text nodes.
+     * @return {object} @currentSel
+    ###
+    updateCurrentSel : () ->
+
+        # get the current range and normalize it
+        sel = @getEditorSelection()
+        range = sel.getRangeAt(0)
+
+        # normalize if carret has been moved or if we are in Chrome
+        if @newPosition or @isChromeOrSafari
+            [newStartBP, newEndBP] = selection.normalize(range)
+            theoricalRange = document.createRange()
+            theoricalRange.setStart(newStartBP.cont,newStartBP.offset)
+            theoricalRange.setEnd(newEndBP.cont,newEndBP.offset)
+        else
+            theoricalRange = range
+
+        # get the lines corresponding to the range :
+        startLine = @_lines[selection.getLineDiv(range.startContainer).id]
+        endLine   = @_lines[selection.getLineDiv(range.endContainer  ).id]
+        
+        # upadte
+        @currentSel =
+            sel              : sel
+            range            : range
+            startLine        : startLine
+            endLine          : endLine
+            rangeIsStartLine : null
+            rangeIsEndLine   : null
+            theoricalRange   : theoricalRange
+
+        return @currentSel
+
+
+    ###*
+     * updates @currentSel and check if range is at the start of begin of the
+     * corresponding line. 
+     * @currentSel =
+            sel              : {Selection} of the editor's document
+            range            : sel.getRangeAt(0)
+            startLine        : the 1st line of the current selection
+            endLine          : the last line of the current selection
+            rangeIsStartLine : {boolean} true if the selection ends at 
+                               the end of its line.
+            rangeIsEndLine   : {boolean} true if the selection starts at 
+                               the start of its line.
+            theoricalRange   : theoricalRange : normalization of the selection 
+                               should put each break points in a node text. It 
+                               doesn't work in chrome due to a bug. We therefore
+                               store here the "theorical range" that the
+                               selection should match. It means that if you are
+                               not in chrome this is equal to range.
+       If the caret position has just changed (@newPosition == true) then we
+       normalise the selection (put its break points in text nodes)
+       We also normalize if in Chrome because in order to have a range wit
+       break points in text nodes.
+     * @return {object} @currentSel
+    ###
+    updateCurrentSelIsStartIsEnd : () ->
+
+        sel                = @getEditorSelection()
+        range              = sel.getRangeAt(0)
+
+        # normalize if carret has been moved or if we are in Chrome
+        if @newPosition or @isChromeOrSafari
+            [newStartBP, newEndBP] = selection.normalize(range)
+            theoricalRange = document.createRange()
+            theoricalRange.setStart(newStartBP.cont,newStartBP.offset)
+            theoricalRange.setEnd(newEndBP.cont,newEndBP.offset)
+        else
+            theoricalRange = range
+
+        startContainer     = range.startContainer
+        endContainer       = range.endContainer
+        initialStartOffset = range.startOffset
+        initialEndOffset   = range.endOffset
+
+        # find startLine and the rangeIsStartLine
+        {div,isStart,noMatter} = selection.getLineDivIsStartIsEnd(
+                                            startContainer, initialStartOffset)
+        startLine = @_lines[div.id]
+
+        # find endLine and the rangeIsEndLine
+        {div,noMatter,isEnd,} = selection.getLineDivIsStartIsEnd(
+                                            endContainer, initialEndOffset)
+        endLine = @_lines[div.id]
+
+        # result
+        @currentSel =
+            sel              : sel
+            range            : range
+            startLine        : startLine
+            endLine          : endLine
+            rangeIsStartLine : isStart
+            rangeIsEndLine   : isEnd
+            theoricalRange   : theoricalRange
+
+        return @currentSel
+
+
+
+    ###*
+     * This function is called only if in Chrome, because the insertion of a caracter
+     * by the browser may out of a span. 
+     * This is du to a bug in Chrome : you can create a range with its start 
+     * break point in an empty span. But if you add this range to the selection,
+     * then this latter will not respect your range and its start break point 
+     * will be outside the range. When a key is pressed to insert a caracter,
+     * the browser inserts it at the start break point, ie outside the span...
+     * this function detects after each keyup is there is a text node outside a
+     * span and move its content and the carret.
+     * @param  {Event} e The key event
+    ###
+    _keyUpCorrection : (e) =>
+        
+        # loop on all elements of the div of the line. If there are textnodes,
+        # insert them in the previous span, if none, to the next, if none create
+        # one. Then delete the textnode.
+        
+        curSel = @updateCurrentSel()
+        line   = curSel.startLine.line$[0]
+        nodes  = line.childNodes
+        l = nodes.length
+        i = 0
+        while i < l
+            node = nodes[i]
+            if node.nodeName == '#text'
+                t = node.textContent
+                if node.previousSibling
+                    if node.previousSibling.nodeName in ['SPAN','A']
+                        node.previousSibling.textContent += t
+                    else
+                        throw new Error('A line should be constituted of 
+                            only <span> and <a>')
+                else if node.nextSibling
+                    if node.nextSibling.nodeName in ['SPAN','A']
+                        node.nextSibling.textContent = t + 
+                            node.nextSibling.textContent
+                        # TODO : position of carret should be at the end of 
+                        # string "t"
+                    else if node.nextSibling.nodeName in ['BR']
+                        newSpan = document.createElement('span')
+                        newSpan.textContent = t
+                        line.replaceChild(newSpan,node)
+                        l += 1
+                        i += 1
+                    else
+                        throw new Error('A line should be constituted of 
+                            only <span> and <a>')
+                else
+                    throw new Error('A line should be constituted of a final
+                            <br/>')
+                line.removeChild(node)
+                l -= 1 
+            else
+                i += 1
+
+        # the final <br/> may be deleted by chrome : if so : add it.
+        if nodes[l-1].nodeName != 'BR'
+            brNode = document.createElement('br')
+            line.appendChild(brNode)
+
+        return true
+
     ### ------------------------------------------------------------------------
     #  _suppr :
     # 
     # Manage deletions when suppr key is pressed
     ###
     _suppr : (event) ->
-        @_findLinesAndIsStartIsEnd()
 
         startLine = @currentSel.startLine
         # 1- Case of a caret "alone" (no selection)
@@ -511,6 +790,7 @@ class exports.CNeditor
                 # a multiline deletion
                 if startLine.lineNext != null
                     @currentSel.range.setEndBefore(startLine.lineNext.line$[0].firstChild)
+                    @currentSel.theoricalRange = @currentSel.range
                     @currentSel.endLine = startLine.lineNext
                     @_deleteMultiLinesSelections()
                     
@@ -552,7 +832,6 @@ class exports.CNeditor
     # Manage deletions when backspace key is pressed
     ###
     _backspace : () ->
-        @_findLinesAndIsStartIsEnd()
 
         sel = @currentSel
                     
@@ -566,15 +845,12 @@ class exports.CNeditor
                 # a multiline deletion
                 if startLine.linePrev != null
                     # console.log '_backspace 3 - test ok'
-                    sel.range.setStartBefore(startLine.linePrev.line$[0].lastChild)
+                    cloneRg = sel.range.cloneRange()
+                    cloneRg.setStartBefore(startLine.linePrev.line$[0].lastChild)
+                    selection.normalize(cloneRg)
+                    @currentSel.theoricalRange = cloneRg
                     sel.startLine = startLine.linePrev
-                    startCont     = sel.range.startContainer
-                    startOffset   = sel.range.startOffset
-                    {cont,offset} = selection.normalizeBP(startCont, startOffset)
                     @_deleteMultiLinesSelections()
-                    range = rangy.createRange()
-                    range.collapseToPoint cont,offset
-                    @currentSel.sel.setSingleRange range
 
                 # if there is no previous line = backspace at the beginning of 
                 # first line : no effect, nothing to do.
@@ -650,80 +926,6 @@ class exports.CNeditor
                 break
             line = line.lineNext
 
-
-    # titleList : () ->
-    #     sel   = @getEditorSelection()
-    #     range = sel.getRangeAt(0)
-        
-    #     # find first and last div corresponding to the 1rst and
-    #     # last selected lines
-    #     startDiv = selection.getLineDiv range.startContainer, range.startOffset
-    #     endDiv = selection.getLineDiv range.endContainer, range.endOffset
-        
-    #     # loop on each line between the first and last line selected
-    #     # TODO : deal the case of a multi range (multi selections). 
-    #     #        Currently only the first range is taken into account.
-    #     line = @_lines[startDiv.id]
-    #     loop
-    #         @_line2titleList(line)
-    #         if line.lineID == endDiv.id
-    #             break
-    #         else
-    #             line = line.lineNext
-
-
-    # ### ------------------------------------------------------------------------
-    # #  _line2titleList
-    # # 
-    # #  Turn a given line in a title List Line (Th)
-    # ###
-    # _line2titleList : (line)->
-    #     if line.lineType != 'Th'
-    #         if line.lineType[0] == 'L'
-    #             line.lineType = 'Tu'
-    #             line.lineDepthAbs += 1
-    #         @_titilizeSiblings(line)
-    #         parent1stSibling = @_findParent1stSibling(line)
-    #         while parent1stSibling!=null and parent1stSibling.lineType != 'Th'
-    #             @_titilizeSiblings(parent1stSibling)
-    #             parent1stSibling = @_findParent1stSibling(parent1stSibling)
-
-
-    # ### ------------------------------------------------------------------------
-    # # turn in Th or Lh of the siblings of line (and line itself of course)
-    # # the children are not modified
-    # ###
-    # _titilizeSiblings : (line) ->
-    #     lineDepthAbs = line.lineDepthAbs
-    #     # 1- transform all its next siblings in Th
-    #     l = line
-    #     while l!=null and l.lineDepthAbs >= lineDepthAbs
-    #         if l.lineDepthAbs == lineDepthAbs
-    #             switch l.lineType
-    #                 when 'Tu','To'
-    #                     l.line$.prop("class","Th-#{lineDepthAbs}")
-    #                     l.lineType = 'Th'
-    #                     l.lineDepthRel = 0
-    #                 when 'Lu','Lo'
-    #                     l.line$.prop("class","Lh-#{lineDepthAbs}")
-    #                     l.lineType = 'Lh'
-    #                     l.lineDepthRel = 0
-    #         l=l.lineNext
-    #     # 2- transform all its previous siblings in Th
-    #     l = line.linePrev
-    #     while l!=null and l.lineDepthAbs >= lineDepthAbs
-    #         if l.lineDepthAbs == lineDepthAbs
-    #             switch l.lineType
-    #                 when 'Tu','To'
-    #                     l.line$.prop("class","Th-#{lineDepthAbs}")
-    #                     l.lineType = 'Th'
-    #                     l.lineDepthRel = 0
-    #                 when 'Lu','Lo'
-    #                     l.line$.prop("class","Lh-#{lineDepthAbs}")
-    #                     l.lineType = 'Lh'
-    #                     l.lineDepthRel = 0
-    #         l=l.linePrev
-    #     return true
 
 
     ### ------------------------------------------------------------------------
@@ -991,6 +1193,7 @@ class exports.CNeditor
             typeTarget = 'Tu'
         return typeTarget
 
+
     ### ------------------------------------------------------------------------
     #  shiftTab
     #   param : myRange : if defined, refers to a specific region to untab
@@ -1072,7 +1275,6 @@ class exports.CNeditor
     #   e = event
     ###
     _return : () ->
-        @_findLinesAndIsStartIsEnd()
         currSel   = this.currentSel
         startLine = currSel.startLine
         endLine   = currSel.endLine
@@ -1084,8 +1286,7 @@ class exports.CNeditor
             currSel.range.deleteContents()
         else
             @_deleteMultiLinesSelections()
-            @_findLinesAndIsStartIsEnd()
-            currSel   = this.currentSel
+            currSel   = @updateCurrentSelIsStartIsEnd()
             startLine = currSel.startLine
        
         # 2- Caret is at the end of the line
@@ -1111,7 +1312,7 @@ class exports.CNeditor
             )
             # Position caret
             range4sel = rangy.createRange()
-            range4sel.collapseToPoint(startLine.line$[0].firstChild,0)
+            range4sel.collapseToPoint(startLine.line$[0].firstChild.firstChild,0)
             currSel.sel.setSingleRange(range4sel)
 
         # 4- Caret is in the middle of the line
@@ -1130,7 +1331,7 @@ class exports.CNeditor
             )
             # Position caret
             range4sel = rangy.createRange()
-            range4sel.collapseToPoint(newLine.line$[0].firstChild,0)
+            range4sel.collapseToPoint(newLine.line$[0].firstChild.firstChild,0)
             
             currSel.sel.setSingleRange(range4sel)
             this.currentSel = null
@@ -1217,9 +1418,15 @@ class exports.CNeditor
     ###*
     # Delete the user multi line selection :
     #    * The 2 lines (selected of given in param) must be distinct
-    #    * If no params, @currentSel will be used to find the lines to delete
-    #    * Carret is positioned at the end of the line before startLine.
-    #    * startLine, endLine and lines between are deleted
+    #    * If no params :
+    #        - @currentSel.theoricalRange will the range used to find the  
+    #          lines to delete. 
+    #        - Only the range is deleted, not the beginning of startline nor the
+    #          end of endLine
+    #        - the caret is positionned at the firts break point of range.
+    #    * if startLine and endLine is given
+    #       - the whole lines from start and endLine are deleted, both included.
+    #       - the caret position is not modified
     # @param  {[line]} startLine [optional] if exists, the whole line will be deleted
     # @param  {[line]} endLine   [optional] if exists, the whole line will be deleted
     # @return {[none]}           [nothing]
@@ -1239,23 +1446,20 @@ class exports.CNeditor
             selection.cleanSelection startLine, endLine, range
             replaceCaret = false
         else
-            # curSel = @_findLines() # should be done be the caller
-            curSel = @currentSel
-            range = curSel.range
+            # currentSel has been updated by _keyDownCallBack
+            # We don't use @currentSel.range because with chrome it might
+            # not be in a text node...
+            range          = @currentSel.theoricalRange
             startContainer = range.startContainer
-            startOffset = range.startOffset
-            startLine = curSel.startLine
-            endLine = curSel.endLine
-            if startLine?
-                prevStartLine = startLine.linePrev
-            if endLine?
-                nextEndLine = endLine.lineNext
+            startOffset    = range.startOffset
+            startLine      = @currentSel.startLine
+            endLine        = @currentSel.endLine
             replaceCaret = true
             
         # Calculate depth for start and end line
         startLineDepth = startLine.lineDepthAbs
-        endLineDepth = endLine.lineDepthAbs
-        deltaDepth = endLineDepth - startLineDepth
+        endLineDepth   = endLine.lineDepthAbs
+        deltaDepth     = endLineDepth - startLineDepth
 
         # Copy the un-selected end of endLine in a fragment
         endOfLineFragment = selection.cloneEndFragment range, endLine
@@ -1430,87 +1634,6 @@ class exports.CNeditor
                 p.fragment             # fragment
             )
         return newLine
-
-
-    ### ------------------------------------------------------------------------
-    #  _endDiv
-    #  
-    # Finds :
-    #   First and last line of selection. 
-    # Remark :
-    #   Only the first range of the selections is taken into account.
-    # Returns : 
-    #   sel : the selection
-    #   range : the 1st range of the selections
-    #   startLine : the 1st line of the range
-    #   endLine : the last line of the range
-    ###
-    _findLines : () ->
-        if @currentSel is null
-            sel = @getEditorSelection()
-            range = sel.getRangeAt(0)
-            
-            startLine = @_lines[selection.getLineDiv(range.startContainer).id]
-            endLine   = @_lines[selection.getLineDiv(range.endContainer  ).id]
-
-            @currentSel =
-                sel              : sel
-                range            : range
-                startLine        : startLine
-                endLine          : endLine
-                rangeIsStartLine : null
-                rangeIsEndLine   : null
-        return @currentSel
-
-
-    ### ------------------------------------------------------------------------
-    #  _findLinesAndIsStartIsEnd
-    # 
-    # Finds :
-    #   first and last line of selection 
-    #   wheter the selection starts at the beginning of startLine or not
-    #   wheter the selection ends at the end of endLine or not
-    # 
-    # Remark :
-    #   Only the first range of the selections is taken into account.
-    #
-    # Returns : 
-    #   sel   : the selection
-    #   range : the 1st range of the selections
-    #   startLine : the 1st line of the range
-    #   endLine   : the last line of the range
-    #   rangeIsEndLine   : true if the range ends at the end of the last line
-    #   rangeIsStartLine : true if the range starts at the start of 1st line
-    ###
-    _findLinesAndIsStartIsEnd : ->
-        
-        sel                = @getEditorSelection()
-        range              = sel.getRangeAt(0)
-        startContainer     = range.startContainer
-        endContainer       = range.endContainer
-        initialStartOffset = range.startOffset
-        initialEndOffset   = range.endOffset
-
-        # find startLine and the rangeIsStartLine
-        {div,isStart,noMatter} = selection.getLineDivIsStartIsEnd(
-                                            startContainer, initialStartOffset)
-        startLine = @_lines[div.id]
-
-        # find endLine and the rangeIsEndLine
-        {div,noMatter,isEnd,} = selection.getLineDivIsStartIsEnd(
-                                            endContainer, initialEndOffset)
-        endLine = @_lines[div.id]
-
-        # result
-        @currentSel =
-            sel              : sel
-            range            : range
-            startLine        : startLine
-            endLine          : endLine
-            rangeIsStartLine : isStart
-            rangeIsEndLine   : isEnd
-
-        return @currrentSel
 
 
     ###  -----------------------------------------------------------------------
@@ -1994,7 +2117,7 @@ class exports.CNeditor
         # init the div where the paste will actualy accur. 
         mySandBox = @clipboard
         # save current selection in this.currentSel
-        @_findLinesAndIsStartIsEnd()
+        @updateCurrentSelIsStartIsEnd()
         # move caret into the sandbox
         range = rangy.createRange()
         range.selectNodeContents mySandBox
@@ -2164,8 +2287,9 @@ class exports.CNeditor
         else
             @_deleteMultiLinesSelections()
             selection.normalize(currSel.range) 
-            @_findLinesAndIsStartIsEnd()
-            currSel = @currentSel
+            @newPosition = true # in order to force normalization
+            currSel = @updateCurrentSelIsStartIsEnd()
+            @newPosition = false
             startLine = currSel.startLine
 
         ### 5- Insert first line of the frag in the target line
@@ -2174,8 +2298,16 @@ class exports.CNeditor
         # what will be incorrect when styles will be taken into account.
         # 
         ###
-        targetNode   = currSel.range.startContainer # a text node because of selection.normalize()
+        # a text node because of selection.normalize()
+        targetNode   = currSel.range.startContainer 
         startOffset  = currSel.range.startOffset
+        # except if we are in chrome : normalise can't work in empty line, so we
+        # have to get the theorical breakpoint where the selection should be.
+        if @isChromeOrSafari && targetNode.nodeName != '#text'
+            breakPoint = selection.normalizeBP(targetNode, startOffset)
+            targetNode = breakPoint.cont
+            startOffset = breakPoint.offset
+
         endOffset = targetNode.length - startOffset
         # prepare lineElements
         if frag.childNodes.length > 0
