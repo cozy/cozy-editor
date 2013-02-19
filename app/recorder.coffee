@@ -292,21 +292,70 @@ class exports.Recorder
             rangy.deserializeSelection action.selection, @editorBody$[0]
         if action.keyboard?
             k = action.keyboard
-            
-            @keyEvent.initKeyEvent(
-                'keydown'  ,      #  in DOMString typeArg,
-                true       ,      #  in boolean canBubbleArg,
-                true       ,      #  in boolean cancelableArg,
-                null       ,      #  in nsIDOMAbstractView viewArg,  Specifies UIEvent.view. This value may be null.
-                k.ctrlKey  ,      #  in boolean ctrlKeyArg,
-                k.altKey   ,      #  in boolean altKeyArg,
-                k.shiftKey ,      #  in boolean shiftKeyArg,
-                k.altKey   ,      #  in boolean metaKeyArg,
-                k.keyCode  ,      #  in unsigned long keyCodeArg,
-                k.which)          #  in unsigned long charCodeArg);
-            @editor.linesDiv.dispatchEvent(@keyEvent)
+            if @keyEvent.initKeyEvent # ff
+                @keyEvent.initKeyEvent(
+                    'keydown'  ,      #  in DOMString typeArg,
+                    true       ,      #  in boolean canBubbleArg,
+                    true       ,      #  in boolean cancelableArg,
+                    null       ,      #  in nsIDOMAbstractView viewArg,  Specifies UIEvent.view. This value may be null.
+                    k.ctrlKey  ,      #  in boolean ctrlKeyArg,
+                    k.altKey   ,      #  in boolean altKeyArg,
+                    k.shiftKey ,      #  in boolean shiftKeyArg,
+                    k.altKey   ,      #  in boolean metaKeyArg,
+                    k.keyCode  ,      #  in unsigned long keyCodeArg,
+                    k.which)          #  in unsigned long charCodeArg);
+                @editor.linesDiv.dispatchEvent(@keyEvent)
+            else # chrome
+                @__triggerKeyboardEvent(@editor.linesDiv,k)
+
+                # e = jQuery.Event("keydown", { 
+                #     keyCode  : k.keyCode,
+                #     altKey   : k.altKey ,
+                #     ctrlKey  : k.ctrlKey ,
+                #     shiftKey : k.shiftKey })
+                # jQuery(@editor.linesDiv).trigger( e )
+                
+                # modifiersListArg = `(k.altKey ? "Alt " : "") + 
+                #     (k.ctrlKey ? "Ctrl " : "") + 
+                #     (k.shiftKey ? "Shift" : "")`
+                # @keyEvent.initKeyboardEvent(
+                #     'keydown'  ,      # DOMString typeArg,
+                #     true       ,      # boolean canBubbleArg,
+                #     true       ,      # boolean cancelableArg,
+                #     null       ,      # views::AbstractView viewArg,
+                #     k.keyCode  ,      # DOMString charArg,
+                #     k.keyCode  ,      # DOMString keyArg,
+                #     0          ,      # unsigned long locationArg,
+                #     modifiersListArg ,# DOMString modifiersListArg,
+                #     false      ,      # boolean repeat,
+                #     ''  )             # DOMString localeArg
+
+                # @editor.linesDiv.dispatchEvent(@keyEvent)
         action.result = @checker.checkLines(@editor)
 
+    ###*
+     * An alternative keyboard event triger for Chrome (wich is buggy on this
+     * point... )
+     * @param  {[type]} el       [description]
+     * @param  {[type]} keyboard [description]
+     * @return {[type]}          [description]
+    ###
+    __triggerKeyboardEvent : (el, keyboard) ->
+        eventObj = if document.createEventObject? then document.createEventObject() else document.createEvent("Events")
+      
+        if eventObj.initEvent
+          eventObj.initEvent("keydown", true, true)
+        
+        eventObj.keyCode  = keyboard.keyCode
+        eventObj.which    = keyboard.keyCode
+        eventObj.ctrlKey  = keyboard.ctrlKey
+        eventObj.altKey   = keyboard.altKey
+        eventObj.shiftKey = keyboard.shiftKey
+
+        if el.dispatchEvent?
+            el.dispatchEvent(eventObj)
+        else
+            el.fireEvent("onkeydown", eventObj)
 
     add: (record) ->
         @records.push record
