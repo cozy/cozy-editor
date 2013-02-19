@@ -153,15 +153,19 @@ selection.cloneEndFragment = (range, endLine) ->
         | offset = cont.length |                       |
 ###
 selection.normalize = (range) ->
+    # console.log 'selection.normalize'
+    # console.log '  range.startContainer = ', range.startContainer, range.startOffset
     isCollapsed = range.collapsed
     newStartBP = selection.normalizeBP(range.startContainer, range.startOffset)
     range.setStart(newStartBP.cont,newStartBP.offset)
     if isCollapsed
         range.collapse(true)
+        newEndBP = newStartBP
     else
         newEndBP = selection.normalizeBP(range.endContainer, range.endOffset)
         range.setEnd(newEndBP.cont,newEndBP.offset)
-    return range
+
+    return [newStartBP, newEndBP]
 
 
 ###*
@@ -338,5 +342,8 @@ selection.getLineDiv = (cont,offset) ->
         startDiv = selection._getLineDiv(cont)
     return startDiv
 
+selection.findClosestTextNode = (targetNode) ->
+    
+    return [node,offset]
 
 exports.selection = selection

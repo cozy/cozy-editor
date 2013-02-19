@@ -19,7 +19,17 @@ exports.config =
     files:
         javascripts:
             joinTo:
-                './CNeditor.js': /^app\/views\/CNeditor\/.*\.coffee$/
+
+                # comment & uncomment (here & at the module wrapper)
+                # depending your needs :
+
+                # for deployement in "public/CNeditor.js"
+                # './CNeditor.js': /^app\/views\/CNeditor\/.*\.coffee$/
+
+                # for deployement directly in cozy-notes
+                '../../cozy-notes/client/vendor/scripts/CNeditor.js': /^app\/views\/CNeditor\/.*\.coffee$/
+
+
                 'javascripts/tests.js': /^test/
 
             order:
@@ -35,7 +45,11 @@ exports.config =
     modules:
         wrapper: false
         definition:  (path, data) ->
-            if path == "public/CNeditor.js"
+            # for deployement in "public/CNeditor.js"
+            # if path == "public/CNeditor.js"
+            # for deployement in "public/CNeditor.js"
+            if path == "../cozy-notes/client/vendor/scripts/CNeditor.js"
+                
                 """
                 exports = {};
                 """
