@@ -578,7 +578,7 @@ class exports.CNeditor
                 true
             when 'Ctrl-B'
                 @updateCurrentSel()
-                @strong()
+                @applyMetaDataOnSelection('CNE_strong')
                 e.preventDefault()
             # SAVE (Ctrl + s)                  
             when 'Ctrl-S'
@@ -781,16 +781,102 @@ class exports.CNeditor
         return true
 
 
-
-
-
-
-    strong : () ->
-
-        # nothing to do if range is collapsed
+    ###*
+     * applies a metadata such as STRONG, UNDERLINED, A/href etc... on the
+     * selected text.
+     * @param  {string} metaData  The css class of the meta data or 'A' if link
+     * @param  {string} others... Other params is metadata requires 
+     *                            some (href for instance)
+    ###
+    applyMetaDataOnSelection : (metaData, others...) ->
+        
         range = @currentSel.theoricalRange
+        # nothing to do if range is collapsed
         if range.collapsed
-            return
+            return 
+        # 1- create a range for each selected line and put them in 
+        # an array (linesRanges)
+        line = @currentSel.startLine
+        # if a single line selection
+        if line == @currentSel.endLine
+            linesRanges = [range]
+        else
+            # range for the 1st line
+            rg = range.cloneRange()
+            rg.setEndBefore(line.line$[0].lastChild)
+            selection.normalize(rg)
+            linesRanges = [rg]
+            # ranges for the lines in the middle
+            endLine = @currentSel.endLine
+            line = line.lineNext
+            while line != endLine
+                rg = document.createRange()
+                rg.selectNodeContents(line.line$[0])
+                selection.normalize(rg)
+                linesRanges.push(rg)
+                line = line.lineNext
+            # range for the last line
+            rgEnd = range.cloneRange()
+            rgEnd.setStartBefore(endLine.line$[0].firstChild)
+            selection.normalize(rgEnd)
+            linesRanges.push(rgEnd)
+
+        # 2- decide if we apply metaData or remove it
+        # For this we go throught each line and each selected segment to check
+        # if metaData is applied or not.
+        isAlreadyMeta = true
+        for range in linesRanges
+            isAlreadyMeta = isAlreadyMeta \
+                              && 
+                            @checkIfMetaIsEverywhere(range, metaData) 
+        if isAlreadyMeta
+            action = 'un-strongify'
+        else
+            action = 'strongify'
+
+        # 3- Apply the correct action on each lines and getback the breakpoints
+        # corresponding of the initial range
+        bps = []
+        if metaData == 'CNE_strong'
+            bps.push(@strong(range,action)) for range in linesRanges
+        
+
+        # 4- Position selection
+        rg = document.createRange()
+        bp1 = bps[0][0]
+        bp2 = bps[bps.length - 1][1]
+        rg.setStart(bp1.cont, bp1.offset)
+        rg.setEnd(  bp2.cont, bp2.offset)
+        if @isFirefox
+            sel = this.currentSel.sel
+        else
+            sel = document.getSelection()
+        sel.removeAllRanges()
+        sel.addRange(rg)
+
+        return true
+
+    checkIfMetaIsEverywhere : (range, meta, href) ->
+        # 1- loop  on segments to decide wich action is to be done on all
+        #    segments. For instance if all segments are strong the action is
+        #    to un-strongify. If one segment is not bold, then the action is 
+        #    to strongify.        
+        segment    = range.startContainer.parentNode
+        endSegment = range.endContainer.parentNode
+        stopNext   = (segment == endSegment)
+        loop
+            if !segment.classList.contains(meta)
+                return false
+            else
+                if stopNext
+                    return true
+                segment = segment.nextSibling
+                if segment == endSegment
+                    stopNext = true
+
+    strong : (range, action) ->
+
+        # range = @currentSel.theoricalRange
 
         # var
         lineDiv =  selection.getLineDiv(range.startContainer,range.startOffset)
@@ -804,23 +890,7 @@ class exports.CNeditor
             offset : range.endOffset
         breakPoints = [bp1,bp2]
 
-        # 1- loop  on segments to decide wich action is to be done on all
-        #    segments. For instance if all segments are strong the action is
-        #    to un-strongify. If one segment is not bold, then the action is 
-        #    to strongify.        
-        segment  = startSegment
-        action   = 'un-strongify'
-        stopNext = (segment == endSegment)
-        loop
-            if !segment.classList.contains('CNE_strong')
-                action = 'strongify'
-                break
-            else
-                if stopNext
-                    break
-                segment = segment.nextSibling
-                if segment == endSegment
-                    stopNext = true
+
 
         # 2- create start segment
         #    We split the segment in two of the same type and class if :
@@ -913,37 +983,11 @@ class exports.CNeditor
                 stopNext = true
 
         # 5- collapse segments with same class
-        # reverseEndOffset = @_findReverseOffset(lineDiv,endSegment)
         @_fusionSimilarSegments(lineDiv, breakPoints)
-        # children = lineDiv.childNodes
-        # l = children.length
-        # endSegment = children[l-reverseEndOffset]
-
-        # 6- position selection
-        rg = document.createRange()
-        rg.setStart(bp1.cont, bp1.offset)
-        rg.setEnd(  bp2.cont, bp2.offset)
-        if @isFirefox
-            sel = this.currentSel.sel
-        else
-            sel = document.getSelection()
-        sel.removeAllRanges()
-        sel.addRange(rg)
-
-        
-        return true
 
 
-    # _findReverseOffset : (cont,elemt) ->
-    #     children = cont.childNodes
-    #     i = 1
-    #     l = children.length
-    #     while i < l && children[l-i] != elemt
-    #         i++
-    #     if i == l
-    #         return null
-    #     else
-    #         return i
+        return [bp1,bp2]
+
 
     _fusionSimilarSegments : (lineDiv, breakPoints) -> 
         prevSegment = lineDiv.firstChild
