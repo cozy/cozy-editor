@@ -199,6 +199,7 @@ cb = () ->
     checkLog = ''
 
     checkEditor = () ->
+        console.log 'checkEditor()'
         res  = checker.checkLines(editorCtrler) 
         date = new Date()
         h = date.getHours() + ''

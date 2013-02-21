@@ -342,8 +342,6 @@ selection.getLineDiv = (cont,offset) ->
         startDiv = selection._getLineDiv(cont)
     return startDiv
 
-selection.findClosestTextNode = (targetNode) ->
-    
-    return [node,offset]
+
 
 exports.selection = selection

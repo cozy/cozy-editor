@@ -425,6 +425,9 @@ class exports.CNeditor
                     when 32 then keyCode = 'space'
                     when 8  then keyCode = 'backspace'
                     when 65 then keyCode = 'A'
+                    when 66 then keyCode = 'B'
+                    when 85 then keyCode = 'U'
+                    when 75 then keyCode = 'K'
                     when 76 then keyCode = 'L'
                     when 83 then keyCode = 'S'
                     when 86 then keyCode = 'V'
@@ -434,7 +437,7 @@ class exports.CNeditor
         shortcut = metaKeyCode + '-' + keyCode
         
         # a,s,v,y,z alone are simple characters
-        if metaKeyCode == '' && keyCode in ['A', 'L', 'S', 'V', 'Y', 'Z']
+        if metaKeyCode == '' && keyCode in ['A', 'B', 'U', 'K', 'L', 'S', 'V', 'Y', 'Z']
             keyCode = 'other'
 
         return [metaKeyCode,keyCode]
@@ -572,6 +575,10 @@ class exports.CNeditor
             # PASTE (Ctrl + v)                  
             when 'Ctrl-V'
                 true
+            when 'Ctrl-B'
+                @updateCurrentSel()
+                @strong()
+                e.preventDefault()
             # SAVE (Ctrl + s)                  
             when 'Ctrl-S'
                 $(@editorTarget).trigger jQuery.Event('saveRequest')
@@ -771,6 +778,228 @@ class exports.CNeditor
             line.appendChild(brNode)
 
         return true
+
+
+
+
+
+
+    strong : () ->
+
+        # nothing to do if range is collapsed
+        range = @currentSel.theoricalRange
+        if range.collapsed
+            return
+
+        # var
+        lineDiv =  selection.getLineDiv(range.startContainer,range.startOffset)
+        startSegment = range.startContainer.parentNode
+        endSegment = range.endContainer.parentNode
+        bp1 =
+            cont   : range.startContainer
+            offset : range.startOffset
+        bp2 =
+            cont   : range.endContainer
+            offset : range.endOffset
+        breakPoints = [bp1,bp2]
+
+        # 1- loop  on segments to decide wich action is to be done on all
+        #    segments. For instance if all segments are strong the action is
+        #    to un-strongify. If one segment is not bold, then the action is 
+        #    to strongify.        
+        segment  = startSegment
+        action   = 'un-strongify'
+        stopNext = (segment == endSegment)
+        loop
+            if !segment.classList.contains('CNE_strong')
+                action = 'strongify'
+                break
+            else
+                if stopNext
+                    break
+                segment = segment.nextSibling
+                if segment == endSegment
+                    stopNext = true
+
+        # 2- create start segment
+        #    We split the segment in two of the same type and class if :
+        #      - the start break point is not strictly inside a node  text
+        #      - the start segment doesn't have the required property
+        
+        if range.startOffset == range.startContainer.length
+            startSegment = startSegment.nextSibling
+            # rem : nextSibling can not be </br> because the start break point 
+            # can not be at the end of the line.
+            if startSegment == null
+                return
+
+        else if 0 < bp1.offset < bp1.cont.length
+            isStrong = startSegment.classList.contains('CNE_strong')
+            if       isStrong && action == 'un-strongify' \
+                 or !isStrong && action == 'strongify'
+                rg = range.cloneRange()
+                # case when bp1 and bp2 are in the same segment
+                if endSegment == startSegment
+                    # split segment1 in 2 fragments (frag1 & 2)
+                    frag1 = rg.extractContents()
+                    span = document.createElement(startSegment.nodeName)
+                    if startSegment.className != ''
+                        span.className = startSegment.className
+                    span = frag1.appendChild(span)
+                    span.appendChild(frag1.firstChild)
+                    rg.setEndAfter(startSegment)
+                    frag2 = rg.extractContents()
+                    # insert fragments only in not empty (the notion of "empty"
+                    # will probably evolve, for instance with images...)
+                    rg.insertNode(frag2) if frag2.textContent != ''
+                    rg.insertNode(frag1)
+                    # update startSegment, endSegment, bp1 & bp2
+                    startSegment = span
+                    endSegment = startSegment
+                    bp1.cont   = startSegment.firstChild
+                    bp1.offset = 0
+                    bp2.cont   = endSegment.lastChild
+                    bp2.offset = endSegment.lastChild.length
+                # case when bp1 and bp2 are in different segments
+                else
+                    rg.setEndAfter(startSegment)
+                    frag1 = rg.extractContents()
+                    startSegment = frag1.firstChild
+                    bp1.cont   = startSegment.firstChild
+                    bp1.offset = 0
+                    rg.insertNode(frag1)
+
+        # 3- create end segment
+        #    We split the segment in two of the same type and class if :
+        #      - the end break point is not strictly inside a node  text
+        #      - the end segment doesn't have the required property
+        
+        if range.endOffset == 0
+            endSegment = endSegment.previousSibling
+            # rem : previousSibling should not be null because we check that the
+            # range is not collapsed
+            if endSegment == null
+                return
+
+        else if 0 < bp2.offset < bp2.cont.length
+            isStrong = endSegment.classList.contains('CNE_strong')
+            if  isStrong && action == 'un-strongify' or \
+               !isStrong && action == 'strongify'
+                rg = range.cloneRange()
+                rg.setStartBefore(endSegment)
+                frag1 = rg.extractContents()
+                if endSegment == startSegment
+                    startSegment = frag1.firstChild
+                    bp1.cont   = startSegment.firstChild
+                    bp1.offset = 0
+                endSegment = frag1.firstChild
+                bp2.cont   = endSegment.lastChild
+                bp2.offset = endSegment.lastChild.length
+                rg.insertNode(frag1)
+        
+        # 4- apply the required style
+        stopNext = (startSegment == endSegment)
+        segment  =  startSegment
+        loop
+            if action == 'strongify'
+                segment.classList.add('CNE_strong')
+            else
+                segment.classList.remove('CNE_strong')
+            if stopNext
+                break
+            segment = segment.nextSibling
+            if segment == endSegment
+                stopNext = true
+
+        # 5- collapse segments with same class
+        # reverseEndOffset = @_findReverseOffset(lineDiv,endSegment)
+        @_fusionSimilarSegments(lineDiv, breakPoints)
+        # children = lineDiv.childNodes
+        # l = children.length
+        # endSegment = children[l-reverseEndOffset]
+
+        # 6- position selection
+        rg = document.createRange()
+        rg.setStart(breakPoints[0].cont,breakPoints[0].offset)
+        rg.setEnd(breakPoints[1].cont,breakPoints[1].offset)
+        @currentSel.sel.removeAllRanges()
+        @currentSel.sel.addRange(rg)
+
+        
+        return true
+
+
+    # _findReverseOffset : (cont,elemt) ->
+    #     children = cont.childNodes
+    #     i = 1
+    #     l = children.length
+    #     while i < l && children[l-i] != elemt
+    #         i++
+    #     if i == l
+    #         return null
+    #     else
+    #         return i
+
+    _fusionSimilarSegments : (lineDiv, breakPoints) -> 
+        prevSegment = lineDiv.firstChild
+        segment     = prevSegment.nextSibling
+        while segment.nodeName != 'BR'
+            isSimilar = @_compareSegments(prevSegment, segment)
+            if isSimilar
+                @_fusionSegments(prevSegment, segment, breakPoints)
+                segment     = prevSegment.nextSibling
+            else
+                prevSegment = segment
+                segment     = segment.nextSibling
+
+        return breakPoints
+
+    _compareSegments : (segment1, segment2) ->
+        if segment1.nodeName != segment2.nodeName
+            return false
+        else if segment1.nodeName == 'A'
+            if segment1.href != segment2.href
+                return false
+
+        list1 = segment1.classList
+        list2 = segment2.classList
+        
+        if list1.length != list2.length
+            return false
+
+        if list1.length == 0
+            return true
+
+        for clas in list2
+            if !list1.contains(clas)
+                return false
+        return true
+
+
+    _fusionSegments : (segment1, segment2, breakPoints) ->
+        children = Array.prototype.slice.call(segment2.childNodes)
+        for child in segment2.childNodes
+            segment1.appendChild(child)
+
+        txtNode1 = segment1.firstChild
+        txtNode2 = txtNode1.nextSibling
+        while txtNode2 != null
+            if txtNode1.nodeName == '#text' == txtNode2.nodeName 
+                for bp in breakPoints
+                    if bp.cont == txtNode2
+                        bp.cont = txtNode1
+                        bp.offset = txtNode1.length + bp.offset
+                txtNode1.textContent += txtNode2.textContent
+                segment1.removeChild(txtNode2)
+                txtNode2 = txtNode1.nextSibling
+            else
+                txtNode1 = segment1.firstChild
+                txtNode2 = txtNode1.nextSibling
+
+        segment2.parentNode.removeChild(segment2)
+        return breakPoints
+
+
 
     ### ------------------------------------------------------------------------
     #  _suppr :
