@@ -196,6 +196,7 @@ class exports.CNeditor
 
                 # if chrome => listen to keyup to correct the insertion of the
                 # first caracter of an empty line
+                @isFirefox = `'MozBoxSizing' in document.documentElement.style`
                 @isSafari = Object.prototype.toString.call(window.HTMLElement)
                 @isSafari = @isSafari.indexOf('Constructor') > 0
                 @isChrome = !@isSafari && 
@@ -718,7 +719,7 @@ class exports.CNeditor
 
     ###*
      * This function is called only if in Chrome, because the insertion of a caracter
-     * by the browser may out of a span. 
+     * by the browser may be out of a span. 
      * This is du to a bug in Chrome : you can create a range with its start 
      * break point in an empty span. But if you add this range to the selection,
      * then this latter will not respect your range and its start break point 
@@ -920,10 +921,14 @@ class exports.CNeditor
 
         # 6- position selection
         rg = document.createRange()
-        rg.setStart(breakPoints[0].cont,breakPoints[0].offset)
-        rg.setEnd(breakPoints[1].cont,breakPoints[1].offset)
-        @currentSel.sel.removeAllRanges()
-        @currentSel.sel.addRange(rg)
+        rg.setStart(bp1.cont, bp1.offset)
+        rg.setEnd(  bp2.cont, bp2.offset)
+        if @isFirefox
+            sel = this.currentSel.sel
+        else
+            sel = document.getSelection()
+        sel.removeAllRanges()
+        sel.addRange(rg)
 
         
         return true
