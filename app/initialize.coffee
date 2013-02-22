@@ -189,6 +189,9 @@ cb = () ->
     $("#underlineBtn").on "click", () ->
         editorCtrler.applyMetaDataOnSelection('CNE_underline')
         editorCtrler.setFocus()
+    $("#labelBtn").on "click", () ->
+        editorCtrler.applyMetaDataOnSelection('CNE_label')
+        editorCtrler.setFocus()
     $("#linkBtn").on "click", () ->
         editorCtrler.applyMetaDataOnSelection('A','https://www.cozycloud.cc/')
         editorCtrler.setFocus()
