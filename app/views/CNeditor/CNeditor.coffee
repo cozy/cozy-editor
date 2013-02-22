@@ -497,6 +497,7 @@ class exports.CNeditor
                shortcut in ['-tab', '-return', '-backspace', '-suppr',
                             'CtrlShift-down', 'CtrlShift-up',
                             'CtrlShift-left', 'CtrlShift-right',
+                            'Ctrl-B', 'Ctrl-U',
                             'Ctrl-V', 'Shift-tab', '-space', '-other', 'Alt-A']
             @_addHistory()
            
@@ -577,8 +578,11 @@ class exports.CNeditor
             when 'Ctrl-V'
                 true
             when 'Ctrl-B'
-                @updateCurrentSel()
                 @applyMetaDataOnSelection('CNE_strong')
+                e.preventDefault()
+            when 'Ctrl-U'
+                @updateCurrentSel()
+                @applyMetaDataOnSelection('CNE_underline')
                 e.preventDefault()
             # SAVE (Ctrl + s)                  
             when 'Ctrl-S'
@@ -694,14 +698,18 @@ class exports.CNeditor
         initialEndOffset   = range.endOffset
 
         # find startLine and the rangeIsStartLine
-        {div,isStart,noMatter} = selection.getLineDivIsStartIsEnd(
+        {div,isStart,isEnd} = selection.getLineDivIsStartIsEnd(
                                             startContainer, initialStartOffset)
-        startLine = @_lines[div.id]
+        startLine        = @_lines[div.id]
+        rangeIsStartLine = isStart
+        firstLineIsEnd   = isEnd
 
         # find endLine and the rangeIsEndLine
-        {div,noMatter,isEnd,} = selection.getLineDivIsStartIsEnd(
+        {div,isStart,isEnd,} = selection.getLineDivIsStartIsEnd(
                                             endContainer, initialEndOffset)
-        endLine = @_lines[div.id]
+        endLine         = @_lines[div.id]
+        rangeIsEndLine  = isEnd
+        lastLineIsStart = isStart
 
         # result
         @currentSel =
@@ -709,8 +717,10 @@ class exports.CNeditor
             range            : range
             startLine        : startLine
             endLine          : endLine
-            rangeIsStartLine : isStart
-            rangeIsEndLine   : isEnd
+            rangeIsStartLine : rangeIsStartLine
+            rangeIsEndLine   : rangeIsEndLine
+            firstLineIsEnd   : firstLineIsEnd
+            lastLineIsStart  : lastLineIsStart
             theoricalRange   : theoricalRange
 
         return @currentSel
@@ -785,20 +795,34 @@ class exports.CNeditor
      * applies a metadata such as STRONG, UNDERLINED, A/href etc... on the
      * selected text.
      * @param  {string} metaData  The css class of the meta data or 'A' if link
-     * @param  {string} others... Other params is metadata requires 
+     * @param  {string} others... Other params if metadata requires 
      *                            some (href for instance)
     ###
     applyMetaDataOnSelection : (metaData, others...) ->
-        
-        range = @currentSel.theoricalRange
+        currentSel = @updateCurrentSelIsStartIsEnd()
+        range = currentSel.theoricalRange
         # nothing to do if range is collapsed
         if range.collapsed
             return 
         # 1- create a range for each selected line and put them in 
         # an array (linesRanges)
         line = @currentSel.startLine
+        endLine = @currentSel.endLine
+        # case when the selection on the first line starts at the end of line
+        if currentSel.firstLineIsEnd
+            line = line.lineNext
+            range.setStartBefore(line.line$[0].firstChild)
+            selection.normalize(range)
+        # case when the selection on the last line ends at the start of line
+        if currentSel.lastLineIsStart
+            endLine = endLine.linePrev
+            range.setEndBefore(endLine.line$[0].lastChild)
+            selection.normalize(range)
+        # re check if range is collapsed
+        if range.collapsed
+            return
         # if a single line selection
-        if line == @currentSel.endLine
+        if line == endLine
             linesRanges = [range]
         else
             # range for the 1st line
@@ -807,7 +831,6 @@ class exports.CNeditor
             selection.normalize(rg)
             linesRanges = [rg]
             # ranges for the lines in the middle
-            endLine = @currentSel.endLine
             line = line.lineNext
             while line != endLine
                 rg = document.createRange()
@@ -828,19 +851,18 @@ class exports.CNeditor
         for range in linesRanges
             isAlreadyMeta = isAlreadyMeta \
                               && 
-                            @checkIfMetaIsEverywhere(range, metaData) 
+                            @_checkIfMetaIsEverywhere(range, metaData) 
         if isAlreadyMeta
-            action = 'un-strongify'
+            addMeta = false
         else
-            action = 'strongify'
+            addMeta = true
 
         # 3- Apply the correct action on each lines and getback the breakpoints
         # corresponding of the initial range
         bps = []
-        if metaData == 'CNE_strong'
-            bps.push(@strong(range,action)) for range in linesRanges
+        for range in linesRanges
+            bps.push( @_applyMetaData(range, addMeta, metaData) )
         
-
         # 4- Position selection
         rg = document.createRange()
         bp1 = bps[0][0]
@@ -856,7 +878,20 @@ class exports.CNeditor
 
         return true
 
-    checkIfMetaIsEverywhere : (range, meta, href) ->
+    ###*
+     * walk though the segments delimited by the range (which must be in a 
+     * single line) to check if the meta si on all of them.
+     * @param  {range} range a range contained within a line. The range must be
+     *                 normalized, ie its breakpoints must be in text nodes.
+     * @param  {string} meta  The name of the meta data to look for. It can be
+     *                        a css class ('CNE_strong' for instance), or a
+     *                        metadata type ('A' for instance)
+     * @param  {string} href  Others parameters of the meta data type if 
+     *                        required (href value for a 'A' meta)
+     * @return {boolean}       true if the meta data is already on all the 
+     *                         segments delimited by the range.
+    ###
+    _checkIfMetaIsEverywhere : (range, meta, href) ->
         # 1- loop  on segments to decide wich action is to be done on all
         #    segments. For instance if all segments are strong the action is
         #    to un-strongify. If one segment is not bold, then the action is 
@@ -874,11 +909,22 @@ class exports.CNeditor
                 if segment == endSegment
                     stopNext = true
 
-    strong : (range, action) ->
+    ###*
+     * Add or remove a meta data to the segments delimited by the range. The
+     * range must be within a single line and normalized (its breakpoints must
+     * be in text nodes)
+     * @param  {range} range    [description]
+     * @param  {boolean} addMeta  True if the action is to add the metaData, 
+     *                            False if the action is to remove it.
+     * @param  {string} metaData The name of the meta data to look for. It can
+     *                           be a css class ('CNE_strong' for instance), 
+     *                           or a metadata type ('A' for instance)
+     * @return {array}          [bp1,bp2] : the breakpoints corresponding to the
+     *                          initial range after the line transformation.
+    ###
+    _applyMetaData : (range, addMeta, metaData) ->
 
-        # range = @currentSel.theoricalRange
-
-        # var
+        # 1- var
         lineDiv =  selection.getLineDiv(range.startContainer,range.startOffset)
         startSegment = range.startContainer.parentNode
         endSegment = range.endContainer.parentNode
@@ -905,9 +951,9 @@ class exports.CNeditor
                 return
 
         else if 0 < bp1.offset < bp1.cont.length
-            isStrong = startSegment.classList.contains('CNE_strong')
-            if       isStrong && action == 'un-strongify' \
-                 or !isStrong && action == 'strongify'
+            isAlreadyMeta = startSegment.classList.contains(metaData)
+            if       isAlreadyMeta && !addMeta \
+                 or !isAlreadyMeta && addMeta
                 rg = range.cloneRange()
                 # case when bp1 and bp2 are in the same segment
                 if endSegment == startSegment
@@ -953,9 +999,9 @@ class exports.CNeditor
                 return
 
         else if 0 < bp2.offset < bp2.cont.length
-            isStrong = endSegment.classList.contains('CNE_strong')
-            if  isStrong && action == 'un-strongify' or \
-               !isStrong && action == 'strongify'
+            isAlreadyMeta = endSegment.classList.contains(metaData)
+            if  isAlreadyMeta && !addMeta or \
+               !isAlreadyMeta && addMeta
                 rg = range.cloneRange()
                 rg.setStartBefore(endSegment)
                 frag1 = rg.extractContents()
@@ -972,10 +1018,10 @@ class exports.CNeditor
         stopNext = (startSegment == endSegment)
         segment  =  startSegment
         loop
-            if action == 'strongify'
-                segment.classList.add('CNE_strong')
+            if addMeta
+                segment.classList.add(metaData)
             else
-                segment.classList.remove('CNE_strong')
+                segment.classList.remove(metaData)
             if stopNext
                 break
             segment = segment.nextSibling
@@ -984,7 +1030,6 @@ class exports.CNeditor
 
         # 5- collapse segments with same class
         @_fusionSimilarSegments(lineDiv, breakPoints)
-
 
         return [bp1,bp2]
 

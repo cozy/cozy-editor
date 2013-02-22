@@ -180,6 +180,15 @@ cb = () ->
     $("#titleBtn").on "click", () ->
         editorCtrler.titleList()
         editorCtrler.setFocus()
+    $("#toggleBtn").on "click", () ->
+        editorCtrler.toggleType()
+        editorCtrler.setFocus()
+    $("#strongBtn").on "click", () ->
+        editorCtrler.applyMetaDataOnSelection('CNE_strong')
+        editorCtrler.setFocus()
+    $("#underlineBtn").on "click", () ->
+        editorCtrler.applyMetaDataOnSelection('CNE_underline')
+        editorCtrler.setFocus()
     $("#clearBtn").on "click", () ->
         editorCtrler.deleteContent()
         editorCtrler.setFocus()
