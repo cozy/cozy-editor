@@ -223,26 +223,18 @@ class exports.AutoTest
             txt = 'must end with BR'
             @logErr(line,txt)
 
-
-        lastClass = undefined
-        for child in children
-            # 4- two successive SPAN can't have the same class -------------(OK)
-            if child.nodeName == 'SPAN'
-                childClass = child.getAttribute('class')
-                if childClass? && lastClass == child.getAttribute('class')
-                    txt = "two consecutive SPAN with same 
-                          class #{lastClass}"
-                    @logErr(line,txt)
-                else
-                    lastClass = childClass
-                @checkElement(child, line)
-            else if child.nodeName == 'A'
-                lastClass = undefined
-            else if child.nodeName == 'IMG'
-                lastClass = undefined
-            else
-                txt = "invalid element in a line (#{child.nodeName})"
+        # 4- two successive child of a line div must be "similar" (same class
+        # same node name and if a <a> same href)
+        child1 = children[0]
+        while child1.nodeName != 'BR'
+            child2 = child1.nextSibling
+            isSimilar = this.editor._compareSegments(child1,child2)
+            if isSimilar
+                txt = "two successive element in a line which are similar (same node type and class)"
                 @logErr(line,txt)
+            else
+                @checkElement(child1, line)
+                child1 = child1.nextSibling
 
 
     buildTree : () ->

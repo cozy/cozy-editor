@@ -258,9 +258,9 @@ selection._getLineDiv = (elt)->
 ###
 selection.getLineDivIsStartIsEnd = (cont, offset)->
     
-    parent = cont
+    parent  = cont
     isStart = true
-    isEnd = true
+    isEnd   = true
 
     # 1- walk trew each parent of the container until reaching the div 
     # on each parent check if breakpoint is still at the end or start
@@ -342,8 +342,6 @@ selection.getLineDiv = (cont,offset) ->
         startDiv = selection._getLineDiv(cont)
     return startDiv
 
-selection.findClosestTextNode = (targetNode) ->
-    
-    return [node,offset]
+
 
 exports.selection = selection

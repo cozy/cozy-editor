@@ -196,6 +196,7 @@ class exports.CNeditor
 
                 # if chrome => listen to keyup to correct the insertion of the
                 # first caracter of an empty line
+                @isFirefox = `'MozBoxSizing' in document.documentElement.style`
                 @isSafari = Object.prototype.toString.call(window.HTMLElement)
                 @isSafari = @isSafari.indexOf('Constructor') > 0
                 @isChrome = !@isSafari && 
@@ -425,6 +426,9 @@ class exports.CNeditor
                     when 32 then keyCode = 'space'
                     when 8  then keyCode = 'backspace'
                     when 65 then keyCode = 'A'
+                    when 66 then keyCode = 'B'
+                    when 85 then keyCode = 'U'
+                    when 75 then keyCode = 'K'
                     when 76 then keyCode = 'L'
                     when 83 then keyCode = 'S'
                     when 86 then keyCode = 'V'
@@ -434,7 +438,7 @@ class exports.CNeditor
         shortcut = metaKeyCode + '-' + keyCode
         
         # a,s,v,y,z alone are simple characters
-        if metaKeyCode == '' && keyCode in ['A', 'L', 'S', 'V', 'Y', 'Z']
+        if metaKeyCode == '' && keyCode in ['A', 'B', 'U', 'K', 'L', 'S', 'V', 'Y', 'Z']
             keyCode = 'other'
 
         return [metaKeyCode,keyCode]
@@ -493,6 +497,7 @@ class exports.CNeditor
                shortcut in ['-tab', '-return', '-backspace', '-suppr',
                             'CtrlShift-down', 'CtrlShift-up',
                             'CtrlShift-left', 'CtrlShift-right',
+                            'Ctrl-B', 'Ctrl-U',
                             'Ctrl-V', 'Shift-tab', '-space', '-other', 'Alt-A']
             @_addHistory()
            
@@ -572,6 +577,13 @@ class exports.CNeditor
             # PASTE (Ctrl + v)                  
             when 'Ctrl-V'
                 true
+            when 'Ctrl-B'
+                @applyMetaDataOnSelection('CNE_strong')
+                e.preventDefault()
+            when 'Ctrl-U'
+                @updateCurrentSel()
+                @applyMetaDataOnSelection('CNE_underline')
+                e.preventDefault()
             # SAVE (Ctrl + s)                  
             when 'Ctrl-S'
                 $(@editorTarget).trigger jQuery.Event('saveRequest')
@@ -686,14 +698,18 @@ class exports.CNeditor
         initialEndOffset   = range.endOffset
 
         # find startLine and the rangeIsStartLine
-        {div,isStart,noMatter} = selection.getLineDivIsStartIsEnd(
+        {div,isStart,isEnd} = selection.getLineDivIsStartIsEnd(
                                             startContainer, initialStartOffset)
-        startLine = @_lines[div.id]
+        startLine        = @_lines[div.id]
+        rangeIsStartLine = isStart
+        firstLineIsEnd   = isEnd
 
         # find endLine and the rangeIsEndLine
-        {div,noMatter,isEnd,} = selection.getLineDivIsStartIsEnd(
+        {div,isStart,isEnd,} = selection.getLineDivIsStartIsEnd(
                                             endContainer, initialEndOffset)
-        endLine = @_lines[div.id]
+        endLine         = @_lines[div.id]
+        rangeIsEndLine  = isEnd
+        lastLineIsStart = isStart
 
         # result
         @currentSel =
@@ -701,8 +717,10 @@ class exports.CNeditor
             range            : range
             startLine        : startLine
             endLine          : endLine
-            rangeIsStartLine : isStart
-            rangeIsEndLine   : isEnd
+            rangeIsStartLine : rangeIsStartLine
+            rangeIsEndLine   : rangeIsEndLine
+            firstLineIsEnd   : firstLineIsEnd
+            lastLineIsStart  : lastLineIsStart
             theoricalRange   : theoricalRange
 
         return @currentSel
@@ -711,7 +729,7 @@ class exports.CNeditor
 
     ###*
      * This function is called only if in Chrome, because the insertion of a caracter
-     * by the browser may out of a span. 
+     * by the browser may be out of a span. 
      * This is du to a bug in Chrome : you can create a range with its start 
      * break point in an empty span. But if you add this range to the selection,
      * then this latter will not respect your range and its start break point 
@@ -771,6 +789,311 @@ class exports.CNeditor
             line.appendChild(brNode)
 
         return true
+
+
+    ###*
+     * applies a metadata such as STRONG, UNDERLINED, A/href etc... on the
+     * selected text.
+     * @param  {string} metaData  The css class of the meta data or 'A' if link
+     * @param  {string} others... Other params if metadata requires 
+     *                            some (href for instance)
+    ###
+    applyMetaDataOnSelection : (metaData, others...) ->
+        currentSel = @updateCurrentSelIsStartIsEnd()
+        range = currentSel.theoricalRange
+        # nothing to do if range is collapsed
+        if range.collapsed
+            return 
+        # 1- create a range for each selected line and put them in 
+        # an array (linesRanges)
+        line = @currentSel.startLine
+        endLine = @currentSel.endLine
+        # case when the selection on the first line starts at the end of line
+        if currentSel.firstLineIsEnd
+            line = line.lineNext
+            range.setStartBefore(line.line$[0].firstChild)
+            selection.normalize(range)
+        # case when the selection on the last line ends at the start of line
+        if currentSel.lastLineIsStart
+            endLine = endLine.linePrev
+            range.setEndBefore(endLine.line$[0].lastChild)
+            selection.normalize(range)
+        # re check if range is collapsed
+        if range.collapsed
+            return
+        # if a single line selection
+        if line == endLine
+            linesRanges = [range]
+        else
+            # range for the 1st line
+            rg = range.cloneRange()
+            rg.setEndBefore(line.line$[0].lastChild)
+            selection.normalize(rg)
+            linesRanges = [rg]
+            # ranges for the lines in the middle
+            line = line.lineNext
+            while line != endLine
+                rg = document.createRange()
+                rg.selectNodeContents(line.line$[0])
+                selection.normalize(rg)
+                linesRanges.push(rg)
+                line = line.lineNext
+            # range for the last line
+            rgEnd = range.cloneRange()
+            rgEnd.setStartBefore(endLine.line$[0].firstChild)
+            selection.normalize(rgEnd)
+            linesRanges.push(rgEnd)
+
+        # 2- decide if we apply metaData or remove it
+        # For this we go throught each line and each selected segment to check
+        # if metaData is applied or not.
+        isAlreadyMeta = true
+        for range in linesRanges
+            isAlreadyMeta = isAlreadyMeta \
+                              && 
+                            @_checkIfMetaIsEverywhere(range, metaData) 
+        if isAlreadyMeta
+            addMeta = false
+        else
+            addMeta = true
+
+        # 3- Apply the correct action on each lines and getback the breakpoints
+        # corresponding of the initial range
+        bps = []
+        for range in linesRanges
+            bps.push( @_applyMetaData(range, addMeta, metaData) )
+        
+        # 4- Position selection
+        rg = document.createRange()
+        bp1 = bps[0][0]
+        bp2 = bps[bps.length - 1][1]
+        rg.setStart(bp1.cont, bp1.offset)
+        rg.setEnd(  bp2.cont, bp2.offset)
+        if @isFirefox
+            sel = this.currentSel.sel
+        else
+            sel = document.getSelection()
+        sel.removeAllRanges()
+        sel.addRange(rg)
+
+        return true
+
+    ###*
+     * walk though the segments delimited by the range (which must be in a 
+     * single line) to check if the meta si on all of them.
+     * @param  {range} range a range contained within a line. The range must be
+     *                 normalized, ie its breakpoints must be in text nodes.
+     * @param  {string} meta  The name of the meta data to look for. It can be
+     *                        a css class ('CNE_strong' for instance), or a
+     *                        metadata type ('A' for instance)
+     * @param  {string} href  Others parameters of the meta data type if 
+     *                        required (href value for a 'A' meta)
+     * @return {boolean}       true if the meta data is already on all the 
+     *                         segments delimited by the range.
+    ###
+    _checkIfMetaIsEverywhere : (range, meta, href) ->
+        # 1- loop  on segments to decide wich action is to be done on all
+        #    segments. For instance if all segments are strong the action is
+        #    to un-strongify. If one segment is not bold, then the action is 
+        #    to strongify.        
+        segment    = range.startContainer.parentNode
+        endSegment = range.endContainer.parentNode
+        stopNext   = (segment == endSegment)
+        loop
+            if !segment.classList.contains(meta)
+                return false
+            else
+                if stopNext
+                    return true
+                segment = segment.nextSibling
+                if segment == endSegment
+                    stopNext = true
+
+    ###*
+     * Add or remove a meta data to the segments delimited by the range. The
+     * range must be within a single line and normalized (its breakpoints must
+     * be in text nodes)
+     * @param  {range} range    [description]
+     * @param  {boolean} addMeta  True if the action is to add the metaData, 
+     *                            False if the action is to remove it.
+     * @param  {string} metaData The name of the meta data to look for. It can
+     *                           be a css class ('CNE_strong' for instance), 
+     *                           or a metadata type ('A' for instance)
+     * @return {array}          [bp1,bp2] : the breakpoints corresponding to the
+     *                          initial range after the line transformation.
+    ###
+    _applyMetaData : (range, addMeta, metaData) ->
+
+        # 1- var
+        lineDiv =  selection.getLineDiv(range.startContainer,range.startOffset)
+        startSegment = range.startContainer.parentNode
+        endSegment = range.endContainer.parentNode
+        bp1 =
+            cont   : range.startContainer
+            offset : range.startOffset
+        bp2 =
+            cont   : range.endContainer
+            offset : range.endOffset
+        breakPoints = [bp1,bp2]
+
+
+
+        # 2- create start segment
+        #    We split the segment in two of the same type and class if :
+        #      - the start break point is not strictly inside a node  text
+        #      - the start segment doesn't have the required property
+        
+        if range.startOffset == range.startContainer.length
+            startSegment = startSegment.nextSibling
+            # rem : nextSibling can not be </br> because the start break point 
+            # can not be at the end of the line.
+            if startSegment == null
+                return
+
+        else if 0 < bp1.offset < bp1.cont.length
+            isAlreadyMeta = startSegment.classList.contains(metaData)
+            if       isAlreadyMeta && !addMeta \
+                 or !isAlreadyMeta && addMeta
+                rg = range.cloneRange()
+                # case when bp1 and bp2 are in the same segment
+                if endSegment == startSegment
+                    # split segment1 in 2 fragments (frag1 & 2)
+                    frag1 = rg.extractContents()
+                    span = document.createElement(startSegment.nodeName)
+                    if startSegment.className != ''
+                        span.className = startSegment.className
+                    span = frag1.appendChild(span)
+                    span.appendChild(frag1.firstChild)
+                    rg.setEndAfter(startSegment)
+                    frag2 = rg.extractContents()
+                    # insert fragments only in not empty (the notion of "empty"
+                    # will probably evolve, for instance with images...)
+                    rg.insertNode(frag2) if frag2.textContent != ''
+                    rg.insertNode(frag1)
+                    # update startSegment, endSegment, bp1 & bp2
+                    startSegment = span
+                    endSegment = startSegment
+                    bp1.cont   = startSegment.firstChild
+                    bp1.offset = 0
+                    bp2.cont   = endSegment.lastChild
+                    bp2.offset = endSegment.lastChild.length
+                # case when bp1 and bp2 are in different segments
+                else
+                    rg.setEndAfter(startSegment)
+                    frag1 = rg.extractContents()
+                    startSegment = frag1.firstChild
+                    bp1.cont   = startSegment.firstChild
+                    bp1.offset = 0
+                    rg.insertNode(frag1)
+
+        # 3- create end segment
+        #    We split the segment in two of the same type and class if :
+        #      - the end break point is not strictly inside a node  text
+        #      - the end segment doesn't have the required property
+        
+        if range.endOffset == 0
+            endSegment = endSegment.previousSibling
+            # rem : previousSibling should not be null because we check that the
+            # range is not collapsed
+            if endSegment == null
+                return
+
+        else if 0 < bp2.offset < bp2.cont.length
+            isAlreadyMeta = endSegment.classList.contains(metaData)
+            if  isAlreadyMeta && !addMeta or \
+               !isAlreadyMeta && addMeta
+                rg = range.cloneRange()
+                rg.setStartBefore(endSegment)
+                frag1 = rg.extractContents()
+                if endSegment == startSegment
+                    startSegment = frag1.firstChild
+                    bp1.cont   = startSegment.firstChild
+                    bp1.offset = 0
+                endSegment = frag1.firstChild
+                bp2.cont   = endSegment.lastChild
+                bp2.offset = endSegment.lastChild.length
+                rg.insertNode(frag1)
+        
+        # 4- apply the required style
+        stopNext = (startSegment == endSegment)
+        segment  =  startSegment
+        loop
+            if addMeta
+                segment.classList.add(metaData)
+            else
+                segment.classList.remove(metaData)
+            if stopNext
+                break
+            segment = segment.nextSibling
+            if segment == endSegment
+                stopNext = true
+
+        # 5- collapse segments with same class
+        @_fusionSimilarSegments(lineDiv, breakPoints)
+
+        return [bp1,bp2]
+
+
+    _fusionSimilarSegments : (lineDiv, breakPoints) -> 
+        prevSegment = lineDiv.firstChild
+        segment     = prevSegment.nextSibling
+        while segment.nodeName != 'BR'
+            isSimilar = @_compareSegments(prevSegment, segment)
+            if isSimilar
+                @_fusionSegments(prevSegment, segment, breakPoints)
+                segment     = prevSegment.nextSibling
+            else
+                prevSegment = segment
+                segment     = segment.nextSibling
+
+        return breakPoints
+
+    _compareSegments : (segment1, segment2) ->
+        if segment1.nodeName != segment2.nodeName
+            return false
+        else if segment1.nodeName == 'A'
+            if segment1.href != segment2.href
+                return false
+
+        list1 = segment1.classList
+        list2 = segment2.classList
+        
+        if list1.length != list2.length
+            return false
+
+        if list1.length == 0
+            return true
+
+        for clas in list2
+            if !list1.contains(clas)
+                return false
+        return true
+
+
+    _fusionSegments : (segment1, segment2, breakPoints) ->
+        children = Array.prototype.slice.call(segment2.childNodes)
+        for child in segment2.childNodes
+            segment1.appendChild(child)
+
+        txtNode1 = segment1.firstChild
+        txtNode2 = txtNode1.nextSibling
+        while txtNode2 != null
+            if txtNode1.nodeName == '#text' == txtNode2.nodeName 
+                for bp in breakPoints
+                    if bp.cont == txtNode2
+                        bp.cont = txtNode1
+                        bp.offset = txtNode1.length + bp.offset
+                txtNode1.textContent += txtNode2.textContent
+                segment1.removeChild(txtNode2)
+                txtNode2 = txtNode1.nextSibling
+            else
+                txtNode1 = segment1.firstChild
+                txtNode2 = txtNode1.nextSibling
+
+        segment2.parentNode.removeChild(segment2)
+        return breakPoints
+
+
 
     ### ------------------------------------------------------------------------
     #  _suppr :
