@@ -179,7 +179,7 @@ selection.normalizeBP = (cont, offset) ->
         # nothing to do
         res = {cont:cont,offset:offset}
 
-    else if cont.nodeName == 'SPAN'
+    else if cont.nodeName in ['SPAN','A']
         # search a text node before and put bp in it
         # if none, search a text node after and put bp in it
         # if none create one and put bp in it

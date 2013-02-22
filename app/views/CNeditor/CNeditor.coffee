@@ -497,7 +497,7 @@ class exports.CNeditor
                shortcut in ['-tab', '-return', '-backspace', '-suppr',
                             'CtrlShift-down', 'CtrlShift-up',
                             'CtrlShift-left', 'CtrlShift-right',
-                            'Ctrl-B', 'Ctrl-U',
+                            'Ctrl-B', 'Ctrl-U', 'Ctrl-K',
                             'Ctrl-V', 'Shift-tab', '-space', '-other', 'Alt-A']
             @_addHistory()
            
@@ -581,8 +581,10 @@ class exports.CNeditor
                 @applyMetaDataOnSelection('CNE_strong')
                 e.preventDefault()
             when 'Ctrl-U'
-                @updateCurrentSel()
                 @applyMetaDataOnSelection('CNE_underline')
+                e.preventDefault()
+            when 'Ctrl-K'
+                @applyMetaDataOnSelection('A','https://www.cozycloud.cc/')
                 e.preventDefault()
             # SAVE (Ctrl + s)                  
             when 'Ctrl-S'
@@ -851,17 +853,14 @@ class exports.CNeditor
         for range in linesRanges
             isAlreadyMeta = isAlreadyMeta \
                               && 
-                            @_checkIfMetaIsEverywhere(range, metaData) 
-        if isAlreadyMeta
-            addMeta = false
-        else
-            addMeta = true
+                            @_checkIfMetaIsEverywhere(range, metaData, others) 
+        addMeta = !isAlreadyMeta
 
         # 3- Apply the correct action on each lines and getback the breakpoints
         # corresponding of the initial range
         bps = []
         for range in linesRanges
-            bps.push( @_applyMetaData(range, addMeta, metaData) )
+            bps.push( @_applyMetaData(range, addMeta, metaData, others) )
         
         # 4- Position selection
         rg = document.createRange()
@@ -878,8 +877,9 @@ class exports.CNeditor
 
         return true
 
+
     ###*
-     * walk though the segments delimited by the range (which must be in a 
+     * Walk though the segments delimited by the range (which must be in a 
      * single line) to check if the meta si on all of them.
      * @param  {range} range a range contained within a line. The range must be
      *                 normalized, ie its breakpoints must be in text nodes.
@@ -891,8 +891,16 @@ class exports.CNeditor
      * @return {boolean}       true if the meta data is already on all the 
      *                         segments delimited by the range.
     ###
-    _checkIfMetaIsEverywhere : (range, meta, href) ->
-        # 1- loop  on segments to decide wich action is to be done on all
+    _checkIfMetaIsEverywhere : (range, meta, others) ->
+        if meta == 'A'
+            return @_checkIfAhrefIsEverywhere(range, others[0])
+        else
+            return @_checkIfCSSIsEverywhere(range,meta,)
+
+
+
+    _checkIfCSSIsEverywhere : (range, CssClass) ->
+        # Loop  on segments to decide wich action is to be done on all
         #    segments. For instance if all segments are strong the action is
         #    to un-strongify. If one segment is not bold, then the action is 
         #    to strongify.        
@@ -900,14 +908,33 @@ class exports.CNeditor
         endSegment = range.endContainer.parentNode
         stopNext   = (segment == endSegment)
         loop
-            if !segment.classList.contains(meta)
+            if !segment.classList.contains(CssClass)
                 return false
             else
                 if stopNext
                     return true
-                segment = segment.nextSibling
-                if segment == endSegment
-                    stopNext = true
+                segment  = segment.nextSibling
+                stopNext = (segment == endSegment)
+
+
+
+    _checkIfAhrefIsEverywhere : (range, href) ->
+        # Loop  on segments to decide wich action is to be done on all
+        #    segments. For instance if all segments are strong the action is
+        #    to un-strongify. If one segment is not bold, then the action is 
+        #    to strongify.        
+        segment    = range.startContainer.parentNode
+        endSegment = range.endContainer.parentNode
+        stopNext   = (segment == endSegment)
+        loop
+            if segment.nodeName != 'A' or segment.href != href
+                return false
+            else
+                if stopNext
+                    return true
+                segment  = segment.nextSibling
+                stopNext = (segment == endSegment)
+
 
     ###*
      * Add or remove a meta data to the segments delimited by the range. The
@@ -922,7 +949,7 @@ class exports.CNeditor
      * @return {array}          [bp1,bp2] : the breakpoints corresponding to the
      *                          initial range after the line transformation.
     ###
-    _applyMetaData : (range, addMeta, metaData) ->
+    _applyMetaData : (range, addMeta, metaData, others) ->
 
         # 1- var
         lineDiv =  selection.getLineDiv(range.startContainer,range.startOffset)
@@ -935,8 +962,6 @@ class exports.CNeditor
             cont   : range.endContainer
             offset : range.endOffset
         breakPoints = [bp1,bp2]
-
-
 
         # 2- create start segment
         #    We split the segment in two of the same type and class if :
@@ -951,7 +976,7 @@ class exports.CNeditor
                 return
 
         else if 0 < bp1.offset < bp1.cont.length
-            isAlreadyMeta = startSegment.classList.contains(metaData)
+            isAlreadyMeta = @_isAlreadyMeta(startSegment, metaData, others)
             if       isAlreadyMeta && !addMeta \
                  or !isAlreadyMeta && addMeta
                 rg = range.cloneRange()
@@ -999,7 +1024,8 @@ class exports.CNeditor
                 return
 
         else if 0 < bp2.offset < bp2.cont.length
-            isAlreadyMeta = endSegment.classList.contains(metaData)
+            # isAlreadyMeta = endSegment.classList.contains(metaData)
+            isAlreadyMeta = @_isAlreadyMeta(endSegment, metaData, others)
             if  isAlreadyMeta && !addMeta or \
                !isAlreadyMeta && addMeta
                 rg = range.cloneRange()
@@ -1015,23 +1041,73 @@ class exports.CNeditor
                 rg.insertNode(frag1)
         
         # 4- apply the required style
-        stopNext = (startSegment == endSegment)
-        segment  =  startSegment
-        loop
-            if addMeta
-                segment.classList.add(metaData)
-            else
-                segment.classList.remove(metaData)
-            if stopNext
-                break
-            segment = segment.nextSibling
-            if segment == endSegment
-                stopNext = true
+        if metaData == 'A'
+            bps = [bp1,bp2]
+            @_applyAhrefToSegments(startSegment, endSegment, bps, addMeta, metaData, others[0])
+        else
+            @_applyCssToSegments(startSegment, endSegment, addMeta, metaData)
 
         # 5- collapse segments with same class
         @_fusionSimilarSegments(lineDiv, breakPoints)
 
         return [bp1,bp2]
+
+
+    _isAlreadyMeta : (segment, metaData, others) ->
+        if metaData == 'A'
+            return segment.nodeName == 'A' && segment.href == others[0]
+        else
+            return segment.classList.contains(metaData)
+
+
+    _applyAhrefToSegments : (startSegment, endSegment, bps, addMeta, metaData, href) ->
+        segment  =  startSegment
+        stopNext = (segment == endSegment)
+        loop
+            if addMeta
+                if segment.nodeName == 'A'
+                    segment.href = href
+                else
+                    a = document.createElement('A')
+                    a.href = href
+                    a.textContent = segment.textContent
+                    a.classeName = segment.classeName
+                    for bp in bps
+                        if bp.cont.parentNode == segment
+                            bp.cont = a.firstChild
+                    segment.parentNode.replaceChild(a,segment)
+                    segment = a
+            else
+                    span = document.createElement('SPAN')
+                    span.textContent = segment.textContent
+                    span.classeName = segment.classeName
+                    for bp in bps
+                        if bp.cont.parentNode == segment
+                            bp.cont = span.firstChild
+                    segment.parentNode.replaceChild(span,segment)
+                    segment = span
+                
+            if stopNext
+                break
+            segment = segment.nextSibling
+            stopNext = (segment == endSegment)
+        return null
+
+
+
+    _applyCssToSegments : (startSegment, endSegment, addMeta, cssClass) ->
+        segment  =  startSegment
+        stopNext = (segment == endSegment)
+        loop
+            if addMeta
+                segment.classList.add(cssClass)
+            else
+                segment.classList.remove(cssClass)
+            if stopNext
+                break
+            segment = segment.nextSibling
+            stopNext = (segment == endSegment)
+        return null
 
 
     _fusionSimilarSegments : (lineDiv, breakPoints) -> 
@@ -1047,6 +1123,7 @@ class exports.CNeditor
                 segment     = segment.nextSibling
 
         return breakPoints
+
 
     _compareSegments : (segment1, segment2) ->
         if segment1.nodeName != segment2.nodeName
