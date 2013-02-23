@@ -147,159 +147,104 @@ class exports.CNeditor
     #                      is set to the editorCtrl (callBack.call(this))
     ###
     constructor : (@editorTarget, callBack) ->
+        @editorTarget$ = $(@editorTarget)
+        @callBack = callBack
         if @editorTarget.nodeName == "IFRAME"
-
-            iframe$ = $(@editorTarget)
-            
-            iframe$.on 'load', () =>
-                # preparation of the iframe
-                editor_html$ = iframe$.contents().find("html")
-                @editorBody$ = editor_html$.find("body")
-                @editorBody$.parent().attr('id','__ed-iframe-html')
-                @editorBody$.attr("id","__ed-iframe-body")
-
-                @document = @editorBody$[0].ownerDocument
-                editor_head$ = editor_html$.find("head")
-                cssLink = '<link id="editorCSS" '
-                cssLink += 'href="stylesheets/CNeditor.css" rel="stylesheet">'
-                editor_head$.html(cssLink)
-
-                # Create div that will contains line
-                @linesDiv = document.createElement 'div'
-                @linesDiv.setAttribute('id','editor-lines')
-                @linesDiv.setAttribute('class','editor-frame')
-                @linesDiv.setAttribute('contenteditable','true')
-                @editorBody$.append @linesDiv
-            
-                # init clipboard div
-                @_initClipBoard()
-
-                # set the properties of the editor
-                @_lines       = {}            # contains every line
-                @newPosition  = true          # true if cursor has moved 
-                @_highestId   = 0             # last inserted line identifier
-                @_deepest     = 1             # current maximum indentation
-                @_firstLine   = null          # pointer to the first line
-                @_history     =               # for history management
-                    index        : 0
-                    history      : [null]
-                    historySelect: [null]
-                    historyScroll: [null]
-                    historyPos   : [null]
-                @_lastKey     = null      # last pressed key (avoid duplication)
-
-                # initialize event listeners
-                @editorBody$.prop '__editorCtl', this
-
-                # listen keydown on capturing phase (before bubbling)
-                @linesDiv.addEventListener('keydown', @_keyDownCallBack, true)
-
-                # if chrome => listen to keyup to correct the insertion of the
-                # first caracter of an empty line
-                @isFirefox = `'MozBoxSizing' in document.documentElement.style`
-                @isSafari = Object.prototype.toString.call(window.HTMLElement)
-                @isSafari = @isSafari.indexOf('Constructor') > 0
-                @isChrome = !@isSafari && 
-                         (`'WebkitTransform' in document.documentElement.style`)
-                @isChromeOrSafari = @isChrome or @isSafari
-                if @isChromeOrSafari
-                   @linesDiv.addEventListener('keyup', @_keyUpCorrection, false)
-
-                # Listen to mouse to detect when caret is moved
-                @linesDiv.addEventListener('mouseup', () =>
-                    @newPosition = true
-                , true)
-
-                @editorBody$.on 'keyup', () ->
-                    iframe$.trigger jQuery.Event("onKeyUp")
-                @editorBody$.on 'click', (event) =>
-                    @_lastKey = null
-                @editorBody$.on 'paste', (event) =>
-                    @paste event
-
-                # return a ref to the editor's controler
-                callBack.call(this)
-                return this
+            @isInIframe = true
+            @editorTarget$.on 'load', @loadEditor
             @editorTarget.src = ''
-
         else if @editorTarget.nodeName == "DIV"
+            @isInIframe = false
+            @loadEditor()
+        # return a ref to the editor's controler
+        return this
 
-            iframe$ = $(@editorTarget)
-            
+
+    loadEditor : () =>
+        if @isInIframe
             # preparation of the iframe
-            # editor_html$ = iframe$.contents().find("html")
-            @editorBody$ = iframe$
-            # @editorBody$.parent().attr('id','__ed-iframe-html')
-            # @editorBody$.attr("id","__ed-iframe-body")
+            editor_html$ = @editorTarget$.contents().find("html")
+            @editorBody$ = editor_html$.find("body")
+            @editorBody$.parent().attr('id','__ed-iframe-html')
+            @editorBody$.attr("id","__ed-iframe-body")
 
-            # @document = $(document)
-            # editor_head$ = $(document).find("head")
-            # cssLink = '<link id="editorCSS" '
-            # cssLink += 'href="stylesheets/CNeditor.css" rel="stylesheet">'
-            # cssEl = $(cssLink)
-            # editor_head$.append(cssEl)
+            @document = @editorBody$[0].ownerDocument
+            editor_head$ = editor_html$.find("head")
+            cssLink = '<link id="editorCSS" '
+            cssLink += 'href="stylesheets/CNeditor.css" rel="stylesheet">'
+            editor_head$.html(cssLink)
+        else
+            @editorBody$ = @editorTarget$
 
-            # Create div that will contains line
-            @linesDiv = document.createElement 'div'
-            @linesDiv.setAttribute('id','editor-lines')
-            @linesDiv.setAttribute('class','editor-frame')
-            @linesDiv.setAttribute('contenteditable','true')
-            @editorBody$.append @linesDiv
             @getEditorSelection = () ->
                 return rangy.getSelection()
-
+            
             @saveEditorSelection = () ->
                 sel = rangy.getSelection()
                 return rangy.serializeSelection sel, true, @linesDiv
-        
-            # init clipboard div
-            @_initClipBoard()
 
-            # set the properties of the editor
-            @_lines       = {}            # contains every line
-            @newPosition  = true          # true if cursor has moved 
-            @_highestId   = 0             # last inserted line identifier
-            @_deepest     = 1             # current maximum indentation
-            @_firstLine   = null          # pointer to the first line
-            @_history     =               # for history management
-                index        : 0
-                history      : [null]
-                historySelect: [null]
-                historyScroll: [null]
-                historyPos   : [null]
-            @_lastKey     = null      # last pressed key (avoid duplication)
+        # Create div that will contains line
+        @linesDiv = document.createElement 'div'
+        @linesDiv.setAttribute('id','editor-lines')
+        @linesDiv.setAttribute('class','editor-frame')
+        @linesDiv.setAttribute('contenteditable','true')
+        @editorBody$.append @linesDiv
+    
+        # init clipboard div
+        @_initClipBoard()
 
-            # initialize event listeners
-            @editorBody$.prop '__editorCtl', this
+        # set the properties of the editor
+        @_lines       = {}            # contains every line
+        @newPosition  = true          # true if cursor has moved 
+        @_highestId   = 0             # last inserted line identifier
+        @_deepest     = 1             # current maximum indentation
+        @_firstLine   = null          # pointer to the first line
+        @_history     =               # for history management
+            index        : 0
+            history      : [null]
+            historySelect: [null]
+            historyScroll: [null]
+            historyPos   : [null]
+        @_lastKey     = null      # last pressed key (avoid duplication)
 
-            # listen keydown on capturing phase (before bubbling)
-            @linesDiv.addEventListener('keydown', @_keyDownCallBack, true)
+        # initialize event listeners
+        @editorBody$.prop '__editorCtl', this
 
-            # if chrome => listen to keyup to correct the insertion of the
-            # first caracter of an empty line
-            @isSafari = Object.prototype.toString.call(window.HTMLElement)
-            @isSafari = @isSafari.indexOf('Constructor') > 0
-            @isChrome = !@isSafari && 
-                     (`'WebkitTransform' in document.documentElement.style`)
-            @isChromeOrSafari = @isChrome or @isSafari
-            if @isChromeOrSafari
-               @linesDiv.addEventListener('keyup', @_keyUpCorrection, false)
+        # listen keydown on capturing phase (before bubbling)
+        @linesDiv.addEventListener('keydown', @_keyDownCallBack, true)
 
-            # Listen to mouse to detect when caret is moved
-            @linesDiv.addEventListener('mouseup', () =>
-                @newPosition = true
-            , true)
+        # if chrome => listen to keyup to correct the insertion of the
+        # first caracter of an empty line
+        @isFirefox = `'MozBoxSizing' in document.documentElement.style`
+        @isSafari = Object.prototype.toString.call(window.HTMLElement)
+        @isSafari = @isSafari.indexOf('Constructor') > 0
+        @isChrome = !@isSafari && 
+                 (`'WebkitTransform' in document.documentElement.style`)
+        @isChromeOrSafari = @isChrome or @isSafari
+        if @isChromeOrSafari
+           @linesDiv.addEventListener('keyup', @_keyUpCorrection, false)
 
-            @editorBody$.on 'keyup', () ->
-                iframe$.trigger jQuery.Event("onKeyUp")
-            @editorBody$.on 'click', (event) =>
-                @_lastKey = null
-            @editorBody$.on 'paste', (event) =>
-                @paste event
+        # Listen to mouse to detect when caret is moved
+        @linesDiv.addEventListener('mouseup', () =>
+            @newPosition = true
+        , true)
 
-            # return a ref to the editor's controler
-            callBack.call(this)
-            return this
+        @editorBody$.on 'keyup', () =>
+            @editorTarget$.trigger jQuery.Event("onKeyUp")
+
+        @editorBody$.on 'click', (event) =>
+            @_lastKey = null
+            if @_isCaretOnLink()
+                rg = @currentSel.theoricalRange
+                segment = selection.getSegment(rg.startContainer,rg.startOffset)
+                $(segment).popover({title:'mon titre',content:'mon contenu',placement:'bottom',container: '#well-editor'})
+                @showUrlPopover(segment)
+
+        @editorBody$.on 'paste', (event) =>
+            @paste event
+
+        # callback
+        @callBack.call(this)
 
     setFocus : () ->
         @linesDiv.focus()
@@ -316,6 +261,23 @@ class exports.CNeditor
     saveEditorSelection : () ->
         sel = rangy.getIframeSelection @editorTarget
         return rangy.serializeSelection sel, true, @linesDiv
+
+
+    ###*
+     * Test if a break point is in a segment being a link. If yes returns the
+     * segment, false otherwise.
+     * @return {Boolean} The segment if in a link, false otherwise
+    ###
+    _isCaretOnLink : () ->
+        rg = @updateCurrentSel().theoricalRange
+        if rg.collapsed
+            segment = selection.getSegment(rg.startContainer,rg.startOffset)
+            return (segment.nodeName == 'A')
+        else
+            segment1 = selection.getSegment(rg.startContainer,rg.startOffset)
+            segment2 = selection.getSegment(rg.endContainer,rg.endOffset)
+            return (segment1 == segment2) && segment1.nodeName == 'A'
+
 
     ### ------------------------------------------------------------------------
     # EXTENSION : _updateDeepest

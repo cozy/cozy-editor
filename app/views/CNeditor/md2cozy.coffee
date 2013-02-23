@@ -104,7 +104,14 @@ md2cozy.convertInlineEltToMarkdown = (obj) ->
             src   = if obj.attr('src')? then obj.attr('src') else ""
             return '![' + alt + '](' + src + ' "' + title + '")'
         when 'SPAN'
-            return obj.text()
+            classList = obj[0].classList
+            if classList.contains('CNE_strong')
+                return '**' + obj.text() + '**'
+            # underline is not in the standard md syntax...
+            else if classList.contains('CNE_underline')
+                return obj.text()
+            else
+                return obj.text()
         else
             return ''
 
