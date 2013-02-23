@@ -237,14 +237,69 @@ class exports.CNeditor
             if @_isCaretOnLink()
                 rg = @currentSel.theoricalRange
                 segment = selection.getSegment(rg.startContainer,rg.startOffset)
-                $(segment).popover({title:'mon titre',content:'mon contenu',placement:'bottom',container: '#well-editor'})
-                @showUrlPopover(segment)
+                # $(segment).popover({title:'mon titre',content:'mon contenu',placement:'bottom',container: '#well-editor'})
+                # $(segment).popover('show')
+                @_showUrlPopover(segment)
+
+        @_initUrlPopover()
 
         @editorBody$.on 'paste', (event) =>
             @paste event
 
         # callback
         @callBack.call(this)
+
+
+    _showUrlPopover : (segment) ->
+        edges = segment.getBoundingClientRect()
+        @urlPopover.segment = segment
+        @urlPopover.style.left = edges.left + 'px'
+        @urlPopover.style.top = edges.top + 17 + 'px'
+        @urlPopover.urlInput.value = segment.href
+        @urlPopover.textInput.value = segment.textContent
+        @urlPopover.style.display = 'block'
+        return true
+
+    _hideUrlPopover : (segment) =>
+        @urlPopover.style.display = 'none'
+
+    _validateUrlPopover : () =>
+        @urlPopover.segment.href = @urlPopover.urlInput.value
+        @urlPopover.segment.textContent = @urlPopover.textInput.value
+        @urlPopover.style.display = 'none'
+
+    _initUrlPopover : () ->
+        frag = document.createDocumentFragment()
+        divElm = document.createElement('div')
+        divElm.className = 'CNE_urlpop'
+        frag.appendChild(divElm)
+        divElm.innerHTML = 
+            """
+            <span class="CNE_urlpop_head">Link</span>
+            <span>(Ctrl+K)</span>
+            <div class="CNE_urlpop-content">
+                <a>Accéder au lien (Ctrl+click)</a></br>
+                <span>url</span><input type="text"></br>
+                <span>Text</span><input type="text"></br>
+                <button>ok</button>
+                <button>Cancel</button>
+            </div>
+            """
+        b = document.querySelector('body')
+        # b.appendChild(frag)
+        b.insertBefore(frag,b.firstChild)
+        pop = b.firstChild
+        @urlPopover = pop
+        [btnOK,btnCancel] = pop.querySelectorAll('button')
+        btnOK.addEventListener('click',@_validateUrlPopover)
+        # btnOK = pop.querySelector('button')
+        btnCancel.addEventListener('click',@_hideUrlPopover)
+        [urlInput,textInput] = pop.querySelectorAll('input')
+        @urlPopover.urlInput = urlInput
+        @urlPopover.textInput = textInput
+
+        return true
+
 
     setFocus : () ->
         @linesDiv.focus()
