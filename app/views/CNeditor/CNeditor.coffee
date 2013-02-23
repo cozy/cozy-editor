@@ -258,6 +258,8 @@ class exports.CNeditor
         @urlPopover.urlInput.value = segment.href
         @urlPopover.textInput.value = segment.textContent
         @urlPopover.style.display = 'block'
+        @urlPopover.urlInput.focus()
+        @urlPopover.urlInput.select()
         return true
 
     _hideUrlPopover : (segment) =>
@@ -270,10 +272,10 @@ class exports.CNeditor
 
     _initUrlPopover : () ->
         frag = document.createDocumentFragment()
-        divElm = document.createElement('div')
-        divElm.className = 'CNE_urlpop'
-        frag.appendChild(divElm)
-        divElm.innerHTML = 
+        pop = document.createElement('div')
+        pop.className = 'CNE_urlpop'
+        frag.appendChild(pop)
+        pop.innerHTML = 
             """
             <span class="CNE_urlpop_head">Link</span>
             <span>(Ctrl+K)</span>
@@ -288,15 +290,20 @@ class exports.CNeditor
         b = document.querySelector('body')
         # b.appendChild(frag)
         b.insertBefore(frag,b.firstChild)
-        pop = b.firstChild
-        @urlPopover = pop
         [btnOK,btnCancel] = pop.querySelectorAll('button')
         btnOK.addEventListener('click',@_validateUrlPopover)
         # btnOK = pop.querySelector('button')
         btnCancel.addEventListener('click',@_hideUrlPopover)
         [urlInput,textInput] = pop.querySelectorAll('input')
-        @urlPopover.urlInput = urlInput
-        @urlPopover.textInput = textInput
+        pop.urlInput = urlInput
+        pop.textInput = textInput
+        pop.addEventListener 'keypress', (e) =>
+            if e.keyCode == 13
+                @_validateUrlPopover()
+            else if e.keyCode == 27
+                @_hideUrlPopover()
+        pop.addEventListener('focusout',@_hideUrlPopover) #don't work ?
+        @urlPopover = pop
 
         return true
 
