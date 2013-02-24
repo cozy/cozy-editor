@@ -251,24 +251,37 @@ class exports.CNeditor
 
 
     _showUrlPopover : (segment) ->
+        pop = @urlPopover
+        pop.initialSelRg = document.getSelection().getRangeAt(0).cloneRange()
         edges = segment.getBoundingClientRect()
-        @urlPopover.segment = segment
-        @urlPopover.style.left = edges.left + 'px'
-        @urlPopover.style.top = edges.top + 17 + 'px'
-        @urlPopover.urlInput.value = segment.href
-        @urlPopover.textInput.value = segment.textContent
-        @urlPopover.style.display = 'block'
-        @urlPopover.urlInput.focus()
-        @urlPopover.urlInput.select()
+        pop.segment = segment
+        pop.style.left = edges.left + 'px'
+        pop.style.top = edges.top + 17 + 'px'
+        pop.urlInput.value = segment.href
+        pop.textInput.value = segment.textContent
+        pop.style.display = 'block'
+        pop.urlInput.focus()
+        pop.urlInput.select()
         return true
 
     _hideUrlPopover : (segment) =>
-        @urlPopover.style.display = 'none'
+        pop = @urlPopover
+        @currentSel.sel.setSingleRange pop.initialSelRg
+        pop.initialSelRg
+        pop.style.display = 'none'
+        @setFocus()
 
     _validateUrlPopover : () =>
-        @urlPopover.segment.href = @urlPopover.urlInput.value
-        @urlPopover.segment.textContent = @urlPopover.textInput.value
-        @urlPopover.style.display = 'none'
+        pop = @urlPopover
+        pop.segment.href = pop.urlInput.value
+        pop.segment.textContent = pop.textInput.value
+        pop.style.display = 'none'
+        @_setCaret(pop.segment.firstChild, pop.segment.firstChild.length)
+        # range = rangy.createRange()
+        # range.selectNode(pop.segment)
+        # @currentSel.sel.setSingleRange range
+        @setFocus()
+
 
     _initUrlPopover : () ->
         frag = document.createDocumentFragment()
@@ -288,11 +301,9 @@ class exports.CNeditor
             </div>
             """
         b = document.querySelector('body')
-        # b.appendChild(frag)
         b.insertBefore(frag,b.firstChild)
         [btnOK,btnCancel] = pop.querySelectorAll('button')
         btnOK.addEventListener('click',@_validateUrlPopover)
-        # btnOK = pop.querySelector('button')
         btnCancel.addEventListener('click',@_hideUrlPopover)
         [urlInput,textInput] = pop.querySelectorAll('input')
         pop.urlInput = urlInput
