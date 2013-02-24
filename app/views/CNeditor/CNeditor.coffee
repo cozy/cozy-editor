@@ -234,12 +234,11 @@ class exports.CNeditor
 
         @editorBody$.on 'click', (event) =>
             @_lastKey = null
-            if @_isCaretOnLink()
-                rg = @currentSel.theoricalRange
-                segment = selection.getSegment(rg.startContainer,rg.startOffset)
-                # $(segment).popover({title:'mon titre',content:'mon contenu',placement:'bottom',container: '#well-editor'})
-                # $(segment).popover('show')
-                @_showUrlPopover(segment)
+            segments = @_isCaretOnLink()
+            if segments
+                # rg = @currentSel.theoricalRange
+                # segment = selection.getSegment(rg.startContainer,rg.startOffset)
+                @_showUrlPopover(segments)
 
         @_initUrlPopover()
 
@@ -250,22 +249,31 @@ class exports.CNeditor
         @callBack.call(this)
 
 
-    _showUrlPopover : (segment) ->
+
+    ###*
+     * Show, positionate and initialise the popover for link edition.
+     * @param  {element} segment The segment of the link (<a>...</a>)
+    ###
+    _showUrlPopover : (segments) ->
         pop = @urlPopover
-        pop.initialSelRg = document.getSelection().getRangeAt(0).cloneRange()
-        edges = segment.getBoundingClientRect()
-        pop.segment = segment
+        pop.initialSelRg = @getEditorSelection().getRangeAt(0).cloneRange()
+        edges = segments[0].getBoundingClientRect()
+        pop.segments = segments
         pop.style.left = edges.left + 'px'
-        pop.style.top = edges.top + 17 + 'px'
-        pop.urlInput.value = segment.href
-        pop.textInput.value = segment.textContent
+        pop.style.top = edges.top + 20 + 'px'
+        pop.urlInput.value = segments[0].href
+        txt = ''
+        txt += seg.textContent for seg in segments
+        pop.textInput.value = txt
+        pop.initialTxt = txt
         pop.style.display = 'block'
-        pop.urlInput.focus()
         pop.urlInput.select()
+        seg.style.backgroundColor = '#dddddd' for seg in segments
         return true
 
-    _hideUrlPopover : (segment) =>
+    _hideUrlPopover : () =>
         pop = @urlPopover
+        seg.style.removeProperty('background-color') for seg in pop.segments
         @currentSel.sel.setSingleRange pop.initialSelRg
         pop.initialSelRg
         pop.style.display = 'none'
@@ -273,15 +281,25 @@ class exports.CNeditor
 
     _validateUrlPopover : () =>
         pop = @urlPopover
-        pop.segment.href = pop.urlInput.value
-        pop.segment.textContent = pop.textInput.value
+        segments = pop.segments
+        seg.style.removeProperty('background-color') for seg in segments
+        if pop.initialTxt == pop.textInput.value
+            seg.href = pop.urlInput.value for seg in segments
+            lastSeg = seg
+        else
+            seg = segments[0]
+            seg.href = pop.urlInput.value
+            seg.textContent = pop.textInput.value
+            parent = seg.parentNode
+            for i in [1..segments.length-1] by 1
+                seg = segments[i]
+                parent.removeChild(seg)
+            lastSeg = segments[0]
+            
         pop.style.display = 'none'
-        @_setCaret(pop.segment.firstChild, pop.segment.firstChild.length)
-        # range = rangy.createRange()
-        # range.selectNode(pop.segment)
-        # @currentSel.sel.setSingleRange range
-        @setFocus()
 
+        @_setCaret(lastSeg.firstChild, lastSeg.firstChild.length)
+        @setFocus()
 
     _initUrlPopover : () ->
         frag = document.createDocumentFragment()
@@ -319,18 +337,29 @@ class exports.CNeditor
         return true
 
 
+
+    ###*
+     * Set focus on the editor
+    ###
     setFocus : () ->
         @linesDiv.focus()
 
-    # methods to deal selection on an iframe
-    # this method is modified during construction if the editor target is not
-    # an iframe
+
+    ###*
+     * Methods to deal selection on an iframe
+     * This method is modified during construction if the editor target is not
+     * an iframe
+     * @return {selection} The selection on the editor.
+    ###
     getEditorSelection : () ->
         return rangy.getIframeSelection @editorTarget
 
 
-    # this method is modified during construction if the editor target is not
-    # an iframe
+    ###*
+     * this method is modified during construction if the editor target is not
+     * an iframe
+     * @return {[type]} [description]
+    ###
     saveEditorSelection : () ->
         sel = rangy.getIframeSelection @editorTarget
         return rangy.serializeSelection sel, true, @linesDiv
@@ -343,13 +372,30 @@ class exports.CNeditor
     ###
     _isCaretOnLink : () ->
         rg = @updateCurrentSel().theoricalRange
-        if rg.collapsed
-            segment = selection.getSegment(rg.startContainer,rg.startOffset)
-            return (segment.nodeName == 'A')
+        segment1 = selection.getSegment(rg.startContainer,rg.startOffset)
+        segments = [segment1]
+        if (segment1.nodeName == 'A')
+            sibling = segment1.nextSibling
+            while sibling != null                \
+              &&  sibling.nodeName == 'A'        \
+              &&  sibling.href == segment1.href
+                segments.push(sibling)
+                sibling = sibling.nextSibling
+            segments.reverse()
+            sibling = segment1.previousSibling
+            while sibling != null                \
+              &&  sibling.nodeName == 'A'        \
+              &&  sibling.href == segment1.href
+                segments.push(sibling)
+                sibling = sibling.previousSibling
+            segments.reverse()
+            return segments
         else
-            segment1 = selection.getSegment(rg.startContainer,rg.startOffset)
+            return false
+
+        if !rg.collapsed
             segment2 = selection.getSegment(rg.endContainer,rg.endOffset)
-            return (segment1 == segment2) && segment1.nodeName == 'A'
+        # isLink = (segment1 == segment2) && segment1.nodeName == 'A'
 
 
     ### ------------------------------------------------------------------------
@@ -840,6 +886,9 @@ class exports.CNeditor
         range = currentSel.theoricalRange
         # nothing to do if range is collapsed
         if range.collapsed
+            rg = @currentSel.theoricalRange
+            segment = selection.getSegment(rg.startContainer,rg.startOffset)
+            @_showUrlPopover(segment)
             return 
         # 1- create a range for each selected line and put them in 
         # an array (linesRanges)
@@ -857,6 +906,9 @@ class exports.CNeditor
             selection.normalize(range)
         # re check if range is collapsed
         if range.collapsed
+            rg = @currentSel.theoricalRange
+            segment = selection.getSegment(rg.startContainer,rg.startOffset)
+            @_showUrlPopover(segment)
             return
         # if a single line selection
         if line == endLine
