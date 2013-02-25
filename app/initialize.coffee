@@ -193,7 +193,7 @@ cb = () ->
         editorCtrler.applyMetaDataOnSelection('CNE_label')
         editorCtrler.setFocus()
     $("#linkBtn").on "click", () ->
-        editorCtrler.applyMetaDataOnSelection('A','https://www.cozycloud.cc/')
+        editorCtrler.linkifySelection()
         editorCtrler.setFocus()
     $("#clearBtn").on "click", () ->
         editorCtrler.deleteContent()

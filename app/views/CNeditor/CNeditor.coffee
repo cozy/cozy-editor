@@ -234,11 +234,11 @@ class exports.CNeditor
 
         @editorBody$.on 'click', (event) =>
             @_lastKey = null
-            segments = @_isCaretOnLink()
+            # if the start of selection after a click is in a link, then show
+            # url popover to edit the link.
+            segments = @_getLinkSegments()
             if segments
-                # rg = @currentSel.theoricalRange
-                # segment = selection.getSegment(rg.startContainer,rg.startOffset)
-                @_showUrlPopover(segments)
+                @_showUrlPopover(segments,false)
 
         @_initUrlPopover()
 
@@ -247,94 +247,6 @@ class exports.CNeditor
 
         # callback
         @callBack.call(this)
-
-
-
-    ###*
-     * Show, positionate and initialise the popover for link edition.
-     * @param  {element} segment The segment of the link (<a>...</a>)
-    ###
-    _showUrlPopover : (segments) ->
-        pop = @urlPopover
-        pop.initialSelRg = @getEditorSelection().getRangeAt(0).cloneRange()
-        edges = segments[0].getBoundingClientRect()
-        pop.segments = segments
-        pop.style.left = edges.left + 'px'
-        pop.style.top = edges.top + 20 + 'px'
-        pop.urlInput.value = segments[0].href
-        txt = ''
-        txt += seg.textContent for seg in segments
-        pop.textInput.value = txt
-        pop.initialTxt = txt
-        pop.style.display = 'block'
-        pop.urlInput.select()
-        seg.style.backgroundColor = '#dddddd' for seg in segments
-        return true
-
-    _hideUrlPopover : () =>
-        pop = @urlPopover
-        seg.style.removeProperty('background-color') for seg in pop.segments
-        @currentSel.sel.setSingleRange pop.initialSelRg
-        pop.initialSelRg
-        pop.style.display = 'none'
-        @setFocus()
-
-    _validateUrlPopover : () =>
-        pop = @urlPopover
-        segments = pop.segments
-        seg.style.removeProperty('background-color') for seg in segments
-        if pop.initialTxt == pop.textInput.value
-            seg.href = pop.urlInput.value for seg in segments
-            lastSeg = seg
-        else
-            seg = segments[0]
-            seg.href = pop.urlInput.value
-            seg.textContent = pop.textInput.value
-            parent = seg.parentNode
-            for i in [1..segments.length-1] by 1
-                seg = segments[i]
-                parent.removeChild(seg)
-            lastSeg = segments[0]
-            
-        pop.style.display = 'none'
-
-        @_setCaret(lastSeg.firstChild, lastSeg.firstChild.length)
-        @setFocus()
-
-    _initUrlPopover : () ->
-        frag = document.createDocumentFragment()
-        pop = document.createElement('div')
-        pop.className = 'CNE_urlpop'
-        frag.appendChild(pop)
-        pop.innerHTML = 
-            """
-            <span class="CNE_urlpop_head">Link</span>
-            <span>(Ctrl+K)</span>
-            <div class="CNE_urlpop-content">
-                <a>Accéder au lien (Ctrl+click)</a></br>
-                <span>url</span><input type="text"></br>
-                <span>Text</span><input type="text"></br>
-                <button>ok</button>
-                <button>Cancel</button>
-            </div>
-            """
-        b = document.querySelector('body')
-        b.insertBefore(frag,b.firstChild)
-        [btnOK,btnCancel] = pop.querySelectorAll('button')
-        btnOK.addEventListener('click',@_validateUrlPopover)
-        btnCancel.addEventListener('click',@_hideUrlPopover)
-        [urlInput,textInput] = pop.querySelectorAll('input')
-        pop.urlInput = urlInput
-        pop.textInput = textInput
-        pop.addEventListener 'keypress', (e) =>
-            if e.keyCode == 13
-                @_validateUrlPopover()
-            else if e.keyCode == 27
-                @_hideUrlPopover()
-        pop.addEventListener('focusout',@_hideUrlPopover) #don't work ?
-        @urlPopover = pop
-
-        return true
 
 
 
@@ -365,37 +277,6 @@ class exports.CNeditor
         return rangy.serializeSelection sel, true, @linesDiv
 
 
-    ###*
-     * Test if a break point is in a segment being a link. If yes returns the
-     * segment, false otherwise.
-     * @return {Boolean} The segment if in a link, false otherwise
-    ###
-    _isCaretOnLink : () ->
-        rg = @updateCurrentSel().theoricalRange
-        segment1 = selection.getSegment(rg.startContainer,rg.startOffset)
-        segments = [segment1]
-        if (segment1.nodeName == 'A')
-            sibling = segment1.nextSibling
-            while sibling != null                \
-              &&  sibling.nodeName == 'A'        \
-              &&  sibling.href == segment1.href
-                segments.push(sibling)
-                sibling = sibling.nextSibling
-            segments.reverse()
-            sibling = segment1.previousSibling
-            while sibling != null                \
-              &&  sibling.nodeName == 'A'        \
-              &&  sibling.href == segment1.href
-                segments.push(sibling)
-                sibling = sibling.previousSibling
-            segments.reverse()
-            return segments
-        else
-            return false
-
-        if !rg.collapsed
-            segment2 = selection.getSegment(rg.endContainer,rg.endOffset)
-        # isLink = (segment1 == segment2) && segment1.nodeName == 'A'
 
 
     ### ------------------------------------------------------------------------
@@ -659,13 +540,13 @@ class exports.CNeditor
             when 'Ctrl-V'
                 true
             when 'Ctrl-B'
-                @applyMetaDataOnSelection('CNE_strong')
+                @strongSelection()
                 e.preventDefault()
             when 'Ctrl-U'
-                @applyMetaDataOnSelection('CNE_underline')
+                @underlineSelection()
                 e.preventDefault()
             when 'Ctrl-K'
-                @applyMetaDataOnSelection('A','https://www.cozycloud.cc/')
+                @linkifySelection()
                 e.preventDefault()
             # SAVE (Ctrl + s)                  
             when 'Ctrl-S'
@@ -874,6 +755,223 @@ class exports.CNeditor
         return true
 
 
+
+    strongSelection : () ->
+        @_applyMetaDataOnSelection('CNE_strong')
+
+    underlineSelection : () ->
+        @_applyMetaDataOnSelection('CNE_underline')
+
+    linkifySelection: () ->
+        currentSel = @updateCurrentSelIsStartIsEnd()
+        range = currentSel.theoricalRange
+        # Show url popover if range is collapsed
+        if range.collapsed
+            segments = @_getLinkSegments()
+            if segments
+                @_showUrlPopover(segments,false)
+        # if selection !collapsed, 2 cases : 
+        # the start breakpoint is in a link or not
+        else
+            segments = @_getLinkSegments()
+            # case when the start break point is in a link
+            if segments
+                @_showUrlPopover(segments,true)
+            # case when the start break point is not in a link
+            else
+                @_saveLine()
+                @_applyMetaDataOnSelection('A','http://')
+                segments = @_getLinkSegments()
+                @_showUrlPopover(segments,true)
+        
+        return true
+            
+
+
+    _saveLine : () ->
+        # save selection
+        savedSel = @saveEditorSelection()
+        # duplicate line content
+        currentSel = @updateCurrentSel()
+        lineDiv = @currentSel.startLine.line$[0]
+        rg = document.createRange()
+        rg.selectNodeContents(lineDiv)
+        frag = rg.cloneContents()
+        # store
+        @savedLine =
+            lineDiv     : lineDiv
+            lineContent : frag
+            savedSel    : savedSel
+
+    _restoreSavedLine : () ->
+        # restore line content
+        rg = document.createRange()
+        rg.selectNodeContents(@savedLine.lineDiv)
+        rg.deleteContents()
+        @savedLine.lineDiv.appendChild(@savedLine.lineContent)
+        # restore selection
+        rangy.deserializeSelection @savedLine.savedSel, @linesDiv
+
+
+
+    ###*
+     * Show, positionate and initialise the popover for link edition.
+     * @param  {element} segment The segment of the link (<a>...</a>)
+    ###
+    _showUrlPopover : (segments, calledByLinkifySelection) ->
+        pop = @urlPopover
+        pop.calledByLinkifySelection = calledByLinkifySelection
+
+        # pop.initialSelRg = @getEditorSelection().getRangeAt(0).cloneRange()
+        pop.initialSelRg = @currentSel.theoricalRange.cloneRange()
+        edges = segments[0].getBoundingClientRect()
+        pop.segments = segments
+        pop.style.left = edges.left + 'px'
+        pop.style.top = edges.top + 20 + 'px'
+        pop.urlInput.value = segments[0].href
+        txt = ''
+        txt += seg.textContent for seg in segments
+        pop.textInput.value = txt
+        pop.initialTxt = txt
+        pop.style.display = 'block'
+        pop.urlInput.select()
+        seg.style.backgroundColor = '#dddddd' for seg in segments
+        return true
+
+    _cancelUrlPopover : () =>
+        pop = @urlPopover
+        seg.style.removeProperty('background-color') for seg in pop.segments
+        # case of a linkifySelection() called and cancelled => reverse the
+        # modification
+        if pop.calledByLinkifySelection
+            @_restoreSavedLine()
+            pop.style.display = 'none'
+            @setFocus()
+            return true
+
+
+        # case of a deletion of the urlInput value, what means 'remove the link'
+        if pop.urlInput.value == '' or pop.urlInput.value == 'http:///'
+            bps = @_applyMetaData(pop.initialSelRg, false, 'A', []) 
+            # 4- Position selection
+            rg = document.createRange()
+            bp1 = bps[0]
+            bp2 = bps[1]
+            rg.setStart(bp1.cont, bp1.offset)
+            rg.setEnd(  bp2.cont, bp2.offset)
+            if @isFirefox
+                sel = this.currentSel.sel
+            else
+                sel = document.getSelection()
+            sel.removeAllRanges()
+            sel.addRange(rg)
+        else
+            @currentSel.sel.setSingleRange pop.initialSelRg
+        pop.style.display = 'none'
+        @setFocus()
+
+    _validateUrlPopover : () =>
+        pop = @urlPopover
+        segments = pop.segments
+        seg.style.removeProperty('background-color') for seg in segments
+        
+        # case of a cancelation => remove links of segments
+        if pop.urlInput.value == '' 
+            t
+
+        # case if only href is changed but not the text
+        if pop.initialTxt == pop.textInput.value
+            seg.href = pop.urlInput.value for seg in segments
+            lastSeg = seg
+
+        # case if the text of the link is modified : we concatenate all segments
+        else
+            seg = segments[0]
+            seg.href = pop.urlInput.value
+            seg.textContent = pop.textInput.value
+            parent = seg.parentNode
+            for i in [1..segments.length-1] by 1
+                seg = segments[i]
+                parent.removeChild(seg)
+            lastSeg = segments[0]
+        
+        # hide popover and manage selection
+        pop.style.display = 'none'
+        @_setCaret(lastSeg.firstChild, lastSeg.firstChild.length)
+        @setFocus()
+
+    _initUrlPopover : () ->
+        frag = document.createDocumentFragment()
+        pop = document.createElement('div')
+        pop.className = 'CNE_urlpop'
+        frag.appendChild(pop)
+        pop.innerHTML = 
+            """
+            <span class="CNE_urlpop_head">Link</span>
+            <span>(Ctrl+K)</span>
+            <div class="CNE_urlpop-content">
+                <a>Accéder au lien (Ctrl+click)</a></br>
+                <span>url</span><input type="text"></br>
+                <span>Text</span><input type="text"></br>
+                <button>ok</button>
+                <button>Cancel</button>
+                <button>Delete</button>
+            </div>
+            """
+        b = document.querySelector('body')
+        b.insertBefore(frag,b.firstChild)
+        [btnOK,btnCancel,btnDelete] = pop.querySelectorAll('button')
+        btnOK.addEventListener('click',@_validateUrlPopover)
+        btnCancel.addEventListener('click',@_cancelUrlPopover)
+        btnDelete.addEventListener 'click', () ->
+            pop.urlInput.value = ''
+            @_validateUrlPopover()
+
+        [urlInput,textInput] = pop.querySelectorAll('input')
+        pop.urlInput = urlInput
+        pop.textInput = textInput
+        pop.addEventListener 'keypress', (e) =>
+            if e.keyCode == 13
+                @_validateUrlPopover()
+            else if e.keyCode == 27
+                @_cancelUrlPopover()
+        pop.addEventListener('focusout',@_cancelUrlPopover) #don't work ?
+        @urlPopover = pop
+
+        return true
+
+
+    ###*
+     * Tests if a the start break point of the selection is in a segment being 
+     * a link. If yes returns the array of the segments corresponding to the
+     * link, false otherwise.
+     * The link can be composed of several segments, but they are on a single
+     * line.
+     * @return {Boolean} The segment if in a link, false otherwise
+    ###
+    _getLinkSegments : () ->
+        rg = @updateCurrentSel().theoricalRange
+        segment1 = selection.getSegment(rg.startContainer,rg.startOffset)
+        segments = [segment1]
+        if (segment1.nodeName == 'A')
+            sibling = segment1.nextSibling
+            while sibling != null                \
+              &&  sibling.nodeName == 'A'        \
+              &&  sibling.href == segment1.href
+                segments.push(sibling)
+                sibling = sibling.nextSibling
+            segments.reverse()
+            sibling = segment1.previousSibling
+            while sibling != null                \
+              &&  sibling.nodeName == 'A'        \
+              &&  sibling.href == segment1.href
+                segments.push(sibling)
+                sibling = sibling.previousSibling
+            segments.reverse()
+            return segments
+        else
+            return false
+
     ###*
      * applies a metadata such as STRONG, UNDERLINED, A/href etc... on the
      * selected text.
@@ -881,38 +979,46 @@ class exports.CNeditor
      * @param  {string} others... Other params if metadata requires 
      *                            some (href for instance)
     ###
-    applyMetaDataOnSelection : (metaData, others...) ->
+    _applyMetaDataOnSelection : (metaData, others...) ->
         currentSel = @updateCurrentSelIsStartIsEnd()
         range = currentSel.theoricalRange
-        # nothing to do if range is collapsed
-        if range.collapsed
-            rg = @currentSel.theoricalRange
-            segment = selection.getSegment(rg.startContainer,rg.startOffset)
-            @_showUrlPopover(segment)
-            return 
+
         # 1- create a range for each selected line and put them in 
         # an array (linesRanges)
         line = @currentSel.startLine
         endLine = @currentSel.endLine
+
         # case when the selection on the first line starts at the end of line
         if currentSel.firstLineIsEnd
             line = line.lineNext
             range.setStartBefore(line.line$[0].firstChild)
             selection.normalize(range)
+
         # case when the selection on the last line ends at the start of line
         if currentSel.lastLineIsStart
             endLine = endLine.linePrev
             range.setEndBefore(endLine.line$[0].lastChild)
             selection.normalize(range)
+
+        # case when metadata is an mono line metadata ('A' for instance), then
+        # we limit the selection to the first line
+        if metaData == 'A' and line != endLine
+            range.setEndBefore(line.line$[0].lastChild)
+            selection.normalize(range)
+            endLine = line
+
         # re check if range is collapsed
         if range.collapsed
             rg = @currentSel.theoricalRange
             segment = selection.getSegment(rg.startContainer,rg.startOffset)
-            @_showUrlPopover(segment)
+            @_showUrlPopover(segment, false)
             return
+
         # if a single line selection
         if line == endLine
             linesRanges = [range]
+        
+        # if a multi line selection
         else
             # range for the 1st line
             rg = range.cloneRange()
@@ -962,7 +1068,7 @@ class exports.CNeditor
         sel.removeAllRanges()
         sel.addRange(rg)
 
-        return true
+        return rg
 
 
     ###*
@@ -1027,12 +1133,17 @@ class exports.CNeditor
      * Add or remove a meta data to the segments delimited by the range. The
      * range must be within a single line and normalized (its breakpoints must
      * be in text nodes)
-     * @param  {range} range    [description]
+     * @param  {range} range    The range on which we want to apply the 
+     *                          metadata. The range must be within a single line
+     *                          and normalized (its breakpoints must be in text
+     *                          nodes)
      * @param  {boolean} addMeta  True if the action is to add the metaData, 
      *                            False if the action is to remove it.
      * @param  {string} metaData The name of the meta data to look for. It can
      *                           be a css class ('CNE_strong' for instance), 
      *                           or a metadata type ('A' for instance)
+     * @param {array} others Array of others params fot meta, can be [] but not
+     *                       null (not optionnal)
      * @return {array}          [bp1,bp2] : the breakpoints corresponding to the
      *                          initial range after the line transformation.
     ###
