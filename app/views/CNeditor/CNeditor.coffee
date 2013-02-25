@@ -459,7 +459,7 @@ class exports.CNeditor
                shortcut in ['-tab', '-return', '-backspace', '-suppr',
                             'CtrlShift-down', 'CtrlShift-up',
                             'CtrlShift-left', 'CtrlShift-right',
-                            'Ctrl-B', 'Ctrl-U', 'Ctrl-K',
+                            'Ctrl-B', 'Ctrl-U', 
                             'Ctrl-V', 'Shift-tab', '-space', '-other', 'Alt-A']
             @_addHistory()
            
@@ -776,10 +776,10 @@ class exports.CNeditor
             segments = @_getLinkSegments()
             # case when the start break point is in a link
             if segments
-                @_showUrlPopover(segments,true)
+                @_showUrlPopover(segments,false)
             # case when the start break point is not in a link
             else
-                @_saveLine()
+                @_addHistory()
                 @_applyMetaDataOnSelection('A','http://')
                 segments = @_getLinkSegments()
                 @_showUrlPopover(segments,true)
@@ -787,40 +787,19 @@ class exports.CNeditor
         return true
             
 
-
-    _saveLine : () ->
-        # save selection
-        savedSel = @saveEditorSelection()
-        # duplicate line content
-        currentSel = @updateCurrentSel()
-        lineDiv = @currentSel.startLine.line$[0]
-        rg = document.createRange()
-        rg.selectNodeContents(lineDiv)
-        frag = rg.cloneContents()
-        # store
-        @savedLine =
-            lineDiv     : lineDiv
-            lineContent : frag
-            savedSel    : savedSel
-
-    _restoreSavedLine : () ->
-        # restore line content
-        rg = document.createRange()
-        rg.selectNodeContents(@savedLine.lineDiv)
-        rg.deleteContents()
-        @savedLine.lineDiv.appendChild(@savedLine.lineContent)
-        # restore selection
-        rangy.deserializeSelection @savedLine.savedSel, @linesDiv
-
-
-
     ###*
      * Show, positionate and initialise the popover for link edition.
-     * @param  {element} segment The segment of the link (<a>...</a>)
+     * @param  {array} segments  An array with the segments of 
+     *                           the link [<a>,...<a>]. Must be created even if
+     *                           it is a creation in order to put a background
+     *                           on the segment where the link will be.
+     * @param  {boolean} isLinkCreation True is it is a creation. In this case,
+     *                                  if the process is canceled, the initial
+     *                                  state without link will be restored.
     ###
-    _showUrlPopover : (segments, calledByLinkifySelection) ->
+    _showUrlPopover : (segments, isLinkCreation) ->
         pop = @urlPopover
-        pop.calledByLinkifySelection = calledByLinkifySelection
+        pop.isLinkCreation = isLinkCreation
 
         # pop.initialSelRg = @getEditorSelection().getRangeAt(0).cloneRange()
         pop.initialSelRg = @currentSel.theoricalRange.cloneRange()
@@ -840,20 +819,57 @@ class exports.CNeditor
 
     _cancelUrlPopover : () =>
         pop = @urlPopover
+        pop.style.display = 'none'
         seg.style.removeProperty('background-color') for seg in pop.segments
-        # case of a linkifySelection() called and cancelled => reverse the
-        # modification
-        if pop.calledByLinkifySelection
-            @_restoreSavedLine()
-            pop.style.display = 'none'
+        # case of a link creation called and cancelled : a segment for the link
+        # to creat has already been added in order to show the selection when 
+        # popover is visible. As it is canceled, we undo in order to remove this
+        # link.
+        if pop.isLinkCreation
+            rg = document.createRange()
+            rg.selectNodeContents(seg)
+            @currentSel.sel.setSingleRange rg
+            @unDo()
             @setFocus()
+        else
+            @currentSel.sel.setSingleRange(pop.initialSelRg)
+            @setFocus()
+
+        return true
+
+    _validateUrlPopover : () =>
+        pop = @urlPopover
+        segments = pop.segments
+
+        # in case of a link creation and the user validated an empty url, just
+        # cancel the link creation
+        if pop.urlInput.value == '' && pop.isLinkCreation
+            @_cancelUrlPopover()
             return true
 
+        # remove background of selection and hide popover
+        pop.style.display = 'none'
+        seg.style.removeProperty('background-color') for seg in segments
 
-        # case of a deletion of the urlInput value, what means 'remove the link'
-        if pop.urlInput.value == '' or pop.urlInput.value == 'http:///'
-            bps = @_applyMetaData(pop.initialSelRg, false, 'A', []) 
-            # 4- Position selection
+        # in case of a link creation, addhistory has already be done, it must 
+        # then be done if non a link creation.
+        if !pop.isLinkCreation
+            @currentSel.sel.setSingleRange pop.initialSelRg # otherwise addhistory will not work
+            @_addHistory()
+
+        # case of a deletion of the urlInput value => 'remove the link'
+        if pop.urlInput.value == ''
+            # bps = @_applyMetaData(pop.initialSelRg, false, 'A', [])
+            l = segments.length
+            bp1 = 
+                cont : segments[0].firstChild
+                offset : 0
+            bp2 = 
+                cont : segments[l-1].firstChild
+                offset : segments[l-1].firstChild.length
+            bps = [bp1,bp2]
+            @_applyAhrefToSegments(segments[0], segments[l-1], bps, false, 'A', '')
+            # Position selection
             rg = document.createRange()
             bp1 = bps[0]
             bp2 = bps[1]
@@ -865,22 +881,11 @@ class exports.CNeditor
                 sel = document.getSelection()
             sel.removeAllRanges()
             sel.addRange(rg)
-        else
-            @currentSel.sel.setSingleRange pop.initialSelRg
-        pop.style.display = 'none'
-        @setFocus()
-
-    _validateUrlPopover : () =>
-        pop = @urlPopover
-        segments = pop.segments
-        seg.style.removeProperty('background-color') for seg in segments
-        
-        # case of a cancelation => remove links of segments
-        if pop.urlInput.value == '' 
-            t
+            @setFocus()
+            return true
 
         # case if only href is changed but not the text
-        if pop.initialTxt == pop.textInput.value
+        else if pop.initialTxt == pop.textInput.value
             seg.href = pop.urlInput.value for seg in segments
             lastSeg = seg
 
@@ -895,8 +900,7 @@ class exports.CNeditor
                 parent.removeChild(seg)
             lastSeg = segments[0]
         
-        # hide popover and manage selection
-        pop.style.display = 'none'
+        # manage selection
         @_setCaret(lastSeg.firstChild, lastSeg.firstChild.length)
         @setFocus()
 
@@ -923,7 +927,7 @@ class exports.CNeditor
         [btnOK,btnCancel,btnDelete] = pop.querySelectorAll('button')
         btnOK.addEventListener('click',@_validateUrlPopover)
         btnCancel.addEventListener('click',@_cancelUrlPopover)
-        btnDelete.addEventListener 'click', () ->
+        btnDelete.addEventListener 'click', () =>
             pop.urlInput.value = ''
             @_validateUrlPopover()
 
@@ -2622,6 +2626,10 @@ class exports.CNeditor
     ### -------------------------------------------------------------------------
     #  unDo :
     # Undo the previous action
+
+    ###
+    ###*
+     * Undo the previous action
     ###
     unDo : () ->
         # if there is an action to undo
@@ -2666,7 +2674,7 @@ class exports.CNeditor
             # 2 - restore selection
             savedSel = @_history.historySelect[@_history.index+1]
             savedSel.restored = false
-            rangy.restoreSelection(savedSel)
+            rangy.deserializeSelection(savedSel, @linesDiv)
             # 3 - restore scrollbar position
             xcoord = @_history.historyScroll[@_history.index+1].xcoord
             ycoord = @_history.historyScroll[@_history.index+1].ycoord
