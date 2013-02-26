@@ -455,6 +455,10 @@ class exports.CNeditor
                 e.preventDefault()
                 return
 
+        # Add a new history step if the short cut is different from previous
+        # shortcut and only in case a a return, a backspace, a space...
+        # This means that in case of multiple return, only the first one is in
+        # history. A letter such as 'a' doesn't increase the history.
         if @_lastKey != shortcut and \
                shortcut in ['-tab', '-return', '-backspace', '-suppr',
                             'CtrlShift-down', 'CtrlShift-up',
