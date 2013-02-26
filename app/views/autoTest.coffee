@@ -228,7 +228,7 @@ class exports.AutoTest
         child1 = children[0]
         while child1.nodeName != 'BR'
             child2 = child1.nextSibling
-            isSimilar = this.editor._compareSegments(child1,child2)
+            isSimilar = this.editor._haveSameMeta(child1,child2)
             if isSimilar
                 txt = "two successive element in a line which are similar (same node type and class)"
                 @logErr(line,txt)

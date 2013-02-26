@@ -800,8 +800,6 @@ class exports.CNeditor
     _showUrlPopover : (segments, isLinkCreation) ->
         pop = @urlPopover
         pop.isLinkCreation = isLinkCreation
-
-        # pop.initialSelRg = @getEditorSelection().getRangeAt(0).cloneRange()
         pop.initialSelRg = @currentSel.theoricalRange.cloneRange()
         edges = segments[0].getBoundingClientRect()
         pop.segments = segments
@@ -1298,7 +1296,6 @@ class exports.CNeditor
         return null
 
 
-
     _applyCssToSegments : (startSegment, endSegment, addMeta, cssClass) ->
         segment  =  startSegment
         stopNext = (segment == endSegment)
@@ -1318,7 +1315,7 @@ class exports.CNeditor
         prevSegment = lineDiv.firstChild
         segment     = prevSegment.nextSibling
         while segment.nodeName != 'BR'
-            isSimilar = @_compareSegments(prevSegment, segment)
+            isSimilar = @_haveSameMeta(prevSegment, segment)
             if isSimilar
                 @_fusionSegments(prevSegment, segment, breakPoints)
                 segment     = prevSegment.nextSibling
@@ -1329,7 +1326,7 @@ class exports.CNeditor
         return breakPoints
 
 
-    _compareSegments : (segment1, segment2) ->
+    _haveSameMeta : (segment1, segment2) ->
         if segment1.nodeName != segment2.nodeName
             return false
         else if segment1.nodeName == 'A'
@@ -2926,42 +2923,19 @@ class exports.CNeditor
         # prepare lineElements
         if frag.childNodes.length > 0
             lineElements = Array.prototype.slice.call(frag.firstChild.childNodes)
+            lineElements.pop() # remove the </br>
         else
+            # ?? in which case do we come here ? please document...
             lineElements = [frag]
         # loop on each element to insert (only one for now)
-        for elToInsert in lineElements
-            @_insertElement
-            # If targetNode & elToInsert are SPAN or TextNode and both have 
-            # the same class, then we concatenate them
-            if (elToInsert.tagName=='SPAN')
-                if (targetNode.tagName=='SPAN' or targetNode.nodeType==Node.TEXT_NODE )
-                    targetText   = targetNode.textContent
-                    newText      = targetText.substr(0,startOffset)
-                    newText     += elToInsert.textContent
-                    newText     += targetText.substr(startOffset)
-                    targetNode.textContent = newText
-                    startOffset += elToInsert.textContent.length
-                else if targetNode.tagName=='A'
-                    targetNode.parentElement.insertBefore(elToInsert,targetNode.nextSibling)
-                    targetNode = targetNode.parentElement
-                    startOffset = $(targetNode).children().index(elToInsert) + 1
-                else if targetNode.tagName=='DIV'
-                    targetNode.insertBefore(elToInsert,targetNode[startOffset])
-                    startOffset += 1
-
-            else if (elToInsert.tagName=='A')
-                if targetNode.nodeName=='#text'
-                    parent = targetNode.parentElement
-                    parent.parentElement.insertBefore(elToInsert,parent.nextSibling)
-                    targetNode = parent.parentElement
-                    startOffset = $(targetNode).children().index(elToInsert) + 1
-                else if targetNode.tagName in ['SPAN' ,'A']
-                    targetNode.parentElement.insertBefore(elToInsert,targetNode.nextSibling)
-                    targetNode = targetNode.parentElement
-                    startOffset = $(targetNode).children().index(elToInsert) + 1
-                else if targetNode.tagName == 'DIV'
-                    targetNode.insertBefore(elToInsert,targetNode[startOffset])
-                    startOffset += 1
+        bp = 
+            cont   : targetNode
+            offset : startOffset
+        for segToInsert in lineElements
+            @_insertSegment(segToInsert,bp)
+        
+        targetNode  = bp.cont
+        startOffset = bp.offset
 
         ###
         # 6- If the clipboard has more than one line, insert the end of target
@@ -3020,6 +2994,77 @@ class exports.CNeditor
             currSel.sel.collapse(targetNode, startOffset)
 
 
+    _insertSegment : (segment,bp) ->
+        targetNode  = bp.cont
+        targetSeg   = selection.getSegment(targetNode)
+        # If targetSeg & segment have the same meta data => concatenate
+        
+        if segment.nodeName == 'SPAN'
+            if targetSeg.nodeName == 'A' or @_haveSameMeta(targetSeg,segment)
+                @_insertTextInSegment(segment.textContent, bp, targetSeg )
+            else
+                @_splitAndInsertSegment(segment, bp, targetSeg)
+        else if @_haveSameMeta(targetSeg,segment)
+            @_insertTextInSegment(segment.textContent, bp, targetSeg)
+        else
+            @_splitAndInsertSegment(segment,targetSeg, bp)
+
+        return true
+
+
+    _insertTextInSegment : (txt, bp, targetSeg) ->
+        targetText   = targetSeg.textContent
+        if !targetSeg
+            targetSeg = selection.getSegment(bp.cont)
+        offset = bp.offset
+        newText      = targetText.substr(0,offset)
+        newText     += txt
+        newText     += targetText.substr(offset)
+        targetSeg.textContent = newText
+        offset += txt.length
+        bp.offset = offset
+        return offset
+
+
+        # if @_haveSameMeta(targetNode,segment)
+        #     fusion
+        # # If targetNode & segment don't have the same meta data => 
+        # # split targetSeg and insert segToInset
+        # else
+        #     insertion
+
+        # startOffset = bp.offset
+        # if (segment.tagName=='SPAN')
+        #     if (targetNode.tagName=='SPAN' or targetNode.nodeType==Node.TEXT_NODE )
+        #         targetText   = targetNode.textContent
+        #         newText      = targetText.substr(0,startOffset)
+        #         newText     += segment.textContent
+        #         newText     += targetText.substr(startOffset)
+        #         targetNode.textContent = newText
+        #         startOffset += segment.textContent.length
+        #     else if targetNode.tagName=='A'
+        #         targetNode.parentElement.insertBefore(segment,targetNode.nextSibling)
+        #         targetNode = targetNode.parentElement
+        #         startOffset = $(targetNode).children().index(segment) + 1
+        #     else if targetNode.tagName=='DIV'
+        #         targetNode.insertBefore(segment,targetNode[startOffset])
+        #         startOffset += 1
+
+        # else if (segment.tagName=='A')
+        #     if targetNode.nodeName=='#text'
+        #         parent = targetNode.parentElement
+        #         parent.parentElement.insertBefore(segment,parent.nextSibling)
+        #         targetNode = parent.parentElement
+        #         startOffset = $(targetNode).children().index(segment) + 1
+        #     else if targetNode.tagName in ['SPAN' ,'A']
+        #         targetNode.parentElement.insertBefore(segment,targetNode.nextSibling)
+        #         targetNode = targetNode.parentElement
+        #         startOffset = $(targetNode).children().index(segment) + 1
+        #     else if targetNode.tagName == 'DIV'
+        #         targetNode.insertBefore(segment,targetNode[startOffset])
+        #         startOffset += 1
+        # bp.cont = targetNode
+        # bp.offset = startOffset
 
     ###*
      * Insert a frag in a node container at startOffset
