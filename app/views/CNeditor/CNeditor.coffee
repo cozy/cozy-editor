@@ -841,23 +841,23 @@ class exports.CNeditor
         pop = @urlPopover
         segments = pop.segments
 
-        # in case of a link creation and the user validated an empty url, just
+        # 1- in case of a link creation and the user validated an empty url, just
         # cancel the link creation
         if pop.urlInput.value == '' && pop.isLinkCreation
             @_cancelUrlPopover()
             return true
 
-        # remove background of selection and hide popover
+        # 2- remove background of selection and hide popover
         pop.style.display = 'none'
         seg.style.removeProperty('background-color') for seg in segments
 
-        # in case of a link creation, addhistory has already be done, it must 
+        # 3- in case of a link creation, addhistory has already be done, it must 
         # then be done if non a link creation.
         if !pop.isLinkCreation
             @currentSel.sel.setSingleRange pop.initialSelRg # otherwise addhistory will not work
             @_addHistory()
 
-        # case of a deletion of the urlInput value => 'remove the link'
+        # 4- case of a deletion of the urlInput value => 'remove the link'
         if pop.urlInput.value == ''
             # bps = @_applyMetaData(pop.initialSelRg, false, 'A', [])
             l = segments.length
@@ -865,7 +865,7 @@ class exports.CNeditor
                 cont : segments[0].firstChild
                 offset : 0
             bp2 = 
-                cont : segments[l-1].firstChild
+                cont   : segments[l-1].firstChild
                 offset : segments[l-1].firstChild.length
             bps = [bp1,bp2]
             @_applyAhrefToSegments(segments[0], segments[l-1], bps, false, 'A', '')
@@ -884,12 +884,13 @@ class exports.CNeditor
             @setFocus()
             return true
 
-        # case if only href is changed but not the text
+        # 5- case if only href is changed but not the text
         else if pop.initialTxt == pop.textInput.value
             seg.href = pop.urlInput.value for seg in segments
             lastSeg = seg
 
-        # case if the text of the link is modified : we concatenate all segments
+        # 6- case if the text of the link is modified : we concatenate 
+        # all segments
         else
             seg = segments[0]
             seg.href = pop.urlInput.value
@@ -900,9 +901,10 @@ class exports.CNeditor
                 parent.removeChild(seg)
             lastSeg = segments[0]
         
-        # manage selection
+        # 7- manage selection
         @_setCaret(lastSeg.firstChild, lastSeg.firstChild.length)
         @setFocus()
+
 
     _initUrlPopover : () ->
         frag = document.createDocumentFragment()
@@ -1273,7 +1275,7 @@ class exports.CNeditor
                     a = document.createElement('A')
                     a.href = href
                     a.textContent = segment.textContent
-                    a.classeName = segment.classeName
+                    a.className = segment.className
                     for bp in bps
                         if bp.cont.parentNode == segment
                             bp.cont = a.firstChild
@@ -1282,7 +1284,7 @@ class exports.CNeditor
             else
                     span = document.createElement('SPAN')
                     span.textContent = segment.textContent
-                    span.classeName = segment.classeName
+                    span.className = segment.className
                     for bp in bps
                         if bp.cont.parentNode == segment
                             bp.cont = span.firstChild
