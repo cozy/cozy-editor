@@ -189,6 +189,12 @@ cb = () ->
     $("#underlineBtn").on "click", () ->
         editorCtrler.applyMetaDataOnSelection('CNE_underline')
         editorCtrler.setFocus()
+    $("#labelBtn").on "click", () ->
+        editorCtrler.applyMetaDataOnSelection('CNE_label')
+        editorCtrler.setFocus()
+    $("#linkBtn").on "click", () ->
+        editorCtrler.linkifySelection()
+        editorCtrler.setFocus()
     $("#clearBtn").on "click", () ->
         editorCtrler.deleteContent()
         editorCtrler.setFocus()

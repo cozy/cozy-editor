@@ -147,175 +147,137 @@ class exports.CNeditor
     #                      is set to the editorCtrl (callBack.call(this))
     ###
     constructor : (@editorTarget, callBack) ->
+        @editorTarget$ = $(@editorTarget)
+        @callBack = callBack
         if @editorTarget.nodeName == "IFRAME"
-
-            iframe$ = $(@editorTarget)
-            
-            iframe$.on 'load', () =>
-                # preparation of the iframe
-                editor_html$ = iframe$.contents().find("html")
-                @editorBody$ = editor_html$.find("body")
-                @editorBody$.parent().attr('id','__ed-iframe-html')
-                @editorBody$.attr("id","__ed-iframe-body")
-
-                @document = @editorBody$[0].ownerDocument
-                editor_head$ = editor_html$.find("head")
-                cssLink = '<link id="editorCSS" '
-                cssLink += 'href="stylesheets/CNeditor.css" rel="stylesheet">'
-                editor_head$.html(cssLink)
-
-                # Create div that will contains line
-                @linesDiv = document.createElement 'div'
-                @linesDiv.setAttribute('id','editor-lines')
-                @linesDiv.setAttribute('class','editor-frame')
-                @linesDiv.setAttribute('contenteditable','true')
-                @editorBody$.append @linesDiv
-            
-                # init clipboard div
-                @_initClipBoard()
-
-                # set the properties of the editor
-                @_lines       = {}            # contains every line
-                @newPosition  = true          # true if cursor has moved 
-                @_highestId   = 0             # last inserted line identifier
-                @_deepest     = 1             # current maximum indentation
-                @_firstLine   = null          # pointer to the first line
-                @_history     =               # for history management
-                    index        : 0
-                    history      : [null]
-                    historySelect: [null]
-                    historyScroll: [null]
-                    historyPos   : [null]
-                @_lastKey     = null      # last pressed key (avoid duplication)
-
-                # initialize event listeners
-                @editorBody$.prop '__editorCtl', this
-
-                # listen keydown on capturing phase (before bubbling)
-                @linesDiv.addEventListener('keydown', @_keyDownCallBack, true)
-
-                # if chrome => listen to keyup to correct the insertion of the
-                # first caracter of an empty line
-                @isFirefox = `'MozBoxSizing' in document.documentElement.style`
-                @isSafari = Object.prototype.toString.call(window.HTMLElement)
-                @isSafari = @isSafari.indexOf('Constructor') > 0
-                @isChrome = !@isSafari && 
-                         (`'WebkitTransform' in document.documentElement.style`)
-                @isChromeOrSafari = @isChrome or @isSafari
-                if @isChromeOrSafari
-                   @linesDiv.addEventListener('keyup', @_keyUpCorrection, false)
-
-                # Listen to mouse to detect when caret is moved
-                @linesDiv.addEventListener('mouseup', () =>
-                    @newPosition = true
-                , true)
-
-                @editorBody$.on 'keyup', () ->
-                    iframe$.trigger jQuery.Event("onKeyUp")
-                @editorBody$.on 'click', (event) =>
-                    @_lastKey = null
-                @editorBody$.on 'paste', (event) =>
-                    @paste event
-
-                # return a ref to the editor's controler
-                callBack.call(this)
-                return this
+            @isInIframe = true
+            @editorTarget$.on 'load', @loadEditor
             @editorTarget.src = ''
-
         else if @editorTarget.nodeName == "DIV"
+            @isInIframe = false
+            @loadEditor()
+        # return a ref to the editor's controler
+        return this
 
-            iframe$ = $(@editorTarget)
-            
+
+    loadEditor : () =>
+        if @isInIframe
             # preparation of the iframe
-            # editor_html$ = iframe$.contents().find("html")
-            @editorBody$ = iframe$
-            # @editorBody$.parent().attr('id','__ed-iframe-html')
-            # @editorBody$.attr("id","__ed-iframe-body")
+            editor_html$ = @editorTarget$.contents().find("html")
+            @editorBody$ = editor_html$.find("body")
+            @editorBody$.parent().attr('id','__ed-iframe-html')
+            @editorBody$.attr("id","__ed-iframe-body")
 
-            # @document = $(document)
-            # editor_head$ = $(document).find("head")
-            # cssLink = '<link id="editorCSS" '
-            # cssLink += 'href="stylesheets/CNeditor.css" rel="stylesheet">'
-            # cssEl = $(cssLink)
-            # editor_head$.append(cssEl)
+            @document = @editorBody$[0].ownerDocument
+            editor_head$ = editor_html$.find("head")
+            cssLink = '<link id="editorCSS" '
+            cssLink += 'href="stylesheets/CNeditor.css" rel="stylesheet">'
+            editor_head$.html(cssLink)
+        else
+            @editorBody$ = @editorTarget$
 
-            # Create div that will contains line
-            @linesDiv = document.createElement 'div'
-            @linesDiv.setAttribute('id','editor-lines')
-            @linesDiv.setAttribute('class','editor-frame')
-            @linesDiv.setAttribute('contenteditable','true')
-            @editorBody$.append @linesDiv
             @getEditorSelection = () ->
                 return rangy.getSelection()
-
+            
             @saveEditorSelection = () ->
                 sel = rangy.getSelection()
                 return rangy.serializeSelection sel, true, @linesDiv
-        
-            # init clipboard div
-            @_initClipBoard()
 
-            # set the properties of the editor
-            @_lines       = {}            # contains every line
-            @newPosition  = true          # true if cursor has moved 
-            @_highestId   = 0             # last inserted line identifier
-            @_deepest     = 1             # current maximum indentation
-            @_firstLine   = null          # pointer to the first line
-            @_history     =               # for history management
-                index        : 0
-                history      : [null]
-                historySelect: [null]
-                historyScroll: [null]
-                historyPos   : [null]
-            @_lastKey     = null      # last pressed key (avoid duplication)
+        # Create div that will contains line
+        @linesDiv = document.createElement 'div'
+        @linesDiv.setAttribute('id','editor-lines')
+        @linesDiv.setAttribute('class','editor-frame')
+        @linesDiv.setAttribute('contenteditable','true')
+        @editorBody$.append @linesDiv
+    
+        # init clipboard div
+        @_initClipBoard()
 
-            # initialize event listeners
-            @editorBody$.prop '__editorCtl', this
+        # set the properties of the editor
+        @_lines       = {}            # contains every line
+        @newPosition  = true          # true if cursor has moved 
+        @_highestId   = 0             # last inserted line identifier
+        @_deepest     = 1             # current maximum indentation
+        @_firstLine   = null          # pointer to the first line
+        @_history     =               # for history management
+            index        : 0
+            history      : [null]
+            historySelect: [null]
+            historyScroll: [null]
+            historyPos   : [null]
+        @_lastKey     = null      # last pressed key (avoid duplication)
 
-            # listen keydown on capturing phase (before bubbling)
-            @linesDiv.addEventListener('keydown', @_keyDownCallBack, true)
+        # initialize event listeners
+        @editorBody$.prop '__editorCtl', this
 
-            # if chrome => listen to keyup to correct the insertion of the
-            # first caracter of an empty line
-            @isSafari = Object.prototype.toString.call(window.HTMLElement)
-            @isSafari = @isSafari.indexOf('Constructor') > 0
-            @isChrome = !@isSafari && 
-                     (`'WebkitTransform' in document.documentElement.style`)
-            @isChromeOrSafari = @isChrome or @isSafari
-            if @isChromeOrSafari
-               @linesDiv.addEventListener('keyup', @_keyUpCorrection, false)
+        # listen keydown on capturing phase (before bubbling)
+        @linesDiv.addEventListener('keydown', @_keyDownCallBack, true)
 
-            # Listen to mouse to detect when caret is moved
-            @linesDiv.addEventListener('mouseup', () =>
-                @newPosition = true
-            , true)
+        # if chrome => listen to keyup to correct the insertion of the
+        # first caracter of an empty line
+        @isFirefox = `'MozBoxSizing' in document.documentElement.style`
+        @isSafari = Object.prototype.toString.call(window.HTMLElement)
+        @isSafari = @isSafari.indexOf('Constructor') > 0
+        @isChrome = !@isSafari && 
+                 (`'WebkitTransform' in document.documentElement.style`)
+        @isChromeOrSafari = @isChrome or @isSafari
+        if @isChromeOrSafari
+           @linesDiv.addEventListener('keyup', @_keyUpCorrection, false)
 
-            @editorBody$.on 'keyup', () ->
-                iframe$.trigger jQuery.Event("onKeyUp")
-            @editorBody$.on 'click', (event) =>
-                @_lastKey = null
-            @editorBody$.on 'paste', (event) =>
-                @paste event
+        # Listen to mouse to detect when caret is moved
+        @linesDiv.addEventListener('mouseup', () =>
+            @newPosition = true
+        , true)
 
-            # return a ref to the editor's controler
-            callBack.call(this)
-            return this
+        @editorBody$.on 'keyup', () =>
+            @editorTarget$.trigger jQuery.Event("onKeyUp")
 
+        @editorBody$.on 'click', (event) =>
+            @_lastKey = null
+            # if the start of selection after a click is in a link, then show
+            # url popover to edit the link.
+            segments = @_getLinkSegments()
+            if segments
+                @_showUrlPopover(segments,false)
+
+        @_initUrlPopover()
+
+        @editorBody$.on 'paste', (event) =>
+            @paste event
+
+        # callback
+        @callBack.call(this)
+
+
+
+    ###*
+     * Set focus on the editor
+    ###
     setFocus : () ->
         @linesDiv.focus()
 
-    # methods to deal selection on an iframe
-    # this method is modified during construction if the editor target is not
-    # an iframe
+
+    ###*
+     * Methods to deal selection on an iframe
+     * This method is modified during construction if the editor target is not
+     * an iframe
+     * @return {selection} The selection on the editor.
+    ###
     getEditorSelection : () ->
         return rangy.getIframeSelection @editorTarget
 
 
-    # this method is modified during construction if the editor target is not
-    # an iframe
+    ###*
+     * this method is modified during construction if the editor target is not
+     * an iframe
+     * @return {[type]} [description]
+    ###
     saveEditorSelection : () ->
         sel = rangy.getIframeSelection @editorTarget
         return rangy.serializeSelection sel, true, @linesDiv
+
+
+
 
     ### ------------------------------------------------------------------------
     # EXTENSION : _updateDeepest
@@ -497,7 +459,7 @@ class exports.CNeditor
                shortcut in ['-tab', '-return', '-backspace', '-suppr',
                             'CtrlShift-down', 'CtrlShift-up',
                             'CtrlShift-left', 'CtrlShift-right',
-                            'Ctrl-B', 'Ctrl-U',
+                            'Ctrl-B', 'Ctrl-U', 
                             'Ctrl-V', 'Shift-tab', '-space', '-other', 'Alt-A']
             @_addHistory()
            
@@ -578,11 +540,13 @@ class exports.CNeditor
             when 'Ctrl-V'
                 true
             when 'Ctrl-B'
-                @applyMetaDataOnSelection('CNE_strong')
+                @strongSelection()
                 e.preventDefault()
             when 'Ctrl-U'
-                @updateCurrentSel()
-                @applyMetaDataOnSelection('CNE_underline')
+                @underlineSelection()
+                e.preventDefault()
+            when 'Ctrl-K'
+                @linkifySelection()
                 e.preventDefault()
             # SAVE (Ctrl + s)                  
             when 'Ctrl-S'
@@ -791,6 +755,227 @@ class exports.CNeditor
         return true
 
 
+
+    strongSelection : () ->
+        @_applyMetaDataOnSelection('CNE_strong')
+
+    underlineSelection : () ->
+        @_applyMetaDataOnSelection('CNE_underline')
+
+    linkifySelection: () ->
+        currentSel = @updateCurrentSelIsStartIsEnd()
+        range = currentSel.theoricalRange
+        # Show url popover if range is collapsed
+        if range.collapsed
+            segments = @_getLinkSegments()
+            if segments
+                @_showUrlPopover(segments,false)
+        # if selection !collapsed, 2 cases : 
+        # the start breakpoint is in a link or not
+        else
+            segments = @_getLinkSegments()
+            # case when the start break point is in a link
+            if segments
+                @_showUrlPopover(segments,false)
+            # case when the start break point is not in a link
+            else
+                @_addHistory()
+                @_applyMetaDataOnSelection('A','http://')
+                segments = @_getLinkSegments()
+                @_showUrlPopover(segments,true)
+        
+        return true
+            
+
+    ###*
+     * Show, positionate and initialise the popover for link edition.
+     * @param  {array} segments  An array with the segments of 
+     *                           the link [<a>,...<a>]. Must be created even if
+     *                           it is a creation in order to put a background
+     *                           on the segment where the link will be.
+     * @param  {boolean} isLinkCreation True is it is a creation. In this case,
+     *                                  if the process is canceled, the initial
+     *                                  state without link will be restored.
+    ###
+    _showUrlPopover : (segments, isLinkCreation) ->
+        pop = @urlPopover
+        pop.isLinkCreation = isLinkCreation
+        pop.initialSelRg = @currentSel.theoricalRange.cloneRange()
+        edges = segments[0].getBoundingClientRect()
+        pop.segments = segments
+        pop.style.left = edges.left + 'px'
+        pop.style.top = edges.top + 20 + 'px'
+        pop.urlInput.value = segments[0].href
+        txt = ''
+        txt += seg.textContent for seg in segments
+        pop.textInput.value = txt
+        pop.initialTxt = txt
+        pop.style.display = 'block'
+        pop.urlInput.select()
+        seg.style.backgroundColor = '#dddddd' for seg in segments
+        return true
+
+    _cancelUrlPopover : () =>
+        pop = @urlPopover
+        pop.style.display = 'none'
+        seg.style.removeProperty('background-color') for seg in pop.segments
+        # case of a link creation called and cancelled : a segment for the link
+        # to creat has already been added in order to show the selection when 
+        # popover is visible. As it is canceled, we undo in order to remove this
+        # link.
+        if pop.isLinkCreation
+            rg = document.createRange()
+            rg.selectNodeContents(seg)
+            @currentSel.sel.setSingleRange rg
+            @unDo()
+            @setFocus()
+        else
+            @currentSel.sel.setSingleRange(pop.initialSelRg)
+            @setFocus()
+
+        return true
+
+    _validateUrlPopover : () =>
+        pop = @urlPopover
+        segments = pop.segments
+
+        # 1- in case of a link creation and the user validated an empty url, just
+        # cancel the link creation
+        if pop.urlInput.value == '' && pop.isLinkCreation
+            @_cancelUrlPopover()
+            return true
+
+        # 2- remove background of selection and hide popover
+        pop.style.display = 'none'
+        seg.style.removeProperty('background-color') for seg in segments
+
+        # 3- in case of a link creation, addhistory has already be done, it must 
+        # then be done if non a link creation.
+        if !pop.isLinkCreation
+            @currentSel.sel.setSingleRange pop.initialSelRg # otherwise addhistory will not work
+            @_addHistory()
+
+        # 4- case of a deletion of the urlInput value => 'remove the link'
+        if pop.urlInput.value == ''
+            # bps = @_applyMetaData(pop.initialSelRg, false, 'A', [])
+            l = segments.length
+            bp1 = 
+                cont : segments[0].firstChild
+                offset : 0
+            bp2 = 
+                cont   : segments[l-1].firstChild
+                offset : segments[l-1].firstChild.length
+            bps = [bp1,bp2]
+            @_applyAhrefToSegments(segments[0], segments[l-1], bps, false, 'A', '')
+            # Position selection
+            rg = document.createRange()
+            bp1 = bps[0]
+            bp2 = bps[1]
+            rg.setStart(bp1.cont, bp1.offset)
+            rg.setEnd(  bp2.cont, bp2.offset)
+            if @isFirefox
+                sel = this.currentSel.sel
+            else
+                sel = document.getSelection()
+            sel.removeAllRanges()
+            sel.addRange(rg)
+            @setFocus()
+            return true
+
+        # 5- case if only href is changed but not the text
+        else if pop.initialTxt == pop.textInput.value
+            seg.href = pop.urlInput.value for seg in segments
+            lastSeg = seg
+
+        # 6- case if the text of the link is modified : we concatenate 
+        # all segments
+        else
+            seg = segments[0]
+            seg.href = pop.urlInput.value
+            seg.textContent = pop.textInput.value
+            parent = seg.parentNode
+            for i in [1..segments.length-1] by 1
+                seg = segments[i]
+                parent.removeChild(seg)
+            lastSeg = segments[0]
+        
+        # 7- manage selection
+        @_setCaret(lastSeg.firstChild, lastSeg.firstChild.length)
+        @setFocus()
+
+
+    _initUrlPopover : () ->
+        frag = document.createDocumentFragment()
+        pop = document.createElement('div')
+        pop.className = 'CNE_urlpop'
+        frag.appendChild(pop)
+        pop.innerHTML = 
+            """
+            <span class="CNE_urlpop_head">Link</span>
+            <span>(Ctrl+K)</span>
+            <div class="CNE_urlpop-content">
+                <a>Accéder au lien (Ctrl+click)</a></br>
+                <span>url</span><input type="text"></br>
+                <span>Text</span><input type="text"></br>
+                <button>ok</button>
+                <button>Cancel</button>
+                <button>Delete</button>
+            </div>
+            """
+        b = document.querySelector('body')
+        b.insertBefore(frag,b.firstChild)
+        [btnOK,btnCancel,btnDelete] = pop.querySelectorAll('button')
+        btnOK.addEventListener('click',@_validateUrlPopover)
+        btnCancel.addEventListener('click',@_cancelUrlPopover)
+        btnDelete.addEventListener 'click', () =>
+            pop.urlInput.value = ''
+            @_validateUrlPopover()
+
+        [urlInput,textInput] = pop.querySelectorAll('input')
+        pop.urlInput = urlInput
+        pop.textInput = textInput
+        pop.addEventListener 'keypress', (e) =>
+            if e.keyCode == 13
+                @_validateUrlPopover()
+            else if e.keyCode == 27
+                @_cancelUrlPopover()
+        pop.addEventListener('focusout',@_cancelUrlPopover) #don't work ?
+        @urlPopover = pop
+
+        return true
+
+
+    ###*
+     * Tests if a the start break point of the selection is in a segment being 
+     * a link. If yes returns the array of the segments corresponding to the
+     * link, false otherwise.
+     * The link can be composed of several segments, but they are on a single
+     * line.
+     * @return {Boolean} The segment if in a link, false otherwise
+    ###
+    _getLinkSegments : () ->
+        rg = @updateCurrentSel().theoricalRange
+        segment1 = selection.getSegment(rg.startContainer,rg.startOffset)
+        segments = [segment1]
+        if (segment1.nodeName == 'A')
+            sibling = segment1.nextSibling
+            while sibling != null                \
+              &&  sibling.nodeName == 'A'        \
+              &&  sibling.href == segment1.href
+                segments.push(sibling)
+                sibling = sibling.nextSibling
+            segments.reverse()
+            sibling = segment1.previousSibling
+            while sibling != null                \
+              &&  sibling.nodeName == 'A'        \
+              &&  sibling.href == segment1.href
+                segments.push(sibling)
+                sibling = sibling.previousSibling
+            segments.reverse()
+            return segments
+        else
+            return false
+
     ###*
      * applies a metadata such as STRONG, UNDERLINED, A/href etc... on the
      * selected text.
@@ -798,32 +983,46 @@ class exports.CNeditor
      * @param  {string} others... Other params if metadata requires 
      *                            some (href for instance)
     ###
-    applyMetaDataOnSelection : (metaData, others...) ->
+    _applyMetaDataOnSelection : (metaData, others...) ->
         currentSel = @updateCurrentSelIsStartIsEnd()
         range = currentSel.theoricalRange
-        # nothing to do if range is collapsed
-        if range.collapsed
-            return 
+
         # 1- create a range for each selected line and put them in 
         # an array (linesRanges)
         line = @currentSel.startLine
         endLine = @currentSel.endLine
+
         # case when the selection on the first line starts at the end of line
         if currentSel.firstLineIsEnd
             line = line.lineNext
             range.setStartBefore(line.line$[0].firstChild)
             selection.normalize(range)
+
         # case when the selection on the last line ends at the start of line
         if currentSel.lastLineIsStart
             endLine = endLine.linePrev
             range.setEndBefore(endLine.line$[0].lastChild)
             selection.normalize(range)
+
+        # case when metadata is an mono line metadata ('A' for instance), then
+        # we limit the selection to the first line
+        if metaData == 'A' and line != endLine
+            range.setEndBefore(line.line$[0].lastChild)
+            selection.normalize(range)
+            endLine = line
+
         # re check if range is collapsed
         if range.collapsed
+            rg = @currentSel.theoricalRange
+            segment = selection.getSegment(rg.startContainer,rg.startOffset)
+            @_showUrlPopover(segment, false)
             return
+
         # if a single line selection
         if line == endLine
             linesRanges = [range]
+        
+        # if a multi line selection
         else
             # range for the 1st line
             rg = range.cloneRange()
@@ -851,17 +1050,14 @@ class exports.CNeditor
         for range in linesRanges
             isAlreadyMeta = isAlreadyMeta \
                               && 
-                            @_checkIfMetaIsEverywhere(range, metaData) 
-        if isAlreadyMeta
-            addMeta = false
-        else
-            addMeta = true
+                            @_checkIfMetaIsEverywhere(range, metaData, others) 
+        addMeta = !isAlreadyMeta
 
         # 3- Apply the correct action on each lines and getback the breakpoints
         # corresponding of the initial range
         bps = []
         for range in linesRanges
-            bps.push( @_applyMetaData(range, addMeta, metaData) )
+            bps.push( @_applyMetaData(range, addMeta, metaData, others) )
         
         # 4- Position selection
         rg = document.createRange()
@@ -876,10 +1072,11 @@ class exports.CNeditor
         sel.removeAllRanges()
         sel.addRange(rg)
 
-        return true
+        return rg
+
 
     ###*
-     * walk though the segments delimited by the range (which must be in a 
+     * Walk though the segments delimited by the range (which must be in a 
      * single line) to check if the meta si on all of them.
      * @param  {range} range a range contained within a line. The range must be
      *                 normalized, ie its breakpoints must be in text nodes.
@@ -891,8 +1088,16 @@ class exports.CNeditor
      * @return {boolean}       true if the meta data is already on all the 
      *                         segments delimited by the range.
     ###
-    _checkIfMetaIsEverywhere : (range, meta, href) ->
-        # 1- loop  on segments to decide wich action is to be done on all
+    _checkIfMetaIsEverywhere : (range, meta, others) ->
+        if meta == 'A'
+            return @_checkIfAhrefIsEverywhere(range, others[0])
+        else
+            return @_checkIfCSSIsEverywhere(range,meta,)
+
+
+
+    _checkIfCSSIsEverywhere : (range, CssClass) ->
+        # Loop  on segments to decide wich action is to be done on all
         #    segments. For instance if all segments are strong the action is
         #    to un-strongify. If one segment is not bold, then the action is 
         #    to strongify.        
@@ -900,29 +1105,53 @@ class exports.CNeditor
         endSegment = range.endContainer.parentNode
         stopNext   = (segment == endSegment)
         loop
-            if !segment.classList.contains(meta)
+            if !segment.classList.contains(CssClass)
                 return false
             else
                 if stopNext
                     return true
-                segment = segment.nextSibling
-                if segment == endSegment
-                    stopNext = true
+                segment  = segment.nextSibling
+                stopNext = (segment == endSegment)
+
+
+
+    _checkIfAhrefIsEverywhere : (range, href) ->
+        # Loop  on segments to decide wich action is to be done on all
+        #    segments. For instance if all segments are strong the action is
+        #    to un-strongify. If one segment is not bold, then the action is 
+        #    to strongify.        
+        segment    = range.startContainer.parentNode
+        endSegment = range.endContainer.parentNode
+        stopNext   = (segment == endSegment)
+        loop
+            if segment.nodeName != 'A' or segment.href != href
+                return false
+            else
+                if stopNext
+                    return true
+                segment  = segment.nextSibling
+                stopNext = (segment == endSegment)
+
 
     ###*
      * Add or remove a meta data to the segments delimited by the range. The
      * range must be within a single line and normalized (its breakpoints must
      * be in text nodes)
-     * @param  {range} range    [description]
+     * @param  {range} range    The range on which we want to apply the 
+     *                          metadata. The range must be within a single line
+     *                          and normalized (its breakpoints must be in text
+     *                          nodes)
      * @param  {boolean} addMeta  True if the action is to add the metaData, 
      *                            False if the action is to remove it.
      * @param  {string} metaData The name of the meta data to look for. It can
      *                           be a css class ('CNE_strong' for instance), 
      *                           or a metadata type ('A' for instance)
+     * @param {array} others Array of others params fot meta, can be [] but not
+     *                       null (not optionnal)
      * @return {array}          [bp1,bp2] : the breakpoints corresponding to the
      *                          initial range after the line transformation.
     ###
-    _applyMetaData : (range, addMeta, metaData) ->
+    _applyMetaData : (range, addMeta, metaData, others) ->
 
         # 1- var
         lineDiv =  selection.getLineDiv(range.startContainer,range.startOffset)
@@ -935,8 +1164,6 @@ class exports.CNeditor
             cont   : range.endContainer
             offset : range.endOffset
         breakPoints = [bp1,bp2]
-
-
 
         # 2- create start segment
         #    We split the segment in two of the same type and class if :
@@ -951,7 +1178,7 @@ class exports.CNeditor
                 return
 
         else if 0 < bp1.offset < bp1.cont.length
-            isAlreadyMeta = startSegment.classList.contains(metaData)
+            isAlreadyMeta = @_isAlreadyMeta(startSegment, metaData, others)
             if       isAlreadyMeta && !addMeta \
                  or !isAlreadyMeta && addMeta
                 rg = range.cloneRange()
@@ -999,7 +1226,8 @@ class exports.CNeditor
                 return
 
         else if 0 < bp2.offset < bp2.cont.length
-            isAlreadyMeta = endSegment.classList.contains(metaData)
+            # isAlreadyMeta = endSegment.classList.contains(metaData)
+            isAlreadyMeta = @_isAlreadyMeta(endSegment, metaData, others)
             if  isAlreadyMeta && !addMeta or \
                !isAlreadyMeta && addMeta
                 rg = range.cloneRange()
@@ -1015,18 +1243,11 @@ class exports.CNeditor
                 rg.insertNode(frag1)
         
         # 4- apply the required style
-        stopNext = (startSegment == endSegment)
-        segment  =  startSegment
-        loop
-            if addMeta
-                segment.classList.add(metaData)
-            else
-                segment.classList.remove(metaData)
-            if stopNext
-                break
-            segment = segment.nextSibling
-            if segment == endSegment
-                stopNext = true
+        if metaData == 'A'
+            bps = [bp1,bp2]
+            @_applyAhrefToSegments(startSegment, endSegment, bps, addMeta, metaData, others[0])
+        else
+            @_applyCssToSegments(startSegment, endSegment, addMeta, metaData)
 
         # 5- collapse segments with same class
         @_fusionSimilarSegments(lineDiv, breakPoints)
@@ -1034,11 +1255,67 @@ class exports.CNeditor
         return [bp1,bp2]
 
 
+    _isAlreadyMeta : (segment, metaData, others) ->
+        if metaData == 'A'
+            return segment.nodeName == 'A' && segment.href == others[0]
+        else
+            return segment.classList.contains(metaData)
+
+
+    _applyAhrefToSegments : (startSegment, endSegment, bps, addMeta, metaData, href) ->
+        segment  =  startSegment
+        stopNext = (segment == endSegment)
+        loop
+            if addMeta
+                if segment.nodeName == 'A'
+                    segment.href = href
+                else
+                    a = document.createElement('A')
+                    a.href = href
+                    a.textContent = segment.textContent
+                    a.className = segment.className
+                    for bp in bps
+                        if bp.cont.parentNode == segment
+                            bp.cont = a.firstChild
+                    segment.parentNode.replaceChild(a,segment)
+                    segment = a
+            else
+                    span = document.createElement('SPAN')
+                    span.textContent = segment.textContent
+                    span.className = segment.className
+                    for bp in bps
+                        if bp.cont.parentNode == segment
+                            bp.cont = span.firstChild
+                    segment.parentNode.replaceChild(span,segment)
+                    segment = span
+                
+            if stopNext
+                break
+            segment = segment.nextSibling
+            stopNext = (segment == endSegment)
+        return null
+
+
+    _applyCssToSegments : (startSegment, endSegment, addMeta, cssClass) ->
+        segment  =  startSegment
+        stopNext = (segment == endSegment)
+        loop
+            if addMeta
+                segment.classList.add(cssClass)
+            else
+                segment.classList.remove(cssClass)
+            if stopNext
+                break
+            segment = segment.nextSibling
+            stopNext = (segment == endSegment)
+        return null
+
+
     _fusionSimilarSegments : (lineDiv, breakPoints) -> 
         prevSegment = lineDiv.firstChild
         segment     = prevSegment.nextSibling
         while segment.nodeName != 'BR'
-            isSimilar = @_compareSegments(prevSegment, segment)
+            isSimilar = @_haveSameMeta(prevSegment, segment)
             if isSimilar
                 @_fusionSegments(prevSegment, segment, breakPoints)
                 segment     = prevSegment.nextSibling
@@ -1048,7 +1325,8 @@ class exports.CNeditor
 
         return breakPoints
 
-    _compareSegments : (segment1, segment2) ->
+
+    _haveSameMeta : (segment1, segment2) ->
         if segment1.nodeName != segment2.nodeName
             return false
         else if segment1.nodeName == 'A'
@@ -2347,6 +2625,10 @@ class exports.CNeditor
     ### -------------------------------------------------------------------------
     #  unDo :
     # Undo the previous action
+
+    ###
+    ###*
+     * Undo the previous action
     ###
     unDo : () ->
         # if there is an action to undo
@@ -2391,7 +2673,7 @@ class exports.CNeditor
             # 2 - restore selection
             savedSel = @_history.historySelect[@_history.index+1]
             savedSel.restored = false
-            rangy.restoreSelection(savedSel)
+            rangy.deserializeSelection(savedSel, @linesDiv)
             # 3 - restore scrollbar position
             xcoord = @_history.historyScroll[@_history.index+1].xcoord
             ycoord = @_history.historyScroll[@_history.index+1].ycoord
@@ -2641,42 +2923,19 @@ class exports.CNeditor
         # prepare lineElements
         if frag.childNodes.length > 0
             lineElements = Array.prototype.slice.call(frag.firstChild.childNodes)
+            lineElements.pop() # remove the </br>
         else
+            # ?? in which case do we come here ? please document...
             lineElements = [frag]
         # loop on each element to insert (only one for now)
-        for elToInsert in lineElements
-            @_insertElement
-            # If targetNode & elToInsert are SPAN or TextNode and both have 
-            # the same class, then we concatenate them
-            if (elToInsert.tagName=='SPAN')
-                if (targetNode.tagName=='SPAN' or targetNode.nodeType==Node.TEXT_NODE )
-                    targetText   = targetNode.textContent
-                    newText      = targetText.substr(0,startOffset)
-                    newText     += elToInsert.textContent
-                    newText     += targetText.substr(startOffset)
-                    targetNode.textContent = newText
-                    startOffset += elToInsert.textContent.length
-                else if targetNode.tagName=='A'
-                    targetNode.parentElement.insertBefore(elToInsert,targetNode.nextSibling)
-                    targetNode = targetNode.parentElement
-                    startOffset = $(targetNode).children().index(elToInsert) + 1
-                else if targetNode.tagName=='DIV'
-                    targetNode.insertBefore(elToInsert,targetNode[startOffset])
-                    startOffset += 1
-
-            else if (elToInsert.tagName=='A')
-                if targetNode.nodeName=='#text'
-                    parent = targetNode.parentElement
-                    parent.parentElement.insertBefore(elToInsert,parent.nextSibling)
-                    targetNode = parent.parentElement
-                    startOffset = $(targetNode).children().index(elToInsert) + 1
-                else if targetNode.tagName in ['SPAN' ,'A']
-                    targetNode.parentElement.insertBefore(elToInsert,targetNode.nextSibling)
-                    targetNode = targetNode.parentElement
-                    startOffset = $(targetNode).children().index(elToInsert) + 1
-                else if targetNode.tagName == 'DIV'
-                    targetNode.insertBefore(elToInsert,targetNode[startOffset])
-                    startOffset += 1
+        bp = 
+            cont   : targetNode
+            offset : startOffset
+        for segToInsert in lineElements
+            @_insertSegment(segToInsert,bp)
+        
+        targetNode  = bp.cont
+        startOffset = bp.offset
 
         ###
         # 6- If the clipboard has more than one line, insert the end of target
@@ -2735,6 +2994,77 @@ class exports.CNeditor
             currSel.sel.collapse(targetNode, startOffset)
 
 
+    _insertSegment : (segment,bp) ->
+        targetNode  = bp.cont
+        targetSeg   = selection.getSegment(targetNode)
+        # If targetSeg & segment have the same meta data => concatenate
+        
+        if segment.nodeName == 'SPAN'
+            if targetSeg.nodeName == 'A' or @_haveSameMeta(targetSeg,segment)
+                @_insertTextInSegment(segment.textContent, bp, targetSeg )
+            else
+                @_splitAndInsertSegment(segment, bp, targetSeg)
+        else if @_haveSameMeta(targetSeg,segment)
+            @_insertTextInSegment(segment.textContent, bp, targetSeg)
+        else
+            @_splitAndInsertSegment(segment,targetSeg, bp)
+
+        return true
+
+
+    _insertTextInSegment : (txt, bp, targetSeg) ->
+        targetText   = targetSeg.textContent
+        if !targetSeg
+            targetSeg = selection.getSegment(bp.cont)
+        offset = bp.offset
+        newText      = targetText.substr(0,offset)
+        newText     += txt
+        newText     += targetText.substr(offset)
+        targetSeg.textContent = newText
+        offset += txt.length
+        bp.offset = offset
+        return offset
+
+
+        # if @_haveSameMeta(targetNode,segment)
+        #     fusion
+        # # If targetNode & segment don't have the same meta data => 
+        # # split targetSeg and insert segToInset
+        # else
+        #     insertion
+
+        # startOffset = bp.offset
+        # if (segment.tagName=='SPAN')
+        #     if (targetNode.tagName=='SPAN' or targetNode.nodeType==Node.TEXT_NODE )
+        #         targetText   = targetNode.textContent
+        #         newText      = targetText.substr(0,startOffset)
+        #         newText     += segment.textContent
+        #         newText     += targetText.substr(startOffset)
+        #         targetNode.textContent = newText
+        #         startOffset += segment.textContent.length
+        #     else if targetNode.tagName=='A'
+        #         targetNode.parentElement.insertBefore(segment,targetNode.nextSibling)
+        #         targetNode = targetNode.parentElement
+        #         startOffset = $(targetNode).children().index(segment) + 1
+        #     else if targetNode.tagName=='DIV'
+        #         targetNode.insertBefore(segment,targetNode[startOffset])
+        #         startOffset += 1
+
+        # else if (segment.tagName=='A')
+        #     if targetNode.nodeName=='#text'
+        #         parent = targetNode.parentElement
+        #         parent.parentElement.insertBefore(segment,parent.nextSibling)
+        #         targetNode = parent.parentElement
+        #         startOffset = $(targetNode).children().index(segment) + 1
+        #     else if targetNode.tagName in ['SPAN' ,'A']
+        #         targetNode.parentElement.insertBefore(segment,targetNode.nextSibling)
+        #         targetNode = targetNode.parentElement
+        #         startOffset = $(targetNode).children().index(segment) + 1
+        #     else if targetNode.tagName == 'DIV'
+        #         targetNode.insertBefore(segment,targetNode[startOffset])
+        #         startOffset += 1
+        # bp.cont = targetNode
+        # bp.offset = startOffset
 
     ###*
      * Insert a frag in a node container at startOffset

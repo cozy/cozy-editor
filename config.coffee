@@ -31,7 +31,7 @@ exports.config =
 
         stylesheets:
             joinTo:
-                'stylesheets/app.css': /(^vendor\/styles)|(^app\/views\/styles)|(^app\/views\/CNeditor\/)/
+                'stylesheets/app.css': /(^app\/views\/CNeditor\/)|(^vendor\/styles)|(^app\/views\/styles)/
                 'stylesheets/CNeditor.css': /(^app\/views\/CNeditor\/)/
             order:
                 before: ['vendor/styles/normalize.css']

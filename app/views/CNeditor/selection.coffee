@@ -179,7 +179,7 @@ selection.normalizeBP = (cont, offset) ->
         # nothing to do
         res = {cont:cont,offset:offset}
 
-    else if cont.nodeName == 'SPAN'
+    else if cont.nodeName in ['SPAN','A']
         # search a text node before and put bp in it
         # if none, search a text node after and put bp in it
         # if none create one and put bp in it
@@ -234,19 +234,6 @@ selection.normalizeBP = (cont, offset) ->
         res = {cont:newCont,offset:newOffset}
 
     return res
-
-
-
-# Get line that contains given element.
-# Prerequisite : elt must be in a div of a line.
-selection._getLineDiv = (elt)->
-    parent = elt
-    while !(parent.nodeName == 'DIV'              \
-            and parent.id?                        \
-            and parent.id.substr(0,5) == 'CNID_') \
-          or parent.parentNode == null
-        parent = parent.parentNode
-    return parent
 
 
 ###*
@@ -341,6 +328,50 @@ selection.getLineDiv = (cont,offset) ->
     else
         startDiv = selection._getLineDiv(cont)
     return startDiv
+
+# Get line that contains given element.
+# Prerequisite : elt must be in a div of a line.
+selection._getLineDiv = (elt)->
+    parent = elt
+    while !(parent.nodeName == 'DIV'              \
+            and parent.id?                        \
+            and parent.id.substr(0,5) == 'CNID_') \
+          or parent.parentNode == null
+        parent = parent.parentNode
+    return parent
+
+###*
+ * Returns the contener (span or a) of the line where the break point is.
+ * @param  {element} cont   The contener of the break point
+ * @param  {number} offset Offset of the break point.
+ * @return {element}        The DIV of the line where the break point is.
+###
+selection.getSegment = (cont,offset) ->
+    if cont.nodeName == 'DIV' 
+        if cont.id == 'editor-lines'
+            startDiv = cont.children[offset]
+        else
+            startDiv = selection._getSegment(cont)
+    else
+        startDiv = selection._getSegment(cont)
+    return startDiv
+
+# Get segment that contains given element.
+# Prerequisite : elt must be in a segment of a line.
+selection._getSegment = (elt)->
+    parent = elt.parentNode
+    while !(parent.nodeName == 'DIV'              \
+            and parent.id?                        \
+            and parent.id.substr(0,5) == 'CNID_') \
+          or parent.parentNode == null
+        elt = elt.parentNode
+        parent = elt.parentNode
+    return elt
+
+
+
+
+
 
 
 
