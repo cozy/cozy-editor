@@ -835,7 +835,10 @@ class exports.CNeditor
         pop.segments = segments
         pop.style.left = edges.left + 'px'
         pop.style.top = edges.top + 20 + 'px'
-        pop.urlInput.value = segments[0].href
+        href = segments[0].href
+        if href == '' or href == 'http:///'
+            href = 'http://'
+        pop.urlInput.value = href
         txt = ''
         txt += seg.textContent for seg in segments
         pop.textInput.value = txt
@@ -896,7 +899,7 @@ class exports.CNeditor
                 cont   : segments[l-1].firstChild
                 offset : segments[l-1].firstChild.length
             bps = [bp1,bp2]
-            @_applyAhrefToSegments(segments[0], segments[l-1], bps, false, 'A', '')
+            @_applyAhrefToSegments(segments[0], segments[l-1], bps, false, '')
             # Position selection
             rg = document.createRange()
             bp1 = bps[0]
@@ -1075,7 +1078,9 @@ class exports.CNeditor
 
         # 2- decide if we apply metaData or remove it
         # For this we go throught each line and each selected segment to check
-        # if metaData is applied or not.
+        # if metaData is applied or not. For instance if all segments are strong
+        # the action is to un-strongify. If one segment is not bold, then the
+        # action is to strongify.    
         isAlreadyMeta = true
         for range in linesRanges
             isAlreadyMeta = isAlreadyMeta \
@@ -1124,8 +1129,6 @@ class exports.CNeditor
         else
             return @_checkIfCSSIsEverywhere(range,meta,)
 
-
-
     _checkIfCSSIsEverywhere : (range, CssClass) ->
         # Loop  on segments to decide wich action is to be done on all
         #    segments. For instance if all segments are strong the action is
@@ -1143,13 +1146,7 @@ class exports.CNeditor
                 segment  = segment.nextSibling
                 stopNext = (segment == endSegment)
 
-
-
     _checkIfAhrefIsEverywhere : (range, href) ->
-        # Loop  on segments to decide wich action is to be done on all
-        #    segments. For instance if all segments are strong the action is
-        #    to un-strongify. If one segment is not bold, then the action is 
-        #    to strongify.        
         segment    = range.startContainer.parentNode
         endSegment = range.endContainer.parentNode
         stopNext   = (segment == endSegment)
@@ -1275,7 +1272,7 @@ class exports.CNeditor
         # 4- apply the required style
         if metaData == 'A'
             bps = [bp1,bp2]
-            @_applyAhrefToSegments(startSegment, endSegment, bps, addMeta, metaData, others[0])
+            @_applyAhrefToSegments(startSegment, endSegment, bps, addMeta, others[0])
         else
             @_applyCssToSegments(startSegment, endSegment, addMeta, metaData)
 
@@ -1285,14 +1282,35 @@ class exports.CNeditor
         return [bp1,bp2]
 
 
+    ###*
+     * Test if a segment already has the meta : same type, same class and other 
+     * for complex meta (for instance href for <a>)
+     * @param  {element}  segment  The segment to test
+     * @param  {string}  metaData the type of meta data : A or a CSS class
+     * @param  {array}  others   An array of the other parameter of the meta,
+     *                           for instance si metaData == 'A', 
+     *                           others[0] == href
+     * @return {Boolean}          True if the segment already have the meta data
+    ###
     _isAlreadyMeta : (segment, metaData, others) ->
         if metaData == 'A'
             return segment.nodeName == 'A' && segment.href == others[0]
         else
             return segment.classList.contains(metaData)
 
-
-    _applyAhrefToSegments : (startSegment, endSegment, bps, addMeta, metaData, href) ->
+    ###*
+     * Applies or remove a meta data of type "A" (link) on a succession of 
+     * segments (from startSegment to endSegment which must be on the same line)
+     * @param  {element} startSegment The first segment to modify
+     * @param  {element} endSegment   The last segment to modify (must be in the
+     *                                same line as startSegment)
+     * @param  {Array} bps          [{cont,offset}...] An array of breakpoints 
+     *                              to update if their container is modified
+     *                              while applying the meta data.
+     * @param  {Boolean} addMeta      True to apply the meta, False to remove
+     * @param  {string} href         the href to use if addMeta is true.
+    ###
+    _applyAhrefToSegments : (startSegment, endSegment, bps, addMeta, href) ->
         segment  =  startSegment
         stopNext = (segment == endSegment)
         loop
@@ -1326,6 +1344,15 @@ class exports.CNeditor
         return null
 
 
+    ###*
+     * Applies or remove a CSS class to a succession of segments (from 
+     * startsegment to endSegment which must be on the same line)
+     * @param  {element} startSegment The first segment to modify
+     * @param  {element} endSegment   The last segment to modify (must be in the
+     *                                same line as startSegment)
+     * @param  {Boolean} addMeta      True to apply the meta, False to remove
+     * @param  {String} cssClass     The name of the CSS class to add or remove
+    ###
     _applyCssToSegments : (startSegment, endSegment, addMeta, cssClass) ->
         segment  =  startSegment
         stopNext = (segment == endSegment)
