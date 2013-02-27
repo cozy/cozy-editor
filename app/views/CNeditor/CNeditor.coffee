@@ -1995,6 +1995,13 @@ class exports.CNeditor
             currSel.sel.setSingleRange(range4sel)
             this.currentSel = null
 
+        # adjuste scroll if the new line gets out of the editor
+        l = newLine.line$[0]
+        p = l.parentNode
+        dh = p.getBoundingClientRect().height
+        if  !( (l.offsetTop + 20 - dh) < p.scrollTop < l.offsetTop )
+            l.scrollIntoView(false)
+
 
 
     ### ------------------------------------------------------------------------
