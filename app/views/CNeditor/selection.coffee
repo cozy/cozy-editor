@@ -169,12 +169,15 @@ selection.normalize = (range) ->
 
 
 ###*
- * returns a break point in the most pertinent text node given a random bp.
+ * Returns a break point in the most pertinent text node given a random bp.
  * @param  {element} cont   the container of the break point
  * @param  {number} offset offset of the break point
+ * @param  {boolean} preferNext [optional] if true, in case BP8, we will choose
+ *                              to go in next sibling - if it exists - rather 
+ *                              than in the previous one.
  * @return {object} the suggested break point : {cont:newCont,offset:newOffset}
 ###
-selection.normalizeBP = (cont, offset) ->
+selection.normalizeBP = (cont, offset, preferNext) ->
     if cont.nodeName == '#text'
         # nothing to do
         res = {cont:cont,offset:offset}
@@ -198,15 +201,23 @@ selection.normalizeBP = (cont, offset) ->
         # <div>|<span>...</span>|<any>...</span>|</br>|</div>
         #     BP7              BP8             BP9    BP10
         # if offset = 0 put bp in 1st child
-        # if offset in middle, put bp at the end of previous element
-        # if offset before or after </br> put bp at the end of element
-        # before </br>
         if offset == 0
             res = selection.normalizeBP(cont.firstChild,0)
+        # if offset in middle, put bp at the end of previous element or at the
+        # beginning of next depending on preferNext value.
         else if offset < cont.children.length-1
-            newCont   = cont.children[offset-1]
-            newOffset = newCont.childNodes.length
-            res       = selection.normalizeBP(newCont, newOffset)
+            if preferNext
+                newCont   = cont.children[offset]
+                if newCont.nodeName == 'BR'
+                    newCont   = cont.children[offset-1]
+                newOffset = 0
+                res       = selection.normalizeBP(newCont, newOffset)
+            else
+                newCont   = cont.children[offset-1]
+                newOffset = newCont.childNodes.length
+                res       = selection.normalizeBP(newCont, newOffset)
+        # if offset before or after </br> put bp at the end of element
+        # before </br>
         else
             newCont   = cont.children[cont.children.length-2]
             newOffset = newCont.childNodes.length
@@ -341,7 +352,9 @@ selection._getLineDiv = (elt)->
     return parent
 
 ###*
- * Returns the contener (span or a) of the line where the break point is.
+ * Returns the segment (span or a or lineDiv) of the line where the break 
+ * point is. If the break point is not in a segment, ie in the line div or even
+ * in editor-lines, then it is the line div that will be returned.
  * @param  {element} cont   The contener of the break point
  * @param  {number} offset Offset of the break point.
  * @return {element}        The DIV of the line where the break point is.
@@ -349,7 +362,9 @@ selection._getLineDiv = (elt)->
 selection.getSegment = (cont,offset) ->
     if cont.nodeName == 'DIV' 
         if cont.id == 'editor-lines'
-            startDiv = cont.children[offset]
+            startDiv = cont.children[Math.min(offset, cont.children.length-1)]
+        else if cont.id? and cont.id.substr(0,5) == 'CNID_'
+            startDiv = cont
         else
             startDiv = selection._getSegment(cont)
     else

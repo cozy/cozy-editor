@@ -259,10 +259,8 @@ class exports.AutoTest
         # appending the property ".sons" to every line that is a non-empty title
         # It will be easier to check the remaining properties with a tree
         while nextLine != null
-            try 
-                @checkLineStructure nextLine
-            catch error
-                return
+            
+            @checkLineStructure nextLine
                     
             # Then we add it to the tree
             @addLine

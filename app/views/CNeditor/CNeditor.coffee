@@ -51,7 +51,8 @@ class Line
             depthRelative , # 
             prevLine      , # The prev line, null if nextLine is given
             nextLine      , # The next line, null if prevLine is given
-            fragment        # [optional] a fragment to insert in the line, no br at the end
+            fragment        # [optional] a fragment to insert in the line, will
+                              add a br at the end if none in the fragment.
           ]
     ###
     constructor : ( ) ->
@@ -75,7 +76,8 @@ class Line
         newLineEl.setAttribute('class', type + '-' + depthAbs)
         if fragment?
             newLineEl.appendChild(fragment)
-            newLineEl.appendChild(document.createElement('br'))
+            if newLineEl.lastChild.nodeName != 'BR'
+                newLineEl.appendChild(document.createElement('br'))
         else
             node = document.createElement('span')
             node.appendChild(document.createTextNode(''))
@@ -229,8 +231,31 @@ class exports.CNeditor
             @newPosition = true
         , true)
 
-        @editorBody$.on 'keyup', () =>
-            @editorTarget$.trigger jQuery.Event("onKeyUp")
+        # if editor is in an iframe, we cast the keyup event.
+        if @isInIframe
+            @editorBody$.on 'keyup', () =>
+                @editorTarget$.trigger jQuery.Event("onKeyUp")
+
+        # isNormalChar = (keyCode) ->
+        #     return 96 < keyCode < 123  and \  # a .. z
+        #            64 < keyCode < 91   and \  # A .. Z
+        #            47 < keyCode < 58          # 0 .. 9
+
+        # @editorBody$.on 'keypress', (e) =>
+        #     keyCode = e.keyCode
+
+        #     char = String.fromCharCode(e.keyCode)
+            
+        #     switch keyCode
+        #         when 32 # space
+        #             @autoCompleteString = ' '
+        #         when 64 # @
+        #             if @autoCompleteString == ' '
+        #                 @autoCompleteString = ' @'
+        #         else
+        #             if isNormalChar(keyCode)
+        #                 @showAutocomplete()
+
 
         @editorBody$.on 'click', (event) =>
             @_lastKey = null
@@ -249,6 +274,7 @@ class exports.CNeditor
         @callBack.call(this)
 
 
+    # showAutocomplete : () ->
 
     ###*
      * Set focus on the editor
@@ -521,12 +547,12 @@ class exports.CNeditor
                 @updateCurrentSelIsStartIsEnd()
                 @_suppr(e)
                 @newPosition = false
-            when 'CtrlShift-down'
-                @_moveLinesDown()
-                e.preventDefault()
-            when 'CtrlShift-up'
-                @_moveLinesUp()
-                e.preventDefault()
+            # when 'CtrlShift-down'
+            #     @_moveLinesDown()
+            #     e.preventDefault()
+            # when 'CtrlShift-up'
+            #     @_moveLinesUp()
+            #     e.preventDefault()
             when 'Ctrl-A'
                 selection.selectAll(this)
                 e.preventDefault()
@@ -1315,6 +1341,18 @@ class exports.CNeditor
         return null
 
 
+    ###*
+     * Walk through a line div in order to concatenate successive similar
+     * segments. Similar == same nodeName, class and if required href.
+     * @param  {element} lineDiv     the DIV containing the line
+     * @param  {Object} breakPoints [{con,offset}...] array of respectively the 
+     *                              container and offset of the breakpoint to 
+     *                              update if cont is in a segment modified by 
+     *                              the fusion. 
+     *                              /!\ The breakpoint must be normalized, ie 
+     *                              containers must be in textnodes.
+     * @return {Object}             A reference to the updated breakpoint.
+    ###
     _fusionSimilarSegments : (lineDiv, breakPoints) -> 
         prevSegment = lineDiv.firstChild
         segment     = prevSegment.nextSibling
@@ -1328,6 +1366,40 @@ class exports.CNeditor
                 segment     = segment.nextSibling
 
         return breakPoints
+
+    ###*
+     * Imports the content of segment2 in segment1 and updates the breakpoint if
+     * this on is  inside segment2
+     * @param  {element} segment1    the segment in which the fusion operates
+     * @param  {element} segment2    the segement that will be imported in segment1
+     * @param  {Array} breakPoints [{con,offset}...] array of respectively the 
+     *                              container and offset of the breakpoint to 
+     *                              update if cont is in segment2. /!\ The 
+     *                              breakpoint must be normalized, ie containers
+     *                              must be in textnodes.
+    ###
+    _fusionSegments : (segment1, segment2, breakPoints) ->
+        children = Array.prototype.slice.call(segment2.childNodes)
+        for child in segment2.childNodes
+            segment1.appendChild(child)
+
+        txtNode1 = segment1.firstChild
+        txtNode2 = txtNode1.nextSibling
+        while txtNode2 != null
+            if txtNode1.nodeName == '#text' == txtNode2.nodeName 
+                for bp in breakPoints
+                    if bp.cont == txtNode2
+                        bp.cont = txtNode1
+                        bp.offset = txtNode1.length + bp.offset
+                txtNode1.textContent += txtNode2.textContent
+                segment1.removeChild(txtNode2)
+                txtNode2 = txtNode1.nextSibling
+            else
+                txtNode1 = segment1.firstChild
+                txtNode2 = txtNode1.nextSibling
+
+        segment2.parentNode.removeChild(segment2)
+        return true
 
 
     _haveSameMeta : (segment1, segment2) ->
@@ -1350,30 +1422,6 @@ class exports.CNeditor
             if !list1.contains(clas)
                 return false
         return true
-
-
-    _fusionSegments : (segment1, segment2, breakPoints) ->
-        children = Array.prototype.slice.call(segment2.childNodes)
-        for child in segment2.childNodes
-            segment1.appendChild(child)
-
-        txtNode1 = segment1.firstChild
-        txtNode2 = txtNode1.nextSibling
-        while txtNode2 != null
-            if txtNode1.nodeName == '#text' == txtNode2.nodeName 
-                for bp in breakPoints
-                    if bp.cont == txtNode2
-                        bp.cont = txtNode1
-                        bp.offset = txtNode1.length + bp.offset
-                txtNode1.textContent += txtNode2.textContent
-                segment1.removeChild(txtNode2)
-                txtNode2 = txtNode1.nextSibling
-            else
-                txtNode1 = segment1.firstChild
-                txtNode2 = txtNode1.nextSibling
-
-        segment2.parentNode.removeChild(segment2)
-        return breakPoints
 
 
 
@@ -2914,16 +2962,22 @@ class exports.CNeditor
         # 
         ###
         # a text node because of selection.normalize()
-        targetNode   = currSel.range.startContainer 
-        startOffset  = currSel.range.startOffset
-        # except if we are in chrome : normalise can't work in empty line, so we
-        # have to get the theorical breakpoint where the selection should be.
-        if @isChromeOrSafari && targetNode.nodeName != '#text'
-            breakPoint = selection.normalizeBP(targetNode, startOffset)
-            targetNode = breakPoint.cont
-            startOffset = breakPoint.offset
+        targetNode   = currSel.theoricalRange.startContainer 
+        startOffset  = currSel.theoricalRange.startOffset
+        # the break point to update in order to be able to positionate the caret
+        # at the end
+        bp = 
+            cont   : targetNode
+            offset : startOffset        
+        # # except if we are in chrome : normalise can't work in empty line, so we
+        # # have to get the theorical breakpoint where the selection should be.
+        # if @isChromeOrSafari && targetNode.nodeName != '#text'
+        #     breakPoint = selection.normalizeBP(targetNode, startOffset)
+        #     targetNode = breakPoint.cont
+        #     startOffset = breakPoint.offset
 
-        endOffset = targetNode.length - startOffset
+        # endOffset = targetNode.length - startOffset
+        
         # prepare lineElements
         if frag.childNodes.length > 0
             lineElements = Array.prototype.slice.call(frag.firstChild.childNodes)
@@ -2932,13 +2986,18 @@ class exports.CNeditor
             # ?? in which case do we come here ? please document...
             lineElements = [frag]
         # loop on each element to insert (only one for now)
-        bp = 
-            cont   : targetNode
-            offset : startOffset
+
         for segToInsert in lineElements
             @_insertSegment(segToInsert,bp)
-        
-        targetNode  = bp.cont
+        if bp.cont.nodeName != '#text'
+            bp = selection.normalizeBP(bp.cont,bp.offset,true)
+
+        @_fusionSimilarSegments(startLine.line$[0], [bp])
+
+        # targetNode and startOffset may have been removed from the DOM while
+        # inserting first line of frag. We then have to set them again at the
+        # end of what has already been inserted
+        targetNode = bp.cont
         startOffset = bp.offset
 
         ###
@@ -2954,10 +3013,18 @@ class exports.CNeditor
             range.setEnd(parendDiv,parendDiv.children.length-1)
             endTargetLineFrag = range.extractContents()
             range.detach()
-            this._insertFrag(
-                frag.lastChild,                    # last line of frag
-                frag.lastChild.children.length-1,  # penultimate node of last line
-                endTargetLineFrag)                 # the frag to insert
+
+            # append the frag content
+            lastFragLine = frag.lastChild
+            br = lastFragLine.lastChild
+            n  = lastFragLine.childNodes.length-1
+            bp = selection.normalizeBP(lastFragLine, n)
+            childNodes = endTargetLineFrag.childNodes
+            l = childNodes.length
+            for n in [1..l] by 1
+                lastFragLine.insertBefore(childNodes[0],br)
+            @_fusionSimilarSegments(lastFragLine, [bp])
+
             # TODO : the next 3 lines are required for firebug to detect
             # breakpoints ! ! !   ???????? (otherwise could be deleted)
             parendDiv = targetNode
@@ -2989,45 +3056,86 @@ class exports.CNeditor
         ###*
          * 8- position caret
         ###
-        if secondAddedLine?
-            # Assumption : last inserted line always has at least one <span> with only text inside
-            caretTextNodeTarget = lineNextStartLine.linePrev.line$[0].childNodes[0].firstChild
-            caretOffset = caretTextNodeTarget.length - endOffset
-            currSel.sel.collapse(caretTextNodeTarget, caretOffset)
-        else
-            currSel.sel.collapse(targetNode, startOffset)
+        bp = selection.normalizeBP(bp.cont, bp.offset)
+        @_setCaret(bp.cont,bp.offset)
+
+        # if secondAddedLine?
+        #     # Assumption : last inserted line always has at least one <span> with only text inside
+        #     caretTextNodeTarget = lineNextStartLine.linePrev.line$[0].childNodes[0].firstChild
+        #     caretOffset = caretTextNodeTarget.length - endOffset
+        #     currSel.sel.collapse(caretTextNodeTarget, caretOffset)
+        # else
+        #     currSel.sel.collapse(targetNode, startOffset)
 
 
-    _insertSegment : (segment,bp) ->
-        targetNode  = bp.cont
-        targetSeg   = selection.getSegment(targetNode)
-        # If targetSeg & segment have the same meta data => concatenate
+    ###*
+     * Insert segment at the position of the breakpoint. 
+     * /!\ The bp is updated but not normalized. The break point will between 2
+     * segments if the insertion splits a segment in two. This is normal. If you
+     * want to have a break point normalized (ie in a text node), then you have
+     * to do it afterwards. 
+     * /!\ If the inserted segment should be fusionned with its similar sibling,
+     * you have to run _fusionSimilarSegments() over the whole line after the
+     * insertion.
+     * @param  {element} segment The segment to insert
+     * @param  {Object} bp      {cont, offset} resp. the container and offset of
+     *                          the breakpoint where to insert segment. The
+     *                          breakpoint must be in a segment, ie cont or one
+     *                          of its parent must be a segment.
+    ###
+    _insertSegment : (newSeg,bp) ->
+        targetNode = bp.cont
+        targetSeg  = selection.getSegment(targetNode)
+        # If targetSeg & newSeg have the same meta data => concatenate
         
-        if segment.nodeName == 'SPAN'
-            if targetSeg.nodeName == 'A' or @_haveSameMeta(targetSeg,segment)
-                @_insertTextInSegment(segment.textContent, bp, targetSeg )
+        if targetSeg.nodeName == 'DIV'
+            targetSeg.insertBefore(newSeg,targetSeg.children[bp.offset])
+            bp.offset++
+
+        else if newSeg.nodeName == 'SPAN'
+            if targetSeg.nodeName == 'A' or @_haveSameMeta(targetSeg,newSeg)
+                @_insertTextInSegment(newSeg.textContent, bp, targetSeg )
             else
-                @_splitAndInsertSegment(segment, bp, targetSeg)
-        else if @_haveSameMeta(targetSeg,segment)
-            @_insertTextInSegment(segment.textContent, bp, targetSeg)
+                @_splitAndInsertSegment(newSeg, bp, targetSeg)
+
+        else if @_haveSameMeta(targetSeg,newSeg)
+            @_insertTextInSegment(newSeg.textContent, bp, targetSeg)
+
         else
-            @_splitAndInsertSegment(segment,targetSeg, bp)
+            @_splitAndInsertSegment(newSeg, bp, targetSeg)
 
         return true
 
 
     _insertTextInSegment : (txt, bp, targetSeg) ->
-        targetText   = targetSeg.textContent
         if !targetSeg
             targetSeg = selection.getSegment(bp.cont)
+        targetText = targetSeg.textContent
         offset = bp.offset
         newText      = targetText.substr(0,offset)
         newText     += txt
         newText     += targetText.substr(offset)
         targetSeg.textContent = newText
         offset += txt.length
+        bp.cont = targetSeg.firstChild
         bp.offset = offset
-        return offset
+        return true
+
+    _splitAndInsertSegment : (newSegment, bp, targetSeg) ->
+        if !targetSeg
+            targetSeg = selection.getSegment(bp.cont)
+        rg = document.createRange()
+        rg.setStart(bp.cont,bp.offset)
+        rg.setEndAfter(targetSeg)
+        frag = rg.extractContents()
+        frag.insertBefore(newSegment,frag.firstChild)
+        targetSeg.parentNode.insertBefore(frag,targetSeg.nextSibling)
+        bp.cont = targetSeg.parentNode
+        i = 0
+        children = bp.cont.childNodes
+        while children[i] != targetSeg
+            i++
+        bp.offset = i + 2
 
 
         # if @_haveSameMeta(targetNode,segment)
@@ -3070,30 +3178,6 @@ class exports.CNeditor
         # bp.cont = targetNode
         # bp.offset = startOffset
 
-    ###*
-     * Insert a frag in a node container at startOffset
-     * ASSERTION : 
-     * TODO : this method could be also used in _deleteMultiLinesSelections 
-     * especialy if _insertFrag optimizes the insertion by fusionning cleverly
-     * the elements
-     * @param  {Node} targetContainer the node where to make the insert
-     * @param  {Integer} targetOffset    the offset of insertion in targetContainer
-     * @param  {fragment} frag           the fragment to insert
-     * @return {nothing}                nothing
-    ###
-    _insertFrag : (targetContainer, targetOffset, frag) ->
-
-        if targetOffset == 0
-            range = document.createRange()
-            range.setStart(startContainer,startOffset)
-            range.setEnd(startContainer,startOffset)
-            range.insertNode(frag)
-            range.detach()
-        else
-            if frag.childNodes.length>0
-                targetNode = targetContainer.childNodes[targetOffset-1]
-                targetNode.textContent += frag.firstChild.textContent
-
 
     ###*
      * Walks thoug an html tree in order to convert it in a strutured content
@@ -3123,8 +3207,8 @@ class exports.CNeditor
      *                        be parsed
      * @param  {object} context __domWalk is recursive and its context of 
      *                          execution is kept in this param instead of 
-     *                          using the editor context (quicker and better) 
-     *                          isolation
+     *                          using the editor context (faster and better 
+     *                          isolation)
     ###
     __domWalk : (nodeToParse, context) ->
         absDepth    = context.absDepth
@@ -3339,7 +3423,15 @@ class exports.CNeditor
         n = elemt.childNodes.length
         i = 0
         while i < n 
-            elemtFrag.appendChild(elemt.childNodes[0])
+            seg = elemt.childNodes[0]
+            # sometimes, the paste of the browser removes span and leave only a 
+            # text node : then we have to add the span.
+            if seg.nodeName == '#text'
+                span = document.createElement('SPAN')
+                span.appendChild(seg)
+                elemtFrag.appendChild(span)
+            else
+                elemtFrag.appendChild(seg)
             i++
         p =
             sourceLine         : context.lastAddedLine
