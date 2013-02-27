@@ -2650,8 +2650,8 @@ class exports.CNeditor
         @_history.historySelect.push savedSel
         # save scrollbar position
         savedScroll =
-            xcoord: @editorBody$.scrollTop()
-            ycoord: @editorBody$.scrollLeft()
+            xcoord: @linesDiv.scrollTop
+            ycoord: @linesDiv.scrollLeft
         @_history.historyScroll.push savedScroll
         # save newPosition flag
         @_history.historyPos.push @newPosition
@@ -2700,10 +2700,9 @@ class exports.CNeditor
             savedSel = @_history.historySelect[@_history.index]
             rangy.deserializeSelection savedSel, @linesDiv
             # 2 - restore scrollbar position
-            xcoord = @_history.historyScroll[@_history.index].xcoord
-            ycoord = @_history.historyScroll[@_history.index].ycoord
-            @editorBody$.scrollTop(xcoord)
-            @editorBody$.scrollLeft(ycoord)
+            savedScroll = @_history.historyScroll[@_history.index]
+            @linesDiv.scrollTop = savedScroll.xcoord
+            @linesDiv.scrollLeft = savedScroll.ycoord
             # 3 - restore the lines structure
             @_readHtml()
             # 4 - update the index
@@ -2729,8 +2728,8 @@ class exports.CNeditor
             # 3 - restore scrollbar position
             xcoord = @_history.historyScroll[@_history.index+1].xcoord
             ycoord = @_history.historyScroll[@_history.index+1].ycoord
-            @editorBody$.scrollTop(xcoord)
-            @editorBody$.scrollLeft(ycoord)
+            @linesDiv.scrollTop = xcoord
+            @linesDiv.scrollLeft = ycoord
             # 4 - restore lines structure
             @_readHtml()
 
