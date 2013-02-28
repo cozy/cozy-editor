@@ -514,7 +514,7 @@ class exports.CNeditor
         #    updateCurrentSel or updateCurrentSelIsStartIsEnd that is chosen 
         #    before to run the action corresponding to the shorcut.
 
-        # 2.2- Set a flag if the user moved the caret with keyboard
+        # Set a flag if the user moved the caret with keyboard
         if keyCode in ['left','up','right','down',
                               'pgUp','pgDwn','end', 'home',
                               'return', 'suppr', 'backspace']      \
@@ -522,8 +522,6 @@ class exports.CNeditor
                             'CtrlShift-right', 'CtrlShift-left']
             @newPosition = true
         
-        # 4- the current selection is cleared everytime keypress occurs.
-        # @currentSel = null
                  
         # 5- launch the action corresponding to the pressed shortcut
         switch shortcut
@@ -933,7 +931,7 @@ class exports.CNeditor
             lastSeg = segments[0]
         
         # 7- manage selection
-        @_setCaret(lastSeg.firstChild, lastSeg.firstChild.length)
+        @_setCaretAfter(lastSeg)
         @setFocus()
 
 
@@ -1540,7 +1538,8 @@ class exports.CNeditor
             # 1.2 caret is in the middle of the line : delete one caracter
             else
                 # console.log '_backspace 5 - deletion of one caracter - test ok'
-                # we consider that we are in a text node
+                # we consider that we are in a text node (selection has been 
+                # normalized)
                 textNode = sel.range.startContainer
                 startOffset = sel.range.startOffset
                 txt = textNode.textContent
@@ -1548,7 +1547,6 @@ class exports.CNeditor
                 range = rangy.createRange()
                 range.collapseToPoint textNode, startOffset-1
                 @currentSel.sel.setSingleRange range
-                @currentSel = null
 
         # 2- Case of a selection contained in a line
         else if sel.endLine == startLine
@@ -1984,9 +1982,7 @@ class exports.CNeditor
                 targetLineDepthRel : startLine.lineDepthRel
             )
             # Position caret
-            range4sel = rangy.createRange()
-            range4sel.collapseToPoint(newLine.line$[0].firstChild.firstChild,0)
-            currSel.sel.setSingleRange(range4sel)
+            @_setCaret(newLine.line$[0].firstChild.firstChild,0)
 
         # 3- Caret is at the beginning of the line
         else if currSel.rangeIsStartLine
@@ -1997,9 +1993,7 @@ class exports.CNeditor
                 targetLineDepthRel : startLine.lineDepthRel
             )
             # Position caret
-            range4sel = rangy.createRange()
-            range4sel.collapseToPoint(startLine.line$[0].firstChild.firstChild,0)
-            currSel.sel.setSingleRange(range4sel)
+            @_setCaret(startLine.line$[0].firstChild.firstChild,0)
 
         # 4- Caret is in the middle of the line
         else
@@ -2016,11 +2010,7 @@ class exports.CNeditor
                 fragment           : endOfLineFragment
             )
             # Position caret
-            range4sel = rangy.createRange()
-            range4sel.collapseToPoint(newLine.line$[0].firstChild.firstChild,0)
-            
-            currSel.sel.setSingleRange(range4sel)
-            this.currentSel = null
+            @_setCaret(newLine.line$[0].firstChild.firstChild,0)
 
         # adjuste scroll if the new line gets out of the editor
         l = newLine.line$[0]
@@ -2249,7 +2239,7 @@ class exports.CNeditor
 
 
     # Remove end line and update line links of the start line.
-    _removeEndLine: (startLine, endLine) ->
+    _removeEndLine : (startLine, endLine) ->
         startLine.lineNext = endLine.lineNext
         endLine.lineNext.linePrev = startLine if endLine.lineNext != null
         endLine.line$.remove()
@@ -2258,7 +2248,7 @@ class exports.CNeditor
 
     # adapt the type of endLine and of its children to startLine 
     # the only useful case is when endLine must be changed from Th to Tu or To
-    _adaptEndLineType: (startLine, endLine, endLineDepth) ->
+    _adaptEndLineType : (startLine, endLine, endLineDepth) ->
         endLineType = endLine.lineType
         startLineType = startLine.lineType
         if endLineType[1] is 'h' and startLineType[1] isnt 'h'
@@ -2266,13 +2256,39 @@ class exports.CNeditor
                 endLine.setType('T' + endLineType[1])
             @markerList endLine
 
-
-    # Put caret at given position. Regitser current selection.
-    _setCaret: (startContainer, startOffset) ->
+ 
+    ###*
+     * Put caret at given position. The break point will be normalized (ie put 
+     * in the closest text node).
+     * @param {element} startContainer Container of the break point
+     * @param {number} startOffset    Offset of the break point
+     * @param  {boolean} preferNext [optional] if true, in case BP8, we will choose
+     *                              to go in next sibling - if it exists - rather 
+     *                              than in the previous one.
+     * @return {Object} {cont,offset} the normalized break point
+    ###
+    _setCaret : (startContainer, startOffset, preferNext) ->
+        bp = selection.normalizeBP(startContainer, startOffset, preferNext)
         range = rangy.createRange()
-        range.collapseToPoint startContainer, startOffset
+        range.collapseToPoint bp.cont, bp.offset
         @currentSel.sel.setSingleRange range
-                
+        return bp
+    
+    _setCaretAfter : (elemt) ->
+        nextEl = elemt
+        while nextEl.nextSibling == null
+            nextEl = nextEl.parentElement
+        nextEl = nextEl.nextSibling
+        if nextEl.nodeName == 'BR'
+            index = 0
+            parent = elemt.parentNode
+            while parent.childNodes[index] != elemt
+                index += 1
+            @_setCaret(parent,index + 1)
+        else
+            @_setCaret(nextEl,0)
+
+
 
     ### ------------------------------------------------------------------------
     #  _insertLineAfter
@@ -2866,11 +2882,12 @@ class exports.CNeditor
         @clipboard$.offset getOffTheScreen
         @clipboard$.prependTo @editorBody$
         @clipboard = @clipboard$[0]
-        @clipboard.style.setProperty('width','280px')
+        @clipboard.style.setProperty('width','10px')
+        @clipboard.style.setProperty('height','10px')
         @clipboard.style.setProperty('position','fixed')
         @clipboard.style.setProperty('overflow','hidden')
-        @clipboard
-    
+        return @clipboard
+
 
 
     ###*
@@ -3089,8 +3106,7 @@ class exports.CNeditor
         ###*
          * 8- position caret
         ###
-        bp = selection.normalizeBP(bp.cont, bp.offset)
-        @_setCaret(bp.cont,bp.offset)
+        bp = @_setCaret(bp.cont,bp.offset)
 
         # if secondAddedLine?
         #     # Assumption : last inserted line always has at least one <span> with only text inside
