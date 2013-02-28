@@ -358,6 +358,11 @@ function style_html(html_source, options) {
           28/02/2013 BJA - modification for Cozy Cloud - 
           sort the order of attributes of a tag so that same dom produces 
           same html string whatever browser is used.
+          exemples of token to check the regexp :
+          <div id="CNID_9" class="Lu-3">
+          <a href="https://ww@w.coçzycléë&`$o'*;%u+*-/d.~cc?#=" class="CNE_strong"> n</a>
+          <span class="CNE_strong CNE_underline">
+          <div id="CNID_303" class="Th-2">
           */
           reg1 = /(<(a|div|span))([^>]*)>/
           reg2 = /( *[\w]*=\"[-\/@ç'&*+%éèëïîù`ê;~ $#=?.:\w]*\")/g;
