@@ -19,7 +19,7 @@ class exports.Recorder
 
     ### Functionalities ###
 
-    saveCurrentRecordedTest: (title)->
+    saveCurrentRecordedTest : (title)->
         @recordStop()
         if !(title.length > 0)
             alert "Please enter a title for this test"
@@ -45,13 +45,13 @@ class exports.Recorder
                 record.fileName = resp.fileName
                 @._appendRecordElement(record)
 
-    load: ->
+    load : ->
         $.get '/records/', (data) =>
             data = JSON.parse(data)
             for record in data
                 @._appendRecordElement record
 
-    startRecordSession: () ->
+    startRecordSession : () ->
         @._recordingSession = []
         @.serializerDisplay.val null
         # re number lines id so that final state will have same ids after played
@@ -63,13 +63,13 @@ class exports.Recorder
         @editor.linesDiv.addEventListener('keydown', @keyboardRecorder, false)
         @editor.linesDiv.addEventListener('keyup', @keyboardMoveRecorder, false)
 
-    stopRecordSession: () ->
+    stopRecordSession : () ->
         @editor.linesDiv.removeEventListener('mouseup', @selectionRecorder, false)
         @editor.linesDiv.removeEventListener('keydown', @keyboardRecorder, false)
         @editor.linesDiv.removeEventListener('keyup', @keyboardMoveRecorder, false)
         @finalState = @getState()
 
-    getState: () ->
+    getState : () ->
         state =
             html: @.editorBody$.find('#editor-lines').html()
             md  : @.editor.getEditorContent()
@@ -78,25 +78,25 @@ class exports.Recorder
         #     md  : "md"
         return state
 
-    restoreState: (state) ->
+    restoreState : (state) ->
         if state
             @.editor.replaceContent(state.html)
             # @.editor.setEditorContent(state.md)
 
     ### Listeners ###
     
-    selectionRecorder: =>
+    selectionRecorder : =>
         sel = @editor.getEditorSelection()
         serializedSelection = rangy.serializeSelection sel, true, @editorBody$[0]
-        serializedEvent =
-            selection: serializedSelection
+        action =
+            selection : serializedSelection
 
-        @_recordingSession.push serializedEvent
+
+        @_recordingSession.push action
         @_refreshResultDisplay()
 
-    keyboardRecorder: (event) =>
+    keyboardRecorder : (event) =>
         [metaKeyCode,keyCode] = @editor.getShortCut(event)
-        serializedEvent = {}
 
         if metaKeyCode+keyCode == 'other'
             # don't insert caracters during recording since the recorder is not
@@ -113,19 +113,21 @@ class exports.Recorder
         #     sel = @editor.getEditorSelection()
         #     serializedSelection = rangy.serializeSelection sel, true, @editorBody$[0]
         #     console.log 'keyboardRecorder detect a keyboard move : ' + keyCode + ' ' + serializedSelection
-        #     serializedEvent.selection = serializedSelection
+        #     action.selection = serializedSelection
         else
-            serializedEvent.keyboard =
-                altKey   : event.altKey
-                shiftKey : event.shiftKey
-                ctrlKey  : event.ctrlKey
-                keyCode  : event.which
-                which    : event.which
+            action = 
+                keyboard :
+                    altKey   : event.altKey
+                    shiftKey : event.shiftKey
+                    ctrlKey  : event.ctrlKey
+                    keyCode  : event.which
+                    which    : event.which
+                html : @.editorBody$.find('#editor-lines').html() 
 
-            @_recordingSession.push serializedEvent
+            @_recordingSession.push action
             @_refreshResultDisplay()
 
-    keyboardMoveRecorder: (event) =>
+    keyboardMoveRecorder : (event) =>
         [metaKeyCode,keyCode] = @editor.getShortCut(event)
         serializedEvent = {}
 
@@ -136,14 +138,14 @@ class exports.Recorder
             @_recordingSession.push serializedEvent
             @_refreshResultDisplay()
 
-    _refreshResultDisplay: ->
+    _refreshResultDisplay : ->
         @serializerDisplay.val JSON.stringify(@_recordingSession)
 
-    playAll: ->
+    playAll : ->
         for record in @records
             @play record
 
-    play: (record) ->
+    play : (record) ->
         if !record
             record = @_recordingSession
         if record == []
@@ -151,10 +153,13 @@ class exports.Recorder
         if record.currentStep
             record.currentStep = null
         @restoreState(record.initialState)
-        for action in record.sequence
-            @_playAction action
-        record.displayResult( @getState() )
+        actionsInError = []
+        for action, i in record.sequence
+            res = @_playAction action
+            if !res
+                actionsInError.push(i)
         finalState = @.getState()
+        record.displayResult(finalState)
         if finalState.html != record.finalState.html
             record.finalStateOK = false
             errorText = 'Actions ok, but final html differs'
@@ -169,35 +174,41 @@ class exports.Recorder
 
 
     displayResult : (finalState) ->
-            if finalState.html != @finalState.html
-                @finalStateOK = false
-                errorText = 'Actions ok, but final html differs'
-                @setResult(errorText,'finalHTMLNOK')
-            else if finalState.md != @finalState.md
-                @finalStateOK = false
-                errorText = 'Actions ok, but final md differs'
-                @setResult(errorText,'finalMdNOK')
-            else
-                @finalStateOK = true
-                @setResult('ok','resultActionOK')
+        if finalState.html != @finalState.html
+            @finalStateOK = false
+            errorText = 'Actions ok, but final html differs'
+            @setResult(errorText,'finalHTMLNOK')
+        else if finalState.md != @finalState.md
+            @finalStateOK = false
+            errorText = 'Actions ok, but final md differs'
+            @setResult(errorText,'finalMdNOK')
+        else
+            @finalStateOK = true
+            @setResult('ok','resultActionOK')
+
 
     setResult : (msg,classError) ->
-            el = @element.find('.resultAction')
-            actionsInError = []
-            for action , i in @sequence
-                if action.result
-                    recordResult = true
-                else
-                    recordResult = false
-                    actionsInError.push(i)
-                2 # for a clear compiled js 
+        el = @element.find('.resultAction')
+        actionsInError = []
+        for action , i in @sequence
+            if action.result
+                recordResult = true
+            else
+                recordResult = false
+                actionsInError.push(i)
+            2 # for a clear compiled js 
+        el.removeClass('resultActionOK'  )
+        el.removeClass('resultActionNOK' )
+        el.removeClass('finalHTMLNOK'    )
+        el.removeClass('finalMdNOK'      )
+        if actionsInError.length == 0
+            el.text(msg)
+            el.addClass(classError)
+        else
+            el.text('ERROR in actions : ' + actionsInError)
+            el.addClass('resultActionNOK')
+                
 
-                el.text(msg)
-                el.removeClass('resultActionOK'  )
-                el.removeClass('resultActionNOK' )
-                el.removeClass('finalHTMLNOK'    )
-                el.removeClass('finalMdNOK'      )
-                el.addClass(classError)
 
     playStep : () ->
         if !@currentStep?
@@ -219,7 +230,7 @@ class exports.Recorder
                 el.text('step ' + (@currentStep+1) + '/' + @sequence.length + ' NOK')
             @currentStep +=1
 
-    _appendRecordElement: (record) ->
+    _appendRecordElement : (record) ->
         element = $  """
             <div id="record_#{record.id}">
                 <span class="btnDiv-RecordLine">
@@ -242,9 +253,7 @@ class exports.Recorder
                 <span class="txtDiv-RecordLine">#{record.fileName}</span>
             </div>
             """
-        @recordList.append element
         record.element       = element
-        
         record.setResult     = @setResult
         record.playStep      = @playStep
         record.currentStep   = null
@@ -286,8 +295,18 @@ class exports.Recorder
                     url: "/records/"
                     data:
                         fileName: record.fileName
+        @recordList.append element
 
-    _playAction: (action) ->
+    _playAction : (action) ->
+        
+        if action.result? and !action.result
+            ### 
+            A break point is here because this action has already been played
+            and leads to an error...
+            Good debug ! :-) 
+            ###
+            debugger;
+
         if action.selection?
             rangy.deserializeSelection action.selection, @editorBody$[0]
         if action.keyboard?
@@ -307,35 +326,16 @@ class exports.Recorder
                 @editor.linesDiv.dispatchEvent(@keyEvent)
             else # chrome
                 @__triggerKeyboardEvent(@editor.linesDiv,k)
-
-                # e = jQuery.Event("keydown", { 
-                #     keyCode  : k.keyCode,
-                #     altKey   : k.altKey ,
-                #     ctrlKey  : k.ctrlKey ,
-                #     shiftKey : k.shiftKey })
-                # jQuery(@editor.linesDiv).trigger( e )
-                
-                # modifiersListArg = `(k.altKey ? "Alt " : "") + 
-                #     (k.ctrlKey ? "Ctrl " : "") + 
-                #     (k.shiftKey ? "Shift" : "")`
-                # @keyEvent.initKeyboardEvent(
-                #     'keydown'  ,      # DOMString typeArg,
-                #     true       ,      # boolean canBubbleArg,
-                #     true       ,      # boolean cancelableArg,
-                #     null       ,      # views::AbstractView viewArg,
-                #     k.keyCode  ,      # DOMString charArg,
-                #     k.keyCode  ,      # DOMString keyArg,
-                #     0          ,      # unsigned long locationArg,
-                #     modifiersListArg ,# DOMString modifiersListArg,
-                #     false      ,      # boolean repeat,
-                #     ''  )             # DOMString localeArg
-
-                # @editor.linesDiv.dispatchEvent(@keyEvent)
-        action.result = @checker.checkLines(@editor)
+        # check the result
+        res = true
+        if action.html
+            res = this.editorBody$.find('#editor-lines').html() == action.html + 'a'
+        
+        return action.result = res && @checker.checkLines(@editor)
 
     ###*
-     * An alternative keyboard event triger for Chrome (wich is buggy on this
-     * point... )
+     * An alternative keyboard event triger for Chrome wich is buggy on this
+     * point...
      * @param  {[type]} el       [description]
      * @param  {[type]} keyboard [description]
      * @return {[type]}          [description]
@@ -357,10 +357,10 @@ class exports.Recorder
         else
             el.fireEvent("onkeydown", eventObj)
 
-    add: (record) ->
+    add : (record) ->
         @records.push record
 
-    _remove: (record) ->
+    _remove : (record) ->
         i     = @records.indexOf(record)
         front = @records.slice(0,i)
         end   = @records.slice(i+1)
