@@ -54,14 +54,27 @@ class exports.Recorder
     startRecordSession : () ->
         @._recordingSession = []
         @.serializerDisplay.val null
+        
         # re number lines id so that final state will have same ids after played
         @editor._readHtml() 
         @initialState = @getState()
+        
         # listen events on bubbling phase so that the editor reacts before ( the
         # editor listen the capturing phase which takes place before)
         @editor.linesDiv.addEventListener('mouseup', @selectionRecorder, false)
         @editor.linesDiv.addEventListener('keydown', @keyboardRecorder, false)
         @editor.linesDiv.addEventListener('keyup', @keyboardMoveRecorder, false)
+        
+        # Record paste events
+        originalProcessPaste = @editor._processPaste
+        _recordingSession = @._recordingSession
+        @editor._processPaste = () ->
+            # clipboardHtml = @clipboard.html
+            action = 
+                paste : @clipboard.innerHTML
+            originalProcessPaste.call(this)
+            action.html = this.linesDiv.innerHTML
+            _recordingSession.push action
 
     stopRecordSession : () ->
         @editor.linesDiv.removeEventListener('mouseup', @selectionRecorder, false)
@@ -83,6 +96,7 @@ class exports.Recorder
             @.editor.replaceContent(state.html)
             # @.editor.setEditorContent(state.md)
 
+
     ### Listeners ###
     
     selectionRecorder : =>
@@ -93,7 +107,8 @@ class exports.Recorder
 
 
         @_recordingSession.push action
-        @_refreshResultDisplay()
+        # @_refreshResultDisplay()
+
 
     keyboardRecorder : (event) =>
         [metaKeyCode,keyCode] = @editor.getShortCut(event)
@@ -122,10 +137,15 @@ class exports.Recorder
                     ctrlKey  : event.ctrlKey
                     keyCode  : event.which
                     which    : event.which
-                html : @.editorBody$.find('#editor-lines').html() 
+                # html : @.editorBody$.find('#editor-lines').html() 
+                html : @editor.linesDiv.innerHTML
+            # Ctrl-V : do not record the key action. It is directly recorded by
+            # startRecording()
+            if !event.altKey && !event.shiftKey && event.ctrlKey && event.which == 86
+                return
 
             @_recordingSession.push action
-            @_refreshResultDisplay()
+
 
     keyboardMoveRecorder : (event) =>
         [metaKeyCode,keyCode] = @editor.getShortCut(event)
@@ -136,7 +156,7 @@ class exports.Recorder
             serializedSelection = rangy.serializeSelection sel, true, @editorBody$[0]
             serializedEvent.selection = serializedSelection
             @_recordingSession.push serializedEvent
-            @_refreshResultDisplay()
+            # @_refreshResultDisplay()
 
     _refreshResultDisplay : ->
         @serializerDisplay.val JSON.stringify(@_recordingSession)
@@ -309,6 +329,12 @@ class exports.Recorder
 
         if action.selection?
             rangy.deserializeSelection action.selection, @editorBody$[0]
+
+        if action.paste?
+            @editor.clipboard.innerHTML = action.paste
+            @editor.updateCurrentSelIsStartIsEnd()
+            @editor._processPaste()
+
         if action.keyboard?
             k = action.keyboard
             if @keyEvent.initKeyEvent # ff
@@ -329,7 +355,7 @@ class exports.Recorder
         # check the result
         res = true
         if action.html
-            res = this.editorBody$.find('#editor-lines').html() == action.html + 'a'
+            res = this.editorBody$.find('#editor-lines').html() == action.html
         
         return action.result = res && @checker.checkLines(@editor)
 

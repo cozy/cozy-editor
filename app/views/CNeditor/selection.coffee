@@ -344,10 +344,12 @@ selection.getLineDiv = (cont,offset) ->
 # Prerequisite : elt must be in a div of a line.
 selection._getLineDiv = (elt)->
     parent = elt
-    while !(parent.nodeName == 'DIV'              \
-            and parent.id?                        \
-            and parent.id.substr(0,5) == 'CNID_') \
-          or parent.parentNode == null
+    until (parent.nodeName == 'DIV'                                            \
+            and parent.id?                                                     \
+            and (    parent.id.substr(0,5) == 'CNID_'                          \
+                  or parent.id == 'editor-lines'       )                       \
+            )                                                                  \
+          && parent.parentNode != null
         parent = parent.parentNode
     return parent
 
@@ -375,17 +377,15 @@ selection.getSegment = (cont,offset) ->
 # Prerequisite : elt must be in a segment of a line.
 selection._getSegment = (elt)->
     parent = elt.parentNode
-    while !(parent.nodeName == 'DIV'              \
-            and parent.id?                        \
-            and parent.id.substr(0,5) == 'CNID_') \
-          or parent.parentNode == null
-        elt = elt.parentNode
+    until (parent.nodeName == 'DIV'                                            \
+            and parent.id?                                                     \
+            and (    parent.id.substr(0,5) == 'CNID_'                          \
+                  or parent.id == 'editor-lines'       )                       \
+            )                                                                  \
+          && parent.parentNode != null
+        elt = parent
         parent = elt.parentNode
     return elt
-
-
-
-
 
 
 

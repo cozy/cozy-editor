@@ -68,8 +68,9 @@ class Line
               nextLine      , # The next line, null if prevLine is given
               fragment        # [optional] a fragment to insert in the line, no br at the end
             ] = arguments
-
+        # Increment the counter for lines id
         editor._highestId += 1
+        # Initialise with an empty line or the fragment given in arguments
         lineID = 'CNID_' + editor._highestId
         newLineEl = document.createElement('div')
         newLineEl.id = lineID
@@ -140,6 +141,9 @@ Line.clone = (line) ->
     clone.lineNext     = line.lineNext
     return clone
 
+
+
+
 class exports.CNeditor
 
     ###
@@ -191,9 +195,13 @@ class exports.CNeditor
         @linesDiv.setAttribute('class','editor-frame')
         @linesDiv.setAttribute('contenteditable','true')
         @editorBody$.append @linesDiv
+        @editorBody$.prop '__editorCtl', this
     
         # init clipboard div
         @_initClipBoard()
+
+        # init url popover
+        @_initUrlPopover()
 
         # set the properties of the editor
         @_lines       = {}            # contains every line
@@ -209,11 +217,7 @@ class exports.CNeditor
             historyPos   : [null]
         @_lastKey     = null      # last pressed key (avoid duplication)
 
-        # initialize event listeners
-        @editorBody$.prop '__editorCtl', this
 
-        # listen keydown on capturing phase (before bubbling)
-        @linesDiv.addEventListener('keydown', @_keyDownCallBack, true)
 
         # if chrome => listen to keyup to correct the insertion of the
         # first caracter of an empty line
@@ -223,18 +227,51 @@ class exports.CNeditor
         @isChrome = !@isSafari && 
                  (`'WebkitTransform' in document.documentElement.style`)
         @isChromeOrSafari = @isChrome or @isSafari
+        
+        # initialize event listeners
+        @enable()
+
+        # callback
+        @callBack.call(this)
+
+    _mouseupCB : () =>
+        @newPosition = true
+
+    _keyupForIframeCB : () =>
+        @editorTarget$.trigger jQuery.Event("onKeyUp")
+
+    _clickCB : (e) =>
+        @_lastKey = null
+        # if the start of selection after a click is in a link, then show
+        # url popover to edit the link.
+        segments = @_getLinkSegments()
+        if segments
+            @_showUrlPopover(segments,false)
+            e.stopPropagation()
+            e.preventDefault()
+
+    _pasteCB : (event) =>
+        @paste event
+
+    _registerEventListeners : () ->
+
+        # listen keydown on capturing phase (before bubbling)
+        # main actions triger.
+        @linesDiv.addEventListener('keydown', @_keyDownCallBack, true)
+        
         if @isChromeOrSafari
            @linesDiv.addEventListener('keyup', @_keyUpCorrection, false)
 
         # Listen to mouse to detect when caret is moved
-        @linesDiv.addEventListener('mouseup', () =>
-            @newPosition = true
-        , true)
+        @linesDiv.addEventListener('mouseup', @_mouseupCB, true)
 
         # if editor is in an iframe, we cast the keyup event.
         if @isInIframe
-            @editorBody$.on 'keyup', () =>
-                @editorTarget$.trigger jQuery.Event("onKeyUp")
+            @editorBody$.on('keyup', @_keyupForIframeCB)
+
+        # Click and paste call backs
+        @editorBody$.on('click', @_clickCB)
+        @editorBody$.on 'paste', @_pasteCB
 
         # isNormalChar = (keyCode) ->
         #     return 96 < keyCode < 123  and \  # a .. z
@@ -256,25 +293,34 @@ class exports.CNeditor
         #             if isNormalChar(keyCode)
         #                 @showAutocomplete()
 
+    _unRegisterEventListeners : () ->
+        # listen keydown on capturing phase (before bubbling)
+        # main actions triger.
+        @linesDiv.removeEventListener('keydown', @_keyDownCallBack, true)
+        
+        if @isChromeOrSafari
+           @linesDiv.removeEventListener('keyup', @_keyUpCorrection, false)
 
-        @editorBody$.on 'click', (event) =>
-            @_lastKey = null
-            # if the start of selection after a click is in a link, then show
-            # url popover to edit the link.
-            segments = @_getLinkSegments()
-            if segments
-                @_showUrlPopover(segments,false)
+        # Listen to mouse to detect when caret is moved
+        @linesDiv.removeEventListener('mouseup', @_mouseupCB, true)
 
-        @_initUrlPopover()
+        # if editor is in an iframe, we cast the keyup event.
+        if @isInIframe
+            @editorBody$.off('keyup', @_keyupForIframeCB)
 
-        @editorBody$.on 'paste', (event) =>
-            @paste event
-
-        # callback
-        @callBack.call(this)
+        # Click and paste call backs
+        @editorBody$.off('click', @_clickCB)
+        @editorBody$.off('paste', @_pasteCB)
 
 
-    # showAutocomplete : () ->
+    disable : () ->
+        @isEnabled = false
+        @_unRegisterEventListeners()
+
+
+    enable : () ->
+        @isEnabled = true
+        @_registerEventListeners()
 
     ###*
      * Set focus on the editor
@@ -785,12 +831,15 @@ class exports.CNeditor
 
 
     strongSelection : () ->
-        @_applyMetaDataOnSelection('CNE_strong')
+        @_applyMetaDataOnSelection('CNE_strong') if @isEnabled
 
     underlineSelection : () ->
-        @_applyMetaDataOnSelection('CNE_underline')
+        @_applyMetaDataOnSelection('CNE_underline') if @isEnabled
 
     linkifySelection: () ->
+        if ! @isEnabled
+            return true
+
         currentSel = @updateCurrentSelIsStartIsEnd()
         range = currentSel.theoricalRange
         # Show url popover if range is collapsed
@@ -827,13 +876,27 @@ class exports.CNeditor
     ###
     _showUrlPopover : (segments, isLinkCreation) ->
         pop = @urlPopover
-        pop.isLinkCreation = isLinkCreation
+        
+        # Disable the editor to prevent actions when popover is on
+        @disable()
+
+        @.isUrlPopoverOn = true
+        pop.isLinkCreation = isLinkCreation # save the flag
+        
+        # save initial selection range to restore it on close
         pop.initialSelRg = @currentSel.theoricalRange.cloneRange()
-        edges = segments[0].getBoundingClientRect()
+        
+        # save segments array
         pop.segments = segments
-        pop.style.left = edges.left + 'px'
-        pop.style.top = edges.top + 20 + 'px'
-        href = segments[0].href
+        
+        # positionnate the popover (centered for now)
+        seg = segments[0]
+        d = @linesDiv.getBoundingClientRect()
+        pop.style.left = Math.round( (d.width - 300)/2 ) + 'px'
+        pop.style.top = seg.offsetTop + 20 + 'px'
+        
+        # update the inputs fields of popover
+        href = seg.href
         if href == '' or href == 'http:///'
             href = 'http://'
         pop.urlInput.value = href
@@ -841,31 +904,77 @@ class exports.CNeditor
         txt += seg.textContent for seg in segments
         pop.textInput.value = txt
         pop.initialTxt = txt
-        pop.style.display = 'block'
+        
+        # Insert the popover
+        seg.parentElement.parentElement.appendChild(pop)
+        
+        # add event listener to detect a click outside of the popover
+        pop.evt = @editorBody$[0].addEventListener('click',@_detectClickOutUrlPopover)
+        
+        # select and put focus in the popover
         pop.urlInput.select()
+        pop.urlInput.focus()
+        
+        # colorize the concerned segments.
         seg.style.backgroundColor = '#dddddd' for seg in segments
         return true
 
-    _cancelUrlPopover : () =>
+    ###*
+     * The callback for a click outside the popover
+    ###
+    _detectClickOutUrlPopover : (e) =>
+        isOut =     e.target != @urlPopover                                    \
+                and $(e.target).parents('#CNE_urlPopover').length == 0
+        if isOut
+            @_cancelUrlPopover(true)
+
+    ###*
+     * Close the popover and revert modifications if isLinkCreation == true
+     * @param  {boolean} doNotRestoreOginalSel If true, restores the caret at
+     *                                         its position before.
+    ###
+    _cancelUrlPopover : (doNotRestoreOginalSel) =>
         pop = @urlPopover
-        pop.style.display = 'none'
+        @editorBody$[0].removeEventListener('click', @_detectClickOutUrlPopover)
+        # pop.style.display = 'none'
+        pop.parentElement.removeChild(pop)
+         
         seg.style.removeProperty('background-color') for seg in pop.segments
         # case of a link creation called and cancelled : a segment for the link
         # to creat has already been added in order to show the selection when 
         # popover is visible. As it is canceled, we undo in order to remove this
         # link.
         if pop.isLinkCreation
-            rg = document.createRange()
-            rg.selectNodeContents(seg)
-            @currentSel.sel.setSingleRange rg
-            @unDo()
-            @setFocus()
-        else
+            if doNotRestoreOginalSel
+                sel = @getEditorSelection()
+                sel = rangy.serializeSelection sel, true, @linesDiv
+                # TODO : don't use history to retrieve the initial state...
+                # juste save the initial line should be enough.
+                @unDo()
+                rangy.deserializeSelection sel, @linesDiv
+            else
+                @unDo()
+            
+        else if !doNotRestoreOginalSel
             @currentSel.sel.setSingleRange(pop.initialSelRg)
-            @setFocus()
+
+        # restore editor enabled
+        @setFocus()
+        @enable()
 
         return true
 
+
+    ###*
+     * Same as _cancelUrlPopover but used in events call backs
+    ###
+    _cancelUrlPopoverCB : (e) =>
+        e.stopPropagation()
+        @_cancelUrlPopover(false)
+
+    ###*
+     * Close the popover and applies modifications to the link.
+    ###
     _validateUrlPopover : () =>
         pop = @urlPopover
         segments = pop.segments
@@ -873,11 +982,13 @@ class exports.CNeditor
         # 1- in case of a link creation and the user validated an empty url, just
         # cancel the link creation
         if pop.urlInput.value == '' && pop.isLinkCreation
-            @_cancelUrlPopover()
+            @_cancelUrlPopover(false)
             return true
 
         # 2- remove background of selection and hide popover
-        pop.style.display = 'none'
+        # pop.style.display = 'none'
+        @editorBody$[0].removeEventListener('click', @_detectClickOutUrlPopover)
+        pop.parentElement.removeChild(pop)
         seg.style.removeProperty('background-color') for seg in segments
 
         # 3- in case of a link creation, addhistory has already be done, it must 
@@ -934,11 +1045,18 @@ class exports.CNeditor
         @_setCaretAfter(lastSeg)
         @setFocus()
 
+        # 8- restore editor enabled
+        @enable()
 
+    ###*
+     * initialise the popover during the editor initialization.
+    ###
     _initUrlPopover : () ->
         frag = document.createDocumentFragment()
         pop = document.createElement('div')
+        pop.id = 'CNE_urlPopover'
         pop.className = 'CNE_urlpop'
+        pop.setAttribute('contenteditable','false')
         frag.appendChild(pop)
         pop.innerHTML = 
             """
@@ -954,10 +1072,10 @@ class exports.CNeditor
             </div>
             """
         b = document.querySelector('body')
-        b.insertBefore(frag,b.firstChild)
-        [btnOK,btnCancel,btnDelete] = pop.querySelectorAll('button')
+        # b.insertBefore(frag,b.firstChild)
+        [btnOK, btnCancel, btnDelete] = pop.querySelectorAll('button')
         btnOK.addEventListener('click',@_validateUrlPopover)
-        btnCancel.addEventListener('click',@_cancelUrlPopover)
+        btnCancel.addEventListener('click',@_cancelUrlPopoverCB)
         btnDelete.addEventListener 'click', () =>
             pop.urlInput.value = ''
             @_validateUrlPopover()
@@ -969,8 +1087,8 @@ class exports.CNeditor
             if e.keyCode == 13
                 @_validateUrlPopover()
             else if e.keyCode == 27
-                @_cancelUrlPopover()
-        pop.addEventListener('focusout',@_cancelUrlPopover) #don't work ?
+                @_cancelUrlPopover(false)
+        
         @urlPopover = pop
 
         return true
@@ -1567,9 +1685,11 @@ class exports.CNeditor
     # 
     # Turn selected lines in a title List (Th)
     ###
-
     titleList : (l) ->
-        # @_addHistory()
+
+        if ! @isEnabled
+            return true
+
         # 1- find first and last div of the lines to turn into markers
         if l?
             startDivID = l.lineID
@@ -1613,6 +1733,10 @@ class exports.CNeditor
     ###
 
     markerList : (l) ->
+
+        if ! @isEnabled
+            return true
+
         @_addHistory()
         # 1- find first and last div of the lines to turn into markers
         if l?
@@ -1678,6 +1802,10 @@ class exports.CNeditor
     #   cycle : Tu <=> Th
     ###
     toggleType : () ->
+
+        if ! @isEnabled
+            return true
+
         # 1- Variables
         sel   = @getEditorSelection()
         range = sel.getRangeAt(0)
@@ -1790,6 +1918,10 @@ class exports.CNeditor
     #   l = optional : a line to indent. If none, the selection will be indented
     ###
     tab :  (l) ->
+
+        if ! @isEnabled
+            return true
+
         # 1- Variables
         if l?
             startDiv = l.line$[0]
@@ -2904,15 +3036,12 @@ class exports.CNeditor
         # else : paste not ready => wait
         else
             setTimeout @_waitForPasteData, 100
-       
 
 
-    ###
+    ###*
      * Called when the browser has pasted data in the clipboard div. 
      * Its role is to insert the content of the clipboard into the editor.
-     * @param  {element} sandbox 
     ###
-
     _processPaste : () =>
         sandbox = @.clipboard
         currSel = @currentSel
