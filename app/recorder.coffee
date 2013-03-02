@@ -109,19 +109,33 @@ class exports.Recorder
         @_recordingSession.push action
         # @_refreshResultDisplay()
 
-
+    ###*
+     * Record keydown events : listen events on bubbling phase so that the
+     * editor has already done its modifications.
+     * @param  {[type]} event [description]
+     * @return {[type]}       [description]
+    ###
     keyboardRecorder : (event) =>
         [metaKeyCode,keyCode] = @editor.getShortCut(event)
+        shortCut = metaKeyCode + '-' + keyCode
 
-        if metaKeyCode+keyCode == 'other'
-            # don't insert caracters during recording since the recorder is not
-            # able to play them.
-            # This test doesn't fit all the insertions, but 80% cases, it's 
-            # enougth
+        console.log shortCut
+
+        # don't insert caracters during recording since the recorder is not
+        # able to play them.
+        # This test doesn't fit all the insertions, but 80% cases, it's 
+        # enougth
+        if shortCut == '-other'
             alert 'No insertion during recording'
             throw new Error('No insertion during recording')
+
+        # don't record if only a meta is stroken
         else if metaKeyCode != '' and keyCode == 'other'
-            # don't record if only a meta is stroken
+            return
+        
+        # Ctrl-V : do not record the key action. It is directly recorded by
+        # startRecording()
+        else if shortCut == 'Ctrl-V'
             return
 
         if keyCode in ['up','down','right','left','home','pgUp','pgDwn']
@@ -139,10 +153,7 @@ class exports.Recorder
                     which    : event.which
                 # html : @.editorBody$.find('#editor-lines').html() 
                 html : @editor.linesDiv.innerHTML
-            # Ctrl-V : do not record the key action. It is directly recorded by
-            # startRecording()
-            if !event.altKey && !event.shiftKey && event.ctrlKey && event.which == 86
-                return
+            
 
             @_recordingSession.push action
 
@@ -175,7 +186,7 @@ class exports.Recorder
         @restoreState(record.initialState)
         actionsInError = []
         for action, i in record.sequence
-            res = @_playAction action
+            res = @_playAction(action)
             if !res
                 actionsInError.push(i)
         finalState = @.getState()
@@ -355,7 +366,7 @@ class exports.Recorder
         # check the result
         res = true
         if action.html
-            res = this.editorBody$.find('#editor-lines').html() == action.html
+            res = this.editor.linesDiv.innerHTML == action.html
         
         return action.result = res && @checker.checkLines(@editor)
 

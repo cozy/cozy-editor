@@ -22,7 +22,7 @@ class exports.AutoTest
     checkLines : (editor) ->
         # init
         @editor    = editor
-        @divLines$ = $(editor.editorBody$[0].children[1])
+        @linesDiv = @editor.linesDiv # $(editor.editorBody$[0].children[1])
         
         # 1-Is there a line object corresponding to each DIV ?
         try
@@ -201,9 +201,9 @@ class exports.AutoTest
     checkLineStructure : (line) ->
         type  = @nodeType(line.lineType)
         depth = line.lineDepthAbs
-        
+
         # 1- check the line has a corresponding element
-        lineEl = @divLines$.children('#'+line.lineID)[0]
+        lineEl = @linesDiv.querySelector('#'+line.lineID) #.children('#'+line.lineID)[0]
         if lineEl == null
             txt = 'has no matching DIV'
             @logErr(line,txt)
@@ -259,7 +259,7 @@ class exports.AutoTest
         # appending the property ".sons" to every line that is a non-empty title
         # It will be easier to check the remaining properties with a tree
         while nextLine != null
-            
+
             @checkLineStructure nextLine
                     
             # Then we add it to the tree
@@ -309,9 +309,14 @@ class exports.AutoTest
 
 
     checkEachDivRefersALine : () ->
-        objDiv = @divLines$.children('div')
-        objDiv.each (i,div) =>
+
+        objDiv = this.linesDiv.getElementsByTagName('DIV')
+        
+        for div, i in objDiv
             myId = div.id
+            # jump to nex div if div <=> urlPopover
+            if myId == 'CNE_urlPopover'
+                continue
             if /CNID_[0-9]+/.test myId
                 if ! @editor._lines[myId]?
                     txt = 'div\'s id has no corresponding line ' + myId
@@ -319,6 +324,7 @@ class exports.AutoTest
             else
                 txt = 'wrong line id format : ' + myId
                 @logErr(null,txt)
+            
 
 
 
