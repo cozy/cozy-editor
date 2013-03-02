@@ -210,48 +210,63 @@ cb = () ->
     
     #  > tests the code structure
     checkBtn = $ "#checkBtn"
-    checker  = new AutoTest()
-    checkLog = ''
 
-    checkEditor = () ->
-        console.log 'checkEditor()'
-        res  = checker.checkLines(editorCtrler) 
-        date = new Date()
-        h = date.getHours() + ''
-        h = if h.length == 1 then '0'+h else h
-        m = date.getMinutes() + ''
-        m = if m.length == 1 then '0'+m else m
-        s = date.getSeconds() + ''
-        s = if s.length == 1 then '0'+s else s
-        st   = h+":"+m+":"+s+" - "
-        if res
-            checkLog += st + "Syntax test success\n" 
-            serializerDisplay.val(checkLog)
-            $('#well-editor').css('background-color','')
+    _checkEditor = (e) ->
+        if e
+            target = e.target
+            if      target.id == 'editorIframe'
+                editor = editor1
+            else if target.id == 'editorIframe2'
+                editor = editor2
+            else if target.id == 'editorDiv3'
+                editor = editor3
+            checkEditor(editor)
         else
-            checkLog += st + " !!! Syntax test FAILLURE : cf console  !!!\n"
-            serializerDisplay.val(checkLog)
-            $('#well-editor').css('background-color','#c10000')
+            checkEditor(editor1)
+            checkEditor(editor2)
+            checkEditor(editor3)
+        # console.log 'checkEditor()'
+        # res  = checker.checkLines(editorCtrler) 
+        # date = new Date()
+        # h = date.getHours() + ''
+        # h = if h.length == 1 then '0'+h else h
+        # m = date.getMinutes() + ''
+        # m = if m.length == 1 then '0'+m else m
+        # s = date.getSeconds() + ''
+        # s = if s.length == 1 then '0'+s else s
+        # st   = h+":"+m+":"+s+" - "
+        # if res
+        #     checkLog += st + "Syntax test success\n" 
+        #     serializerDisplay.val(checkLog)
+        #     $('#well-editor').css('background-color','')
+        # else
+        #     checkLog += st + " !!! Syntax test FAILLURE : cf console  !!!\n"
+        #     serializerDisplay.val(checkLog)
+        #     $('#well-editor').css('background-color','#c10000')
 
     continuousCheckToggle = () =>
         if not checkBtn.hasClass "btn-warning"
             checkBtn.addClass "btn-warning"
-            checkEditor()
-            $("iframe").on "onKeyUp", checkEditor
+            _checkEditors()
+            $('iframe').on("onKeyUp", _checkEditor)
+            $('#editorDiv3').on('onKeyUp', _checkEditor)
         else
             checkBtn.removeClass "btn-warning"
-            $("iframe").off "onKeyUp", checkEditor
+            $("iframe").off("onKeyUp", _checkEditor)
+            $('#editorDiv3').off("onKeyUp", _checkEditor)
 
     continuousCheckOn = () ->
         if not checkBtn.hasClass "btn-warning"
             checkBtn.addClass "btn-warning"
-            checkEditor()
-            $("iframe").on "onKeyUp", checkEditor
+            _checkEditor()
+            $('#editorDiv3').on("onKeyUp", _checkEditor)
+            $("iframe").on("onKeyUp", _checkEditor)
 
     continuousCheckOff = () ->
         if checkBtn.hasClass "btn-warning"
             checkBtn.removeClass "btn-warning"
-            $("iframe").off "onKeyUp", checkEditor
+            $("iframe").off "onKeyUp", _checkEditor
+            $('#editorDiv3').off "onKeyUp", _checkEditor
 
 
     continuousCheckOn() # by default activate continuous checking
@@ -436,17 +451,54 @@ cb = () ->
     
     recorder.load()
 
-        
+
+checker  = new AutoTest()
+
+checkLog = ''
+
+serializerDisplay = $ "#resultText"
+
+checkEditor = (editor) ->
+    console.log 'checkEditor()'
+    res  = checker.checkLines(editor) 
+    date = new Date()
+    h = date.getHours() + ''
+    h = if h.length == 1 then '0'+h else h
+    m = date.getMinutes() + ''
+    m = if m.length == 1 then '0'+m else m
+    s = date.getSeconds() + ''
+    s = if s.length == 1 then '0'+s else s
+    st   = h+":"+m+":"+s+" - "
+    switch editor.editorTarget.id
+        when 'editorIframe'
+            ed = 'editor1'
+        when 'editorIframe2'
+            ed = 'editor2'
+        else
+            ed = 'editor3'
+
+
+    if res
+        checkLog += st + 'Syntax test success  (' + ed + ')\n' 
+        serializerDisplay.val(checkLog)
+        $('#well-editor').css('background-color','')
+    else
+        checkLog += st + ' !!! Syntax test FAILLURE : cf console  !!!\n'
+        serializerDisplay.val(checkLog)
+        $('#well-editor').css('background-color','#c10000')
+  
 
 ###****************************************************
  * 3 - creation of the editor
 ###
-
+editor1 = 0
 editor2 = 0
+editor3 = 0
+
 
 $ ->
     editor2 = new CNeditor( document.querySelector('#editorIframe2'), () ->
-        editor = new CNeditor document.querySelector('#editorIframe'), cb 
+        editor1 = new CNeditor document.querySelector('#editorIframe'), cb 
         # editor.editor2 = editor2
         editor3 = new CNeditor( document.querySelector('#editorDiv3'), () ->
             content = require('views/templates/content-shortlines-small')

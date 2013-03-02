@@ -237,7 +237,7 @@ class exports.CNeditor
     _mouseupCB : () =>
         @newPosition = true
 
-    _keyupForIframeCB : () =>
+    _keyupCast : () =>
         @editorTarget$.trigger jQuery.Event("onKeyUp")
 
     _clickCB : (e) =>
@@ -265,9 +265,8 @@ class exports.CNeditor
         # Listen to mouse to detect when caret is moved
         @linesDiv.addEventListener('mouseup', @_mouseupCB, true)
 
-        # if editor is in an iframe, we cast the keyup event.
-        if @isInIframe
-            @editorBody$.on('keyup', @_keyupForIframeCB)
+        # We cast the keyup event in editorTarget
+        @editorBody$.on('keyup', @_keyupCast)
 
         # Click and paste call backs
         @editorBody$.on('click', @_clickCB)
@@ -304,9 +303,8 @@ class exports.CNeditor
         # Listen to mouse to detect when caret is moved
         @linesDiv.removeEventListener('mouseup', @_mouseupCB, true)
 
-        # if editor is in an iframe, we cast the keyup event.
-        if @isInIframe
-            @editorBody$.off('keyup', @_keyupForIframeCB)
+        # We cast the keyup event in editorTarget
+        @editorBody$.off('keyup', @_keyupCast)
 
         # Click and paste call backs
         @editorBody$.off('click', @_clickCB)
