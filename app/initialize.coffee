@@ -206,9 +206,10 @@ cb = () ->
         editorCtrler.setFocus()
         
     #### -------------------------------------------------------------------
-    # Special buttons (to be removed later)
+    # CHECK SYNTAX
+    # 
+    # > tests the code structure
     
-    #  > tests the code structure
     checkBtn = $ "#checkBtn"
 
     _checkEditor = (e) ->
@@ -225,29 +226,11 @@ cb = () ->
             checkEditor(editor1)
             checkEditor(editor2)
             checkEditor(editor3)
-        # console.log 'checkEditor()'
-        # res  = checker.checkLines(editorCtrler) 
-        # date = new Date()
-        # h = date.getHours() + ''
-        # h = if h.length == 1 then '0'+h else h
-        # m = date.getMinutes() + ''
-        # m = if m.length == 1 then '0'+m else m
-        # s = date.getSeconds() + ''
-        # s = if s.length == 1 then '0'+s else s
-        # st   = h+":"+m+":"+s+" - "
-        # if res
-        #     checkLog += st + "Syntax test success\n" 
-        #     serializerDisplay.val(checkLog)
-        #     $('#well-editor').css('background-color','')
-        # else
-        #     checkLog += st + " !!! Syntax test FAILLURE : cf console  !!!\n"
-        #     serializerDisplay.val(checkLog)
-        #     $('#well-editor').css('background-color','#c10000')
 
     continuousCheckToggle = () =>
         if not checkBtn.hasClass "btn-warning"
             checkBtn.addClass "btn-warning"
-            _checkEditors()
+            _checkEditor()
             $('iframe').on("onKeyUp", _checkEditor)
             $('#editorDiv3').on('onKeyUp', _checkEditor)
         else
@@ -483,7 +466,7 @@ checkEditor = (editor) ->
         serializerDisplay.val(checkLog)
         $('#well-editor').css('background-color','')
     else
-        checkLog += st + ' !!! Syntax test FAILLURE : cf console  !!!\n'
+        checkLog += st + ' !!! Syntax test FAILLURE : cf console  !!!   (' + ed + ')\n' 
         serializerDisplay.val(checkLog)
         $('#well-editor').css('background-color','#c10000')
   
