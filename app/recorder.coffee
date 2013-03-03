@@ -431,19 +431,19 @@ class exports.Recorder
 
     rangeTypes : [
             type      : 'endLastLine'
-            weight    : 1
+            weight    : 0
         ,
             type      : 'startFirstLine'
             weight    : 0
         ,
             type      : 'collapsed'
-            weight    : 1
+            weight    : 0
         ,
             type      : 'rangeMonoLine'
             weight    : 1
         ,
             type      : 'rangeMultiLine'
-            weight    : 1
+            weight    : 0
         ]
 
     breakpointTypes : [
@@ -451,10 +451,10 @@ class exports.Recorder
             weight    : 0
         ,
             type      : 'middle'
-            weight    : 0
+            weight    : 1
         ,
             type      : 'end'
-            weight    : 1
+            weight    : 0
         ,
 
         ]
@@ -533,7 +533,9 @@ class exports.Recorder
             when "rangeMonoLine"
                 l       = @_selectRandomLine()
                 startBP = @_selectRandomBP(l)
-                endBP   = @_selectRandomBP(l)
+                endBP = startBP
+                while startBP.cont == endBP.cont && startBP.offset == endBP.offset
+                    endBP   = @_selectRandomBP(l)
 
             when "rangeMultiLine"
                 l1      = @_selectRandomLine()
@@ -564,6 +566,7 @@ class exports.Recorder
         # i between 0 and n-1 (we don't choose neither the first line 
         # nor the last one)
         i = Math.min(   n-1,   Math.floor( Math.random()*(n-1) )   )
+        i = 1
         return lines[i]
 
     _selectRandomBP : (line) ->
@@ -578,6 +581,69 @@ class exports.Recorder
             when 'end'
                 bp = @_getRandomEndLine(line)
         return bp
+
+    _getRandomMiddleLine : (line) ->
+        # count the number of possible offsets
+        children = Array.prototype.slice.call(line.childNodes)
+        children.pop() # remove br
+        num = children.length + 1
+        while children.length !=0
+            child = children.pop()
+            if child.childNodes.length != 0
+                num += child.childNodes.length + 1
+                newChildren = Array.prototype.slice.call(child.childNodes)
+                children = children.concat(newChildren)
+            else if child.length
+                if child.length == 0
+                    num += 1
+                else if child.length == 1
+                    num += 2
+                else
+                    num += 3
+            else
+                num += 1
+        # choose a random bp between 0 and num-1 :
+        n = Math.min(   num-1,   Math.floor( Math.random()*num )   )
+        # find the corresponding bp :
+        @nAlreadySeen = -1
+        @_getMiddleBP(line, n)
+
+    _getMiddleBP : (cont, ntarget ) ->
+        @nAlreadySeen += 1
+        if ntarget == @nAlreadySeen
+            return cont:cont, offset:0
+        else
+            children = cont.childNodes
+            n = 0
+            # a non empty element
+            if children.length != 0 
+                for child in children
+                    bp = @_getMiddleBP(child,ntarget,@nAlreadySeen)
+                    if bp
+                        return bp
+                    @nAlreadySeen += 1
+                    n += 1
+                    if ntarget == @nAlreadySeen
+                        return cont:cont, offset:n
+            # a text node : 2 possible breakpoints (middle and end)
+            else if cont.length 
+                @nAlreadySeen += 1
+                if ntarget == @nAlreadySeen
+                    return cont:cont, offset:1
+                @nAlreadySeen += 1
+                if ntarget == @nAlreadySeen
+                    return cont:cont, offset:cont.length
+            # an empty element
+            else
+                @nAlreadySeen += 1
+                if ntarget == @nAlreadySeen
+                    return cont:cont, offset:0
+
+        # if non returned, then return null
+        return null
+
+
+
 
     _getRandomEndLine : (line)->
         n = @_getpossibleEndBpNumbers(line)
