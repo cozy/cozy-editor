@@ -328,6 +328,8 @@ class exports.Recorder
                         fileName: record.fileName
         @recordList.append element
 
+
+
     _playAction : (action) ->
         
         if action.result? and !action.result
@@ -339,7 +341,7 @@ class exports.Recorder
             debugger;
 
         if action.selection?
-            rangy.deserializeSelection action.selection, @editorBody$[0]
+            rangy.deserializeSelection(action.selection, @editorBody$[0])
 
         if action.paste?
             @editor.clipboard.innerHTML = action.paste
@@ -403,4 +405,220 @@ class exports.Recorder
         end   = @records.slice(i+1)
         @records = front.concat end
 
+
+
+
+
+    _playRandomActionTEST : ()->
+        res = {}
+        for i in [1..10000]
+            action = @_generateRandomAction('keyEvent')
+            if res[action.type]
+                res[action.type] += 1
+            else
+                res[action.type] = 1
+        console.log res
+
+
+    _playRandomAction : ()->
+        res = {}
+        for i in [1..10]
+            action = @_generateRandomAction('selection')
+            # action = @_generateRandomAction('keyEvent')
+            # action = @_generateRandomAction('paste')
+            @_playAction(action)
+            
+
+    rangeTypes : [
+            type      : 'endLastLine'
+            weight    : 1
+        ,
+            type      : 'startFirstLine'
+            weight    : 0
+        ,
+            type      : 'collapsed'
+            weight    : 1
+        ,
+            type      : 'rangeMonoLine'
+            weight    : 1
+        ,
+            type      : 'rangeMultiLine'
+            weight    : 1
+        ]
+
+    breakpointTypes : [
+            type      : 'start'
+            weight    : 0
+        ,
+            type      : 'middle'
+            weight    : 0
+        ,
+            type      : 'end'
+            weight    : 1
+        ,
+
+        ]
+
+    keyEventTypes : [
+            type     : 'return'
+            weight   : 1
+            keyboard :
+                altKey   : false
+                shiftKey : false
+                ctrlKey  : false
+                keyCode  : 13
+                which    : 13
+        ,
+            type     : 'suppr'
+            weight   : 1
+            keyboard :
+                altKey   : false
+                shiftKey : false
+                ctrlKey  : false
+                keyCode  : 46
+                which    : 46
+        ,
+            type     : 'backspace'
+            weight   : 1
+            keyboard :
+                altKey   : false
+                shiftKey : false
+                ctrlKey  : false
+                keyCode  : 8
+                which    : 8
+        ]
+
+    _randomChoice : (types) ->
+        if !types.totalWeight
+            totalWeight = 0
+            for type in types
+                totalWeight += type.weight
+                type.sliceUp = totalWeight
+            types.totalWeight = totalWeight
+
+        w = Math.random() * types.totalWeight
+        for type in types
+            if w < type.sliceUp
+                return type
+        return types[types.length - 1]
+
+    _generateRandomAction : (actionType)->
+        switch actionType
+            
+            when 'keyEvent'
+                action = @_randomChoice(@keyEventTypes)
+            
+            when 'selection'
+                action = @_randomSelection()
+            
+            when 'paste'
+                action = @_randomChoice(@pasteTypes)
+
+        return action
+
+    _randomSelection : () ->
+        rangeType = @_randomChoice(@rangeTypes)
+        switch rangeType.type
+
+            when "endLastLine"
+                startBP = @_getRandomEndLine(@editor.linesDiv.lastChild)
+
+            when "startFirstLine"
+                startBP = @_getRandomStartLine(@editor.linesDiv.firstChild)
+                
+            when 'collapsed'
+                l       = @_selectRandomLine()
+                startBP = @_selectRandomBP(l)
+                
+            when "rangeMonoLine"
+                l       = @_selectRandomLine()
+                startBP = @_selectRandomBP(l)
+                endBP   = @_selectRandomBP(l)
+
+            when "rangeMultiLine"
+                l1      = @_selectRandomLine()
+                startBP = @_selectRandomBP(l1)
+                l2      = @_selectRandomLine()
+                while l2 == l1
+                    l2  = @_selectRandomLine()
+                endBP = @_selectRandomBP(l2)
+
+        rg = document.createRange()
+        rg.setStart(startBP.cont,startBP.offset)
+        if endBP
+            rg.setEnd(endBP.cont,endBP.offset)
+        else
+            rg.collapse(true)
+        sel = rangy.serializeRange(rg, true, @editorBody$[0])
+        return selection : sel 
+                
+
+    ###*
+     * Choose a random line except the first and last ones.
+     * 
+     * @return {element} The div of the choosen line
+    ###
+    _selectRandomLine : () ->
+        lines = @editor.linesDiv.childNodes
+        n = lines.length
+        # i between 0 and n-1 (we don't choose neither the first line 
+        # nor the last one)
+        i = Math.min(   n-1,   Math.floor( Math.random()*(n-1) )   )
+        return lines[i]
+
+    _selectRandomBP : (line) ->
+        # the number of possible breakpoints is at the beginning of line
+        # + 3 possible posistions 
+        bpType = @_randomChoice(@breakpointTypes)
+        switch bpType.type
+            when 'start'
+                bp = @_getRandomStartLine(line)
+            when 'middle'
+                bp = @_getRandomMiddleLine(line)
+            when 'end'
+                bp = @_getRandomEndLine(line)
+        return bp
+
+    _getRandomEndLine : (line)->
+        n = @_getpossibleEndBpNumbers(line)
+        i = Math.min(   n-1,   Math.floor( Math.random()*n )   )
+        bp = @_getEndBpNumber(line, i)
+        return bp
+
+    _getpossibleEndBpNumbers : (line)->
+        n = 3
+        child = line.lastChild.previousSibling
+        while child.childNodes.length != 0
+            n += 1
+            child = child.lastChild
+        return n
+
+    _getEndBpNumber : (line, n) ->
+        if n == 0
+            return cont : line, offset: line.childNodes.length
+
+        else if n == 1
+            return cont : line, offset : line.childNodes.length - 1
+
+        else if n == 2
+            cont = line.lastChild.previousSibling
+            if cont.length
+                offset = cont.length
+            else
+                offset = cont.childNodes.length
+            return cont : cont , offset : offset
+        else
+            i = 3
+            cont = line.lastChild.previousSibling.lastChild
+            while i != n
+                n += 1
+                cont = cont.lastChild
+            if cont.length
+                offset = cont.length
+            else
+                offset = cont.childNodes.length
+            return cont : cont , offset : offset
+
+    _getpossibleBpNumbers : (line) ->
+        possibleBpNumbers = 1 + 3 * line.childNodes.length + 1
 

@@ -65,6 +65,7 @@ cb = () ->
     loadHtmlBtn       = $ "#loadHtmlBtn"
     serializerDisplay = $ "#resultText"
     playAllButton     = $ "#play-all-button"
+    playRandomButton     = $ "#play-random-button"
     playCurrentButton = $ "#play-current-button"
     recordList        = $ '#record-list'
     recordSaveButton  = $ '#record-save-button'
@@ -430,10 +431,25 @@ cb = () ->
         if e.keyCode == 13
             saveCurrentRecordedTest()            
     
+    playRandomButton.click ->
+        # if this.classList.contains('btn-warning')
+        #     this.classList.remove('btn-warning')
+        #     recorder._stopPlayRandomAction()
+        # else
+        #     recorder._playRandomAction()
+        this.classList.add('btn-warning')
+        recorder._playRandomAction()
+        this.classList.remove('btn-warning')
+
+
     # Load records
     
     recorder.load()
 
+
+###
+ * Check editor structure
+###
 
 checker  = new AutoTest()
 

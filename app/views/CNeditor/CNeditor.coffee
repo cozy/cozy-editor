@@ -171,8 +171,8 @@ class exports.CNeditor
             # preparation of the iframe
             editor_html$ = @editorTarget$.contents().find("html")
             @editorBody$ = editor_html$.find("body")
-            @editorBody$.parent().attr('id','__ed-iframe-html')
-            @editorBody$.attr("id","__ed-iframe-body")
+            # @editorBody$.parent().attr('id','__ed-iframe-html')
+            # @editorBody$.attr("id","__ed-iframe-body")
 
             @document = @editorBody$[0].ownerDocument
             editor_head$ = editor_html$.find("head")
@@ -195,7 +195,7 @@ class exports.CNeditor
         @linesDiv.setAttribute('class','editor-frame')
         @linesDiv.setAttribute('contenteditable','true')
         @editorBody$.append @linesDiv
-        @editorBody$.prop '__editorCtl', this
+        # @editorBody$.prop '__editorCtl', this
     
         # init clipboard div
         @_initClipBoard()
@@ -3020,18 +3020,18 @@ class exports.CNeditor
     _initClipBoard : () ->
         clipboardEl = document.createElement('div')
         clipboardEl.setAttribute('contenteditable','true')
-        @clipboard$ = $ clipboardEl
-        @clipboard$.attr('id', 'editor-clipboard')
+        clipboardEl.id = 'editor-clipboard'
+        @clipboard$ = $(clipboardEl)
         getOffTheScreen =
             left: -300
         @clipboard$.offset getOffTheScreen
         @clipboard$.prependTo @editorBody$
         @clipboard = @clipboard$[0]
-        @clipboard.style.setProperty('width','10px')
-        @clipboard.style.setProperty('height','10px')
-        @clipboard.style.setProperty('position','fixed')
-        @clipboard.style.setProperty('overflow','hidden')
-        return @clipboard
+        clipboardEl.style.setProperty('width','10px')
+        clipboardEl.style.setProperty('height','10px')
+        clipboardEl.style.setProperty('position','fixed')
+        clipboardEl.style.setProperty('overflow','hidden')
+        return clipboardEl
 
 
 
