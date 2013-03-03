@@ -384,8 +384,13 @@ class exports.CNeditor
      * If unPretify = true then a regex tries to set up things
     ###
     replaceContent : (htmlString, unPretify) ->
+
         if unPretify
             htmlString = htmlString.replace(/>[\n ]*</g, "><")
+
+        if @.isUrlPopoverOn
+            @_cancelUrlPopover()
+
         @linesDiv.innerHTML = htmlString
         @_readHtml()
 
@@ -394,8 +399,7 @@ class exports.CNeditor
     ###
     deleteContent : ->
         emptyLine = '<div id="CNID_1" class="Tu-1"><span></span><br></div>'
-        @linesDiv.innerHTML = emptyLine
-        @_readHtml()
+        @replaceContent(emptyLine)
     
     ### ------------------------------------------------------------------------
     # Returns a markdown string representing the editor content
@@ -408,8 +412,7 @@ class exports.CNeditor
     ###
     setEditorContent : (mdContent) ->
         cozyContent = md2cozy.md2cozy mdContent
-        @linesDiv.innerHTML = cozyContent
-        @_readHtml()
+        @replaceContent(cozyContent)
                   
     ###
     # Change the path of the css applied to the editor iframe
@@ -2818,25 +2821,33 @@ class exports.CNeditor
     #  - the boolean newPosition
     ###
 
-    ###
-    #  _addHistory
-    # 
-    # Add html code and selection markers and scrollbar positions to the history
+    ###*
+     * Add html, selection markers and scrollbar positions to the history.
+     * No effect if the url popover is displayed
     ###
     _addHistory : () ->
+        # do nothing it urlpopover is on, otherwise its html will also be 
+        # serialized in the history.
+        if @isUrlPopoverOn
+            return
         # 0 - mark selection
         savedSel = @saveEditorSelection()
+        
         # save html selection
         @_history.historySelect.push savedSel
+        
         # save scrollbar position
         savedScroll =
             xcoord: @linesDiv.scrollTop
             ycoord: @linesDiv.scrollLeft
         @_history.historyScroll.push savedScroll
+        
         # save newPosition flag
         @_history.historyPos.push @newPosition
+        
         # 1- add the html content with markers to the history
         @_history.history.push @linesDiv.innerHTML
+        
         # 2 - update the index
         @_history.index = @_history.history.length - 1
 
@@ -2875,6 +2886,8 @@ class exports.CNeditor
             # restore newPosition
             @newPosition = @_history.historyPos[@_history.index]
             # 0 - restore html
+            if @isUrlPopoverOn
+                @_cancelUrlPopover()
             @linesDiv.innerHTML = @_history.history[@_history.index]
             # 1 - restore selection
             savedSel = @_history.historySelect[@_history.index]
@@ -2900,6 +2913,8 @@ class exports.CNeditor
             # 0 - update the index
             @_history.index += 1
             # 1 - restore html
+            if @isUrlPopoverOn
+                @_cancelUrlPopover()
             @linesDiv.innerHTML = @_history.history[@_history.index+1]
             # 2 - restore selection
             savedSel = @_history.historySelect[@_history.index+1]

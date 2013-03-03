@@ -28,6 +28,8 @@ md2cozy.cozy2md = (linesDiv) ->
     prevLineMetaData = null
 
     for line in linesDiv.children()
+        if line.id == 'CNE_urlPopover'
+            continue
         line = $ line
         lineMetaData = md2cozy.getLineMetadata(line.attr 'class')
         markCode = md2cozy.buildMarkdownPrefix lineMetaData, prevLineMetaData
