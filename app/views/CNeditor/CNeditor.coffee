@@ -73,7 +73,7 @@ class Line
         # Initialise with an empty line or the fragment given in arguments
         lineID = 'CNID_' + editor._highestId
         newLineEl = document.createElement('div')
-        newLineEl.id = lineID
+        
         newLineEl.setAttribute('class', type + '-' + depthAbs)
         if fragment?
             newLineEl.appendChild(fragment)
@@ -109,7 +109,8 @@ class Line
             else
                 @.linePrev = null
             nextLine.linePrev = @
-            
+        
+        newLineEl.id   = lineID
         @.lineID       = lineID
         @.lineType     = type
         @.lineDepthAbs = depthAbs
@@ -174,7 +175,7 @@ class exports.CNeditor
             # @editorBody$.parent().attr('id','__ed-iframe-html')
             # @editorBody$.attr("id","__ed-iframe-body")
 
-            @document = @editorBody$[0].ownerDocument
+            # @document = @editorBody$[0].ownerDocument
             editor_head$ = editor_html$.find("head")
             cssLink = '<link id="editorCSS" '
             cssLink += 'href="stylesheets/CNeditor.css" rel="stylesheet">'
@@ -188,6 +189,8 @@ class exports.CNeditor
             @saveEditorSelection = () ->
                 sel = rangy.getSelection()
                 return rangy.serializeSelection sel, true, @linesDiv
+
+        @document = @editorBody$[0].ownerDocument
 
         # Create div that will contains line
         @linesDiv = document.createElement 'div'
@@ -580,7 +583,7 @@ class exports.CNeditor
             when '-backspace'
                 @updateCurrentSelIsStartIsEnd()
                 @_backspace()
-                @newPosition = false
+                @newPosition = true # important, for instance deletion of a range within a single line
                 e.preventDefault()
             when '-tab'
                 @tab()
@@ -591,7 +594,7 @@ class exports.CNeditor
             when '-suppr'
                 @updateCurrentSelIsStartIsEnd()
                 @_suppr(e)
-                @newPosition = false
+                @newPosition = true
             # when 'CtrlShift-down'
             #     @_moveLinesDown()
             #     e.preventDefault()
@@ -609,8 +612,11 @@ class exports.CNeditor
                 @toggleType()
                 e.preventDefault()
             when '-other', '-space'
-                @updateCurrentSel() if @newPosition
-                @newPosition = false
+                if @newPosition
+                    sel = @updateCurrentSel() 
+                    if ! sel.theoricalRange.collapsed
+                        @_backspace()
+                    @newPosition = false
             # PASTE (Ctrl + v)                  
             when 'Ctrl-V'
                 true
@@ -1480,14 +1486,16 @@ class exports.CNeditor
                 segment.classList.remove(cssClass)
             if stopNext
                 break
-            segment = segment.nextSibling
+            segment  = segment.nextSibling
             stopNext = (segment == endSegment)
         return null
 
 
     ###*
-     * Walk through a line div in order to concatenate successive similar
-     * segments. Similar == same nodeName, class and if required href.
+     * Walk through a line div in order to :
+     *   * Concatenate successive similar segments. Similar == same nodeName, 
+     *     class and if required href.
+     *   * Remove empty segments.
      * @param  {element} lineDiv     the DIV containing the line
      * @param  {Object} breakPoints [{con,offset}...] array of respectively the 
      *                              container and offset of the breakpoint to 
@@ -1495,21 +1503,71 @@ class exports.CNeditor
      *                              the fusion. 
      *                              /!\ The breakpoint must be normalized, ie 
      *                              containers must be in textnodes.
+     *                              If the contener of a bp is deleted, then it
+     *                              is put before the deleted segment. At the
+     *                              bp might be between segments, ie NOT 
+     *                              normalized since not in a textNode.
      * @return {Object}             A reference to the updated breakpoint.
     ###
     _fusionSimilarSegments : (lineDiv, breakPoints) -> 
-        prevSegment = lineDiv.firstChild
-        segment     = prevSegment.nextSibling
-        while segment.nodeName != 'BR'
-            isSimilar = @_haveSameMeta(prevSegment, segment)
-            if isSimilar
-                @_fusionSegments(prevSegment, segment, breakPoints)
-                segment     = prevSegment.nextSibling
+        segment     = lineDiv.firstChild
+        nextSegment = segment.nextSibling
+        # case of a line with only one segment : nothing to do
+        if nextSegment.nodeName == 'BR'
+            return
+
+        while nextSegment.nodeName != 'BR'
+            
+            # case of an empty segment (for instance after a suppr or backspace)
+            # => remove segment
+            if segment.textContent == ''
+                segment     = @_removeSegment(segment, breakPoints)
+                nextSegment = segment.nextSibling
+                
+            # case of a non empty segment followed by a segment with same meta
+            # => fusion segments
+            else if @_haveSameMeta(segment, nextSegment)
+                @_fusionSegments(segment, nextSegment, breakPoints)
+                nextSegment = segment.nextSibling
+
+            # go next
             else
-                prevSegment = segment
-                segment     = segment.nextSibling
+                segment     = nextSegment
+                nextSegment = nextSegment.nextSibling
 
         return breakPoints
+
+    ###*
+     * Removes a segment and returns a reference to previous sibling or, 
+     * if doesn't exist, to the next sibling.
+     * @param  {element} segment     The segment to remove. Must be in a line.
+     * @param  {Array} breakPoints An Array of breakpoint to preserve : if its
+     *                             is deleted, the bp is put before the deleted
+     *                             segment (it is NOT normalized, since not in a
+     *                             textNode)
+     * @return {element}       A reference to the previous sibling or, 
+     *                         if doesn't exist, to the next sibling.
+    ###
+    _removeSegment : (segment,breakPoints) ->
+        # if not done, attach the corresponding segment to each bp
+        if breakPoints.length > 0 && !breakPoints[0].seg
+            for bp in breakPoints
+                bp.seg = selection.getNestedSegment(bp.cont)
+        # modify the bp that are in the segment that will be deleted
+        for bp in breakPoints
+            if bp.seg == segment
+                offset = selection.getSegmentIndex(segment)
+                newBp  = selection.normalizeBP(segment.parentNode, offset)
+                bp.cont   = newBp.cont
+                bp.offset = newBp.offset
+        # keep a ref to the previous sibling or, if doesn't exist, next sibling.
+        newRef = segment.previousSibling
+        if !newRef
+            newRef = segment.nextSibling
+        # remove segment
+        segment.parentNode.removeChild(segment)
+        return newRef
+
 
     ###*
      * Imports the content of segment2 in segment1 and updates the breakpoint if
@@ -1575,20 +1633,20 @@ class exports.CNeditor
     # Manage deletions when suppr key is pressed
     ###
     _suppr : (event) ->
-
-        startLine = @currentSel.startLine
+        sel = @currentSel
+        startLine = sel.startLine
         # 1- Case of a caret "alone" (no selection)
-        if @currentSel.range.collapsed
+        if sel.range.collapsed
 
             # 1.1 caret is at the end of the line
-            if @currentSel.rangeIsEndLine
+            if sel.rangeIsEndLine
 
                 # if there is a next line : modify the selection to make
                 # a multiline deletion
                 if startLine.lineNext != null
-                    @currentSel.range.setEndBefore(startLine.lineNext.line$[0].firstChild)
-                    @currentSel.theoricalRange = @currentSel.range
-                    @currentSel.endLine = startLine.lineNext
+                    sel.range.setEndBefore(startLine.lineNext.line$[0].firstChild)
+                    sel.theoricalRange = sel.range
+                    sel.endLine = startLine.lineNext
                     @_deleteMultiLinesSelections()
                     
                 # if there is no next line :
@@ -1600,20 +1658,36 @@ class exports.CNeditor
             else
                 # console.log '_suppr 3 - test '
                 # we consider that we are in a text node
-                textNode = @currentSel.range.startContainer
-                startOffset = @currentSel.range.startOffset
+                textNode = sel.range.startContainer
+                startOffset = sel.range.startOffset
+                # if carret is at the end of a segment, go to next segment
+                if startOffset == textNode.length
+                    bp = selection.setBpNextSegEnd(textNode)
+                    textNode = bp.cont
+                    startOffset = bp.offset
+                # delete one caracter in the textNode
                 txt = textNode.textContent
                 textNode.textContent = txt.substr(0,startOffset) + txt.substr(startOffset+1)
-                range = rangy.createRange()
-                range.collapseToPoint textNode, startOffset
-                @currentSel.sel.setSingleRange range
+                bp = 
+                    cont   : textNode
+                    offset : startOffset
+                # if new content is empty we remove the corresponding segment
+                # (except if it is the last one in the line)
+                if textNode.textContent.length == 0
+                    @_fusionSimilarSegments(sel.startLine.line$[0], [bp])
+                @_setCaret(bp.cont, bp.offset)
 
         # 2- Case of a selection contained in a line
-        else if @currentSel.endLine == startLine
+        else if sel.endLine == startLine
             # sel can be safely deleted thanks to normalization that have set
             # the selection correctly within the line.
             # console.log '_suppr 4 - test '
-            @currentSel.range.deleteContents()
+            sel.range.deleteContents()
+            bp =
+                cont   : sel.range.startContainer
+                offset : sel.range.offset
+            @_fusionSimilarSegments(sel.startLine.line$[0], [bp])
+            @_setCaret(bp.cont, bp.offset)
 
         # 3- Case of a multi lines selection
         else
@@ -1645,7 +1719,7 @@ class exports.CNeditor
                     cloneRg = sel.range.cloneRange()
                     cloneRg.setStartBefore(startLine.linePrev.line$[0].lastChild)
                     selection.normalize(cloneRg)
-                    @currentSel.theoricalRange = cloneRg
+                    sel.theoricalRange = cloneRg
                     sel.startLine = startLine.linePrev
                     @_deleteMultiLinesSelections()
 
@@ -1661,11 +1735,22 @@ class exports.CNeditor
                 # normalized)
                 textNode = sel.range.startContainer
                 startOffset = sel.range.startOffset
+                # if carret is at the begin of a segment, go to previous segment
+                if startOffset == 0
+                    bp = selection.setBpPreviousSegEnd(textNode)
+                    textNode = bp.cont
+                    startOffset = bp.offset
+                # delete one caracter in the textNode
                 txt = textNode.textContent
                 textNode.textContent = txt.substr(0,startOffset-1) + txt.substr(startOffset)
-                range = rangy.createRange()
-                range.collapseToPoint textNode, startOffset-1
-                @currentSel.sel.setSingleRange range
+                bp = 
+                    cont   : textNode
+                    offset : startOffset-1
+                # if new content is empty we remove the corresponding segment
+                # (except if it is the last one in the line)
+                if textNode.textContent.length == 0
+                    @_fusionSimilarSegments(sel.startLine.line$[0], [bp])
+                @_setCaret(bp.cont, bp.offset)
 
         # 2- Case of a selection contained in a line
         else if sel.endLine == startLine
@@ -1673,12 +1758,19 @@ class exports.CNeditor
             # sel can be safely deleted thanks to normalization that have set
             # the selection correctly within the line.
             sel.range.deleteContents()
+            bp =
+                cont   : sel.range.startContainer
+                offset : sel.range.offset
+            @_fusionSimilarSegments(sel.startLine.line$[0], [bp])
+            @_setCaret(bp.cont, bp.offset)
+
 
         # 3- Case of a multi lines selection
         else
             @_deleteMultiLinesSelections()
 
         return true
+
 
 
     ### ------------------------------------------------------------------------
@@ -1959,7 +2051,7 @@ class exports.CNeditor
             when 'Tu','Th','To'
                 # find previous sibling to check if a tab is possible 
                 # (no tab if no previous sibling)
-                prevSibling = @_findPrevSibling(line)
+                prevSibling = @_findPrevSiblingT(line)
                 if prevSibling == null
                     return
                 # determine new lineType
@@ -1978,7 +2070,7 @@ class exports.CNeditor
                 nextSibType = if nextSib == null then null else nextSib.lineType
 
                 # find previous sibling
-                prevSib = @_findPrevSibling(line, depthAbsTarget)
+                prevSib = @_findPrevSiblingT(line, depthAbsTarget)
                 prevSibType = if prevSib == null then null else prevSib.lineType
 
                 typeTarget = @_chooseTypeTarget(prevSibType,nextSibType)
@@ -2077,7 +2169,7 @@ class exports.CNeditor
                 nextSibType = if nextSib == null then null else nextSib.lineType
                 
                 # find previous sibling
-                prevSib = @_findPrevSibling(line, depthAbsTarget)
+                prevSib = @_findPrevSiblingT(line, depthAbsTarget)
                 prevSibType = if prevSib == null then null else prevSib.lineType
 
                 typeTarget = @_chooseTypeTarget(prevSibType,nextSibType)
@@ -2154,6 +2246,9 @@ class exports.CNeditor
 
 
 
+    getFirstline : () ->
+        return @_lines[ @linesDiv.childNodes[0].id ]
+
     ### ------------------------------------------------------------------------
     #  _findParent1stSibling
     # 
@@ -2206,8 +2301,9 @@ class exports.CNeditor
         return nextSib
 
 
+
     ###* -----------------------------------------------------------------------
-     * Find the previous sibling line.
+     * Find the previous sibling line being a Title.
      * Returns null if no previous sibling, the line otherwise.
      * The sibling is a title (Th, Tu or To), not a line (Lh nor Lu nor Lo)
      * @param  {line} line     Rhe starting line for which we search a sibling
@@ -2215,8 +2311,8 @@ class exports.CNeditor
      *                           of the same absolute depth
      * @return {line}          The previous sibling if one, null otherwise
     ###
-    _findPrevSibling : (line, depth)->
-        if !depth?
+    _findPrevSiblingT : (line, depth)->
+        if !depth
             depth = line.lineDepthAbs
 
         prevSib = line.linePrev
@@ -2227,13 +2323,38 @@ class exports.CNeditor
             else if prevSib.lineDepthAbs == depth && prevSib.lineType[0] == 'T'
                 break
             prevSib = prevSib.linePrev
+
         return prevSib
 
 
 
+    ###* -----------------------------------------------------------------------
+     * Find the previous sibling line (can be a line 'Lx' or a title 'Tx').
+     * Returns null if no previous sibling, the line otherwise.
+     * @param  {line} line     The starting line for which we search a sibling
+     * @param  {number} depthAbs [optional] If the siblings we search is not
+     *                           of the same absolute depth
+     * @return {line}          The previous sibling if one, null otherwise
+    ###
+    _findPrevSibling : (line, depth)->
+        if !depth
+            depth = line.lineDepthAbs
+
+        prevSib = line.linePrev
+        loop    
+            if prevSib == null or prevSib.lineDepthAbs < depth
+                prevSib = null
+                break
+            else if prevSib.lineDepthAbs == depth
+                break
+            prevSib = prevSib.linePrev
+
+        return prevSib
+
+
     ###*
     # Delete the user multi line selection :
-    #    * The 2 lines (selected of given in param) must be distinct
+    #    * The 2 lines (selected or given in param) must be distinct
     #    * If no params :
     #        - @currentSel.theoricalRange will the range used to find the  
     #          lines to delete. 
@@ -2242,7 +2363,7 @@ class exports.CNeditor
     #        - the caret is positionned at the firts break point of range.
     #    * if startLine and endLine is given
     #       - the whole lines from start and endLine are deleted, both included.
-    #       - the caret position is not modified
+    #       - the caret position is not updated by this function.
     # @param  {[line]} startLine [optional] if exists, the whole line will be deleted
     # @param  {[line]} endLine   [optional] if exists, the whole line will be deleted
     # @return {[none]}           [nothing]
@@ -2281,7 +2402,7 @@ class exports.CNeditor
         endOfLineFragment = selection.cloneEndFragment range, endLine
 
         # Adapt end line type if needed.
-        @_adaptEndLineType startLine, endLine, endLineDepth
+        # @_adaptEndLineType startLine, endLine, endLineDepth
 
         # Delete selection and adapt remaining parts consequently.
         range.deleteContents()
@@ -2295,9 +2416,14 @@ class exports.CNeditor
         # Adapt depth
         @_adaptDepth startLine, startLineDepth, endLineDepth, deltaDepth
 
-        # Place caret
+
+        # Fusion similar segments and place caret if required
         if replaceCaret
-            @_setCaret(startContainer, startOffset)
+            bp = cont:startContainer, offset:startOffset
+            @_fusionSimilarSegments(startLine.line$[0], [bp])
+            @_setCaret(bp.cont, bp.offset)
+        else
+            @_fusionSimilarSegments(startLine.line$[0], [])
 
 
     #  adapt the depth of the children and following siblings of end line
@@ -2308,39 +2434,113 @@ class exports.CNeditor
     #  Then adapt the type of the first line after the children and siblings of
     #    end line. Its previous sibling or parent might have been deleted, 
     #    we then must find its new one in order to adapt its type.
-    _adaptDepth: (startLine, startLineDepthAbs, endLineDepthAbs, deltaDepth) ->
-        line = startLine.lineNext
-        if line != null
-            deltaDepth1stLine = line.lineDepthAbs - startLineDepthAbs
-            if deltaDepth1stLine > 1
-                while line!= null and line.lineDepthAbs >= endLineDepthAbs
-                    newDepth = line.lineDepthAbs - deltaDepth
-                    line.setDepthAbs(newDepth)
-                    line = line.lineNext
-                    
-        if line != null
-            # if the line is a line (Lx), then make it "independant"
-            # by turning it in a Tx, except if unecessary (previou is same
-            # type and same prof)
-            if line.lineType[0] == 'L'
-                if !(     startLine.lineType[1]  == line.lineType[1]      \
-                      and startLine.lineDepthAbs == line.lineDepthAbs )
-                    line.setType('T' + line.lineType[1])
+    _adaptDepth: (startLine, startLineDepth, endLineDepth, deltaDepth) ->
+        if startLine.lineNext == null 
+            return
 
-            # find the previous sibling, adjust type to its type.
-            firstLineAfterSiblingsOfDeleted = line
-            depthSibling = line.lineDepthAbs
+        # adjust depth of the sons and siblings of endLine if deltadpeth > 1
+        firstNextLine = startLine.lineNext
+        firstNextLineDepth = firstNextLine.lineDepthAbs
+        # delta0 = firstNextLine.lineDepthAbs - endLineDepth
+        delta1 = firstNextLine.lineDepthAbs - startLineDepth
+        delta  =  endLineDepth - startLineDepth
+
+        if delta1 > 1
+            line = firstNextLine
+            while line!= null and line.lineDepthAbs >= firstNextLineDepth
+                newDepth = line.lineDepthAbs - delta
+                line.setDepthAbs(newDepth)
+                line = line.lineNext
+        # lineAfterEndLineSons = line
+
+
+        line = firstNextLine
+        if startLine.lineDepthAbs == 1
+            minDepthToCheck = 0
+        else
+            minDepthToCheck = 1
+        while line != null and line.lineDepthAbs > minDepthToCheck
+            prev = @_findPrevSibling(line)
+            if prev == null
+                if line.lineType[0] != 'T'
+                    line.setType('T'+line.lineType[1])
+            else if prev.lineType[1] != line.lineType[1] # ex : Lu and Th : Th => Tu
+                line.setType(line.lineType[0]+prev.lineType[1])
+            line = line.lineNext
+        
+        return true
             
-            while line != null and line.lineDepthAbs > depthSibling
-                line = line.linePrev
 
-            if line != null and line != firstLineAfterSiblingsOfDeleted
-                prevSiblingType = line.lineType
-                if firstLineAfterSiblingsOfDeleted.lineType != prevSiblingType
-                    if prevSiblingType[1] == 'h'
-                        @titleList(firstLineAfterSiblingsOfDeleted)
-                    else
-                        @markerList(firstLineAfterSiblingsOfDeleted)
+
+    _adaptDepthV0 : (startLine, startLineDepthAbs, endLineDepthAbs, deltaDepth) ->
+        if startLine.lineNext == null 
+            return
+
+        # adjuste depth of the sons and siblings of endLine if deltadpeth > 1
+        line = startLine.lineNext
+        deltaDepth1stLine = line.lineDepthAbs - startLineDepthAbs
+        if deltaDepth1stLine > 1
+            while line!= null and line.lineDepthAbs >= endLineDepthAbs
+                newDepth = line.lineDepthAbs - deltaDepth
+                line.setDepthAbs(newDepth)
+                line = line.lineNext
+        lineAfterEndLineSons = line
+        
+        # adjust the type of line after endLine
+        line = startLine.lineNext
+        # if the line is a line (Lx), then make it "independant"
+        # by turning it in a Tx, except if unecessary (previou is same
+        # type and same prof)
+        if line.lineType[0] == 'L'
+            prev = @_findPrevSiblingT(line)
+            if prev == null
+                line.setType('T' + line.lineType[1])
+            else
+                line.setType( 'L' + prev.lineType[1] )
+
+        # find the previous sibling of all the lines after the sons and siblings
+        # of endLine (if their depth has been adjusted, other wise we start from
+        # the line just after endLine. Only L are to be checked because their
+        # "parent" might have become of a different type.
+        if line == lineAfterEndLineSons
+            line = line.lineNext
+        else
+            line = lineAfterEndLineSons
+        highestPrevSib = line.linePrev
+        minDepth = line.lineDepthAbs + 1
+
+        # while not at the end and we have not reached a line of depth 1 :
+        while line != null && line.lineDepthAbs > 1 
+            depthLine = line.lineDepthAbs
+
+            if line.lineDepthAbs < minDepth
+                minDepth = line.lineDepthAbs
+                if line.lineType[0] == 'L'
+                    prev = highestPrevSib
+                    while prev.lineDepthAbs > depthLine
+                        prev = prev.linePrev
+                    highestPrevSib = prev
+                    if line.lineType[1] != prev.lineType[1]
+                        # adjust all its lines siblings
+                        while line.lineDepthAbs >= prev.lineDepthAbs
+                            if line.lineDepthAbs == prev.lineDepthAbs
+                                if line.lineType[0] == 'L'
+                                    line.setType('L' + prev.lineType[1])
+                                else
+                                    break
+                            line = line.lineNext
+            line = line.lineNext
+
+
+
+
+            # if line != null and line != firstLineAfterSiblingsOfDeleted
+            #     prevSiblingType = line.lineType
+            #     if firstLineAfterSiblingsOfDeleted.lineType != prevSiblingType
+            #         if prevSiblingType[1] == 'h'
+            #             @titleList(firstLineAfterSiblingsOfDeleted)
+            #         else
+            #             @markerList(firstLineAfterSiblingsOfDeleted)
 
 
     # Add back missing unselected fragment that have been deleted by our rough
@@ -2381,13 +2581,60 @@ class exports.CNeditor
 
     # adapt the type of endLine and of its children to startLine 
     # the only useful case is when endLine must be changed from Th to Tu or To
-    _adaptEndLineType : (startLine, endLine, endLineDepth) ->
-        endLineType = endLine.lineType
-        startLineType = startLine.lineType
-        if endLineType[1] is 'h' and startLineType[1] isnt 'h'
-            if endLineType[0] is 'L'
-                endLine.setType('T' + endLineType[1])
-            @markerList endLine
+    _adaptEndLineType : (startLine, endLine, endLineDepthAbs) ->
+        endType    = endLine.lineType
+        startType  = startLine.lineType
+        deltaDepth = endLineDepthAbs - startLine.lineDepthAbs
+        # Tu => Tu : nothing
+        # Tu => Th : Toggle
+        if endType == 'Tu' && startType == 'Th'
+            @_toggleLineType(endLine)
+            line = endLine
+            if deltaDepth > 0
+                while line!= null and line.lineDepthAbs >= endLineDepthAbs
+                    newDepth = line.lineDepthAbs - deltaDepth
+                    line.setDepthAbs(newDepth)
+                    line = line.lineNext
+        # Tu => Lu : nothing ok
+        
+        # TU => Lh : nothing ok
+
+        # Th => Tu : Toggle
+        else if endType == 'Th' && startType == 'Tu'
+            @_toggleLineType(endLine)
+            line = endLine
+            if deltaDepth > 0
+                while line!= null and line.lineDepthAbs >= endLineDepthAbs
+                    newDepth = line.lineDepthAbs - deltaDepth
+                    line.setDepthAbs(newDepth)
+                    line = line.lineNext
+
+        # Th => Th : juste adapt depth of endline's siblings
+        else if endType == 'Th' && startType == 'Th'
+            line = endLine
+            if deltaDepth > 0
+                while line!= null and line.lineDepthAbs >= endLineDepthAbs
+                    newDepth = line.lineDepthAbs - deltaDepth
+                    line.setDepthAbs(newDepth)
+                    line = line.lineNext
+
+        # Th => Lu : nothing ok
+        # Th => Lh : nothing ok
+        # 
+        # Lh => Tu : nothing ok
+        # Lh => Th : nothing ok
+        # Lh => Lu : nothing ok
+        # Lh => Lh : nothing ok
+         
+        # Lu => Tu : Toggle
+        # Lu => Th : nothing
+        # Lu => Lu : Toggle
+        # Lu => Lh : nothing
+
+        # if endType[1] is 'h' and startType[1] isnt 'h'
+        #     if endType[0] is 'L'
+        #         endLine.setType('T' + endType[1])
+        #     @markerList endLine
 
  
     ###*

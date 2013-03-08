@@ -43,14 +43,55 @@ class exports.Recorder
                 record.id       = resp.id
                 record.title    = resp.title
                 record.fileName = resp.fileName
-                @._appendRecordElement(record)
+                @._prependRecordElement(record)
+
 
     load : ->
         $.get '/records/', (data) =>
             data = JSON.parse(data)
-            for record in data
-                @._appendRecordElement record
+            data.sort (a,b) ->
+                if Number(a.id) < Number(b.id)
+                    return -1
+                return 1
 
+            for record in data
+                @._prependRecordElement record
+            return true
+        $.get '/pastes/', (data) =>
+            data = JSON.parse(data)
+            @pasteDataArray = []
+            for record in data
+                @pasteDataArray.push(record.html)
+            return true
+
+    ###*
+     * Records the content of the clipboard in an array that is sent for storage
+     * to the server. This data can then be used to prepare test cases of paste.
+    ###
+    startPasteSession : () ->
+        @originalProcessPaste = @editor._processPaste
+        originalProcessPaste  = @originalProcessPaste
+        @._recordingPasteSession = []
+        _recordingPasteSession = @._recordingPasteSession
+        @editor._processPaste = () ->
+            action = 
+                pasteHtml : @clipboard.innerHTML
+            _recordingPasteSession.push @clipboard.innerHTML
+            originalProcessPaste.call(this)
+
+    stopPasteSession : () ->
+        @editor._processPaste = @originalProcessPaste
+        $.ajax
+            type: "POST"
+            url: "/pastes/"
+            data: JSON.stringify(@._recordingPasteSession)
+            dataType:'json'
+            contentType : "application/json"
+
+    ###*
+     * Records selection change, paste and keyboard events.
+     * When record is stoped, data are sent to the server for storage.
+    ###
     startRecordSession : () ->
         @._recordingSession = []
         @.serializerDisplay.val null
@@ -66,10 +107,10 @@ class exports.Recorder
         @editor.linesDiv.addEventListener('keyup', @keyboardMoveRecorder, false)
         
         # Record paste events
-        originalProcessPaste = @editor._processPaste
+        @originalProcessPaste = @editor._processPaste
+        originalProcessPaste  = @originalProcessPaste
         _recordingSession = @._recordingSession
         @editor._processPaste = () ->
-            # clipboardHtml = @clipboard.html
             action = 
                 paste : @clipboard.innerHTML
             originalProcessPaste.call(this)
@@ -80,21 +121,20 @@ class exports.Recorder
         @editor.linesDiv.removeEventListener('mouseup', @selectionRecorder, false)
         @editor.linesDiv.removeEventListener('keydown', @keyboardRecorder, false)
         @editor.linesDiv.removeEventListener('keyup', @keyboardMoveRecorder, false)
+        @editor._processPaste = @originalProcessPaste
         @finalState = @getState()
 
     getState : () ->
         state =
-            html: @.editorBody$.find('#editor-lines').html()
+            html: @.editor.linesDiv.innerHTML
             md  : @.editor.getEditorContent()
-        # state =
-        #     html: "html2"
-        #     md  : "md"
         return state
 
-    restoreState : (state) ->
+    _restoreState : (state) ->
         if state
             @.editor.replaceContent(state.html)
-            # @.editor.setEditorContent(state.md)
+            if state.selection
+                rangy.deserializeSelection(state.selection, @editorBody$[0])
 
 
     ### Listeners ###
@@ -183,7 +223,7 @@ class exports.Recorder
             return
         if record.currentStep
             record.currentStep = null
-        @restoreState(record.initialState)
+        @_restoreState(record.initialState)
         actionsInError = []
         for action, i in record.sequence
             res = @_playAction(action)
@@ -240,17 +280,29 @@ class exports.Recorder
             el.addClass('resultActionNOK')
                 
 
-
+    ###*
+     * Play the current step of the record. This function is called as a method
+     * of the record element, this refers to the element, not to the recorder
+     * object.
+     * @return {[type]} [description]
+    ###
     playStep : () ->
-        if !@currentStep?
+        el = @element.find('.resultAction')
+        if @currentStep == null
             @currentStep = 0
-            @recorder.restoreState(@initialState)
+            @recorder._restoreState(@initialState)
+            nextAction = @recorder._getFullActionType(@sequence[0])
+            res = @recorder.checker.checkLines(@recorder.editor)
+            if !res
+                $('#well-editor').css('background-color','#c10000')
+            el.addClass('resultActionOK')
+            el.text('Initial state restored - next action = ' + nextAction)
+            return
         @recorder._playAction @sequence[@currentStep]
         if @currentStep == @sequence.length - 1
             @currentStep = null
             @displayResult(@recorder.getState())
         else
-            el = @element.find('.resultAction')
             if @sequence[@currentStep].result
                 el.removeClass('resultActionNOK')
                 el.addClass('resultActionOK')
@@ -261,7 +313,7 @@ class exports.Recorder
                 el.text('step ' + (@currentStep+1) + '/' + @sequence.length + ' NOK')
             @currentStep +=1
 
-    _appendRecordElement : (record) ->
+    _prependRecordElement : (record) ->
         element = $  """
             <div id="record_#{record.id}">
                 <span class="btnDiv-RecordLine">
@@ -326,7 +378,8 @@ class exports.Recorder
                     url: "/records/"
                     data:
                         fileName: record.fileName
-        @recordList.append element
+        
+        @recordList.prepend element
 
 
 
@@ -338,6 +391,12 @@ class exports.Recorder
             and leads to an error...
             Good debug ! :-) 
             ###
+            sel = @.editor.getEditorSelection()
+            rg  = sel.getRangeAt(0)
+            startContainer = rg.startContainer
+            startOffset    = rg.startOffset
+            endContainer   = rg.endContainer
+            endOffset      = rg.endOffset
             debugger;
 
         if action.selection?
@@ -406,57 +465,144 @@ class exports.Recorder
         @records = front.concat end
 
 
+    ###*
+     * Returns a string describing the action.
+     * @param  {[type]} action [description]
+     * @return {[type]}        [description]
+    ###
+    _getFullActionType : (action) ->
+        if action.keyboard
+            type = action.keyboard.which
+            if type == 13
+                type = 'return'
+            else if type == 8
+                type = 'backspace'
+            else if type == 46
+                type = 'suppr'
+        else if action.selection
+            type = 'selection'
+        else if action.paste
+            type = 'paste'
+        return type
 
 
-
-    _playRandomActionTEST : ()->
-        res = {}
+    ###*
+     * The mad monkey ! Main method to start a random serie of tests.
+    ###
+    playRandomTests : ()->
+        historySummary = {}
+        history = []
+        sel = @editor.getEditorSelection()
+        # start with a selection
+        action = @_generateRandomAction('selection')
+        res    = @_playAction(action)
+        # play random actions
         for i in [1..10000]
-            action = @_generateRandomAction('keyEvent')
-            if res[action.type]
-                res[action.type] += 1
+            # if the number of line is too small, open a new content
+            if @editor.linesDiv.children.length < 5
+                content = require('views/templates/content-shortlines-large')
+                @editor.replaceContent content()
+                action = @_generateRandomAction('selection')
+                res    = @_playAction(action)
+
+            # keep state before action
+            selBeforeAction  = rangy.serializeSelection(sel, true, @editorBody$[0])
+            htmlBeforeAction = @editor.linesDiv.innerHTML
+            # play a random action
+            actionType = @_randomChoice(@actionTypes)
+            action     = @_generateRandomAction(actionType.type)
+            res = res && @_playAction(action)
+            # manage history and historysummary
+            fullType = @_getFullActionType(action)
+            if historySummary[fullType]
+                historySummary[fullType] += 1
             else
-                res[action.type] = 1
-        console.log res
+                historySummary[fullType] = 1
+            history.push
+                selBeforeAction  : selBeforeAction
+                htmlBeforeAction : htmlBeforeAction
+                action           : action
+                fullType         : fullType
+            # check action result
+            if !res
+                break
 
+        serializerDisplay = $ "#resultText"
+        checkLog = serializerDisplay.val()
 
-    _playRandomAction : ()->
-        res = {}
-        for i in [1..10]
-            action = @_generateRandomAction('selection')
-            # action = @_generateRandomAction('keyEvent')
-            # action = @_generateRandomAction('paste')
-            @_playAction(action)
-            
+        if res
+            checkLog += '\n random test successfull\n' 
+            checkLog += JSON.stringify(historySummary)
+            serializerDisplay.val(checkLog)
+            $('#well-editor').css('background-color','')
+
+        else
+            # Display failure information
+            checkLog += ' !!! RANDOM TEST FOUND A FAILURE : cf console \n\n'
+            checkLog += 'action fullType : ' + fullType + '\n\naction data :\n'
+            checkLog += JSON.stringify(action) + '\n\nInitial html :\n'
+            checkLog += '\nInitial selection : ' + selBeforeAction + ' \n'
+            checkLog += htmlBeforeAction
+
+            # Save last action
+            @_recordingSession = []
+            for step in history
+                action = step.action
+                delete action.result
+                @_recordingSession.push(action)
+            @initialState = 
+                html      : history[0].htmlBeforeAction
+                selection : history[0].selBeforeAction
+            @finalState =
+                html : @.editor.linesDiv.innerHTML
+            @saveCurrentRecordedTest('Random test in failure')
+
+            # Display result
+            serializerDisplay.val(checkLog)
+            $('#well-editor').css('background-color','#c10000')
+
+            debugger
+
+        return true
+        
+
+    actionTypes : [
+            type   : 'selection'
+            weight : 1
+        ,
+            type   : 'paste'
+            weight : 0
+        ,
+            type   : 'keyEvent'
+            weight : 10
+        ]
 
     rangeTypes : [
-            type      : 'endLastLine'
-            weight    : 0
+            type   : 'endLastLine'
+            weight : 1
         ,
-            type      : 'startFirstLine'
-            weight    : 0
+            type   : 'startFirstLine'
+            weight : 1
         ,
-            type      : 'collapsed'
-            weight    : 0
+            type   : 'collapsed'
+            weight : 4
         ,
-            type      : 'rangeMonoLine'
-            weight    : 1
+            type   : 'rangeMonoLine'
+            weight : 4
         ,
-            type      : 'rangeMultiLine'
-            weight    : 0
+            type   : 'rangeMultiLine'
+            weight : 4
         ]
 
     breakpointTypes : [
-            type      : 'start'
-            weight    : 0
+            type   : 'start'
+            weight : 1
         ,
-            type      : 'middle'
-            weight    : 1
+            type   : 'middle'
+            weight : 1
         ,
-            type      : 'end'
-            weight    : 0
-        ,
-
+            type   : 'end'
+            weight : 1
         ]
 
     keyEventTypes : [
@@ -487,6 +633,39 @@ class exports.Recorder
                 keyCode  : 8
                 which    : 8
         ]
+    linesDistance : [
+            weight   : 100
+            val      : 1
+        ,
+            weight   : 65
+            val      : 2
+        ,
+            weight   : 45
+            val      : 3
+        ,
+            weight   : 25
+            val      : 4
+        ,
+            weight   : 15
+            val      : 5
+        ,
+            weight   : 8
+            val      : 6
+        ,
+            weight   : 4
+            val      : 7
+        ,
+            weight   : 2
+            val      : 8
+        ,
+            weight   : 2
+            val      : 9
+        ,
+            weight   : 2
+            val      : 10
+        ]
+
+
 
     _randomChoice : (types) ->
         if !types.totalWeight
@@ -502,19 +681,35 @@ class exports.Recorder
                 return type
         return types[types.length - 1]
 
+
+
+    _getRandomNum : (a,b) ->
+        return Math.min( b ,  a + Math.floor( Math.random()*(b-a+1) )   )
+
+
+
     _generateRandomAction : (actionType)->
         switch actionType
             
             when 'keyEvent'
-                action = @_randomChoice(@keyEventTypes)
+                action = keyboard : @_randomChoice(@keyEventTypes).keyboard
             
             when 'selection'
                 action = @_randomSelection()
             
             when 'paste'
-                action = @_randomChoice(@pasteTypes)
+                action = @_randomPaste()
 
         return action
+
+
+
+    _randomPaste : () ->
+        l = @pasteDataArray.length
+        i = @_getRandomNum(0,l-1)
+        action = paste : @pasteDataArray[i]
+
+
 
     _randomSelection : () ->
         rangeType = @_randomChoice(@rangeTypes)
@@ -538,12 +733,17 @@ class exports.Recorder
                     endBP   = @_selectRandomBP(l)
 
             when "rangeMultiLine"
-                l1      = @_selectRandomLine()
+                ar = @_selectRandomTwoLines()
+                l1 = ar[0]
+                l2 = ar[1]
                 startBP = @_selectRandomBP(l1)
-                l2      = @_selectRandomLine()
-                while l2 == l1
-                    l2  = @_selectRandomLine()
-                endBP = @_selectRandomBP(l2)
+                endBP   = @_selectRandomBP(l2)
+                # l1      = @_selectRandomLine()
+                # startBP = @_selectRandomBP(l1)
+                # l2      = @_selectRandomLine()
+                # while l2 == l1
+                #     l2  = @_selectRandomLine()
+                # endBP = @_selectRandomBP(l2)
 
         rg = document.createRange()
         rg.setStart(startBP.cont,startBP.offset)
@@ -556,6 +756,25 @@ class exports.Recorder
                 
 
     ###*
+     * Returns an array of 2 random lines. The probability of a couple is as 
+     * small as its distance between the 2 lines is high.
+    ###
+    _selectRandomTwoLines : () ->
+        lines = @editor.linesDiv.childNodes
+        linesNumber = lines.length
+        if linesNumber == 1
+            return [ lines[0], lines[0] ]
+
+        distance = @_randomChoice(@linesDistance)
+        
+        while distance.val >= linesNumber
+            distance = @_randomChoice(@linesDistance)
+        i = @_getRandomNum(0,lines.length - 1 - distance.val)
+
+        return [ lines[i], lines[i+distance.val] ]
+
+
+    ###*
      * Choose a random line except the first and last ones.
      * 
      * @return {element} The div of the choosen line
@@ -565,9 +784,10 @@ class exports.Recorder
         n = lines.length
         # i between 0 and n-1 (we don't choose neither the first line 
         # nor the last one)
-        i = Math.min(   n-1,   Math.floor( Math.random()*(n-1) )   )
-        i = 1
-        return lines[i]
+        i = @_getRandomNum(0,n-1)
+        line = lines[i]
+        return line
+
 
     _selectRandomBP : (line) ->
         # the number of possible breakpoints is at the beginning of line
@@ -582,11 +802,12 @@ class exports.Recorder
                 bp = @_getRandomEndLine(line)
         return bp
 
+
     _getRandomMiddleLine : (line) ->
         # count the number of possible offsets
         children = Array.prototype.slice.call(line.childNodes)
-        children.pop() # remove br
         num = children.length + 1
+        children.pop() # remove br
         while children.length !=0
             child = children.pop()
             if child.childNodes.length != 0
@@ -603,12 +824,15 @@ class exports.Recorder
             else
                 num += 1
         # choose a random bp between 0 and num-1 :
-        n = Math.min(   num-1,   Math.floor( Math.random()*num )   )
+        n = @_getRandomNum(0,num-1)
         # find the corresponding bp :
         @nAlreadySeen = -1
         @_getMiddleBP(line, n)
 
+
     _getMiddleBP : (cont, ntarget ) ->
+        if cont.nodeName == 'BR'
+            return
         @nAlreadySeen += 1
         if ntarget == @nAlreadySeen
             return cont:cont, offset:0
@@ -618,7 +842,7 @@ class exports.Recorder
             # a non empty element
             if children.length != 0 
                 for child in children
-                    bp = @_getMiddleBP(child,ntarget,@nAlreadySeen)
+                    bp = @_getMiddleBP(child,ntarget)
                     if bp
                         return bp
                     @nAlreadySeen += 1
@@ -643,48 +867,62 @@ class exports.Recorder
         return null
 
 
+    _getRandomStartLine : (line)->
+        # count the number of bp corresponding to the beginning of the line.
+        firstChildNb = 0
+        child = line
+        while child.firstChild
+            firstChildNb += 1
+            child = child.firstChild
+        n = firstChildNb+1
+        # choose a random bp in those (i random between 0 and n-1)
+        i = @_getRandomNum(0,n-1)
+        cont = line
+        n = 0
+        while n != i && cont.firstChild
+            cont = cont.firstChild
+            n += 1
+        return cont:cont, offset:0
 
 
     _getRandomEndLine : (line)->
-        n = @_getpossibleEndBpNumbers(line)
-        i = Math.min(   n-1,   Math.floor( Math.random()*n )   )
-        bp = @_getEndBpNumber(line, i)
-        return bp
-
-    _getpossibleEndBpNumbers : (line)->
+        # count the number of bp corresponding to the end of the line.
         n = 3
         child = line.lastChild.previousSibling
         while child.childNodes.length != 0
             n += 1
             child = child.lastChild
-        return n
+        # choose a random bp in those
+        i = @_getRandomNum(0,n-1)
+        bp = @_getEndBpNumber(line, i)
+        return bp
+
 
     _getEndBpNumber : (line, n) ->
+        # bp after </br>
         if n == 0
             return cont : line, offset: line.childNodes.length
-
+        # bp before </br>
         else if n == 1
             return cont : line, offset : line.childNodes.length - 1
-
+        # pb at the end of the element before </br>
         else if n == 2
             cont = line.lastChild.previousSibling
-            if cont.length
+            if cont.length # a text node
                 offset = cont.length
-            else
+            else # an element
                 offset = cont.childNodes.length
             return cont : cont , offset : offset
+        # bp in one of the nested lastChild of the element before </br>
         else
             i = 3
             cont = line.lastChild.previousSibling.lastChild
-            while i != n
-                n += 1
+            while i != n && cont.lastChild
+                i += 1
                 cont = cont.lastChild
             if cont.length
                 offset = cont.length
             else
                 offset = cont.childNodes.length
             return cont : cont , offset : offset
-
-    _getpossibleBpNumbers : (line) ->
-        possibleBpNumbers = 1 + 3 * line.childNodes.length + 1
 

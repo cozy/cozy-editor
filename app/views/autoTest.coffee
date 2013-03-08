@@ -191,9 +191,10 @@ class exports.AutoTest
     checkTextNodes: (elmt, line) ->
         if elmt.childNodes.length > 1 
             @logErr(line,"a #{elmt.nodeName} should have only 1 child node")
-        else if elmt.childNodes.length == 0 
-            @logErr(line,"a #{elmt.nodeName} should have at least 1 child node")
-        else if elmt.childNodes[0].nodeName != '#text'
+        # 
+        # else if elmt.childNodes.length == 0 
+        #     @logErr(line,"a #{elmt.nodeName} should have at least 1 child node")
+        if elmt.childNodes.length == 1 &&  elmt.childNodes[0].nodeName != '#text'
             @logErr(line,"element #{elmt.nodeName} should not have 
                 a #{elmt.childNodes[0].nodeName} as node child")
 
@@ -203,12 +204,13 @@ class exports.AutoTest
         depth = line.lineDepthAbs
 
         # 1- check the line has a corresponding element
-        lineEl = @linesDiv.querySelector('#'+line.lineID) #.children('#'+line.lineID)[0]
+        # lineEl = @linesDiv.querySelector('#'+line.lineID)
+        lineEl = this.editor.document.getElementById(line.lineID)
         if lineEl == null
             txt = 'has no matching DIV'
             @logErr(line,txt)
         
-        # 2- a DIV contains a sequence of SPAN A and IMG ended by a BR ----(OK)
+        # 2- a DIV contains a sequence of SPAN, A and IMG ended by a BR ----(OK)
         children = [].slice.call(lineEl.childNodes)
         # rq : el.childNodes is not an array, it's a nodeList...
         
@@ -223,8 +225,8 @@ class exports.AutoTest
             txt = 'must end with BR'
             @logErr(line,txt)
 
-        # 4- two successive child of a line div must be "similar" (same class
-        # same node name and if a <a> same href)
+        # 4- two successive child of a line div must not be "similar" (same 
+        # class same node name and if a <a> same href)
         child1 = children[0]
         while child1.nodeName != 'BR'
             child2 = child1.nextSibling
@@ -243,7 +245,7 @@ class exports.AutoTest
         rootLine =
             lineType: 'root'
             lineID: 'CNID_0'
-            lineNext: @editor._lines['CNID_1'] # should be _firstLine instead
+            lineNext: @editor.getFirstline()
             linePrev: null
             lineDepthAbs: 0
         root = @createNode(rootLine, [])
@@ -263,7 +265,6 @@ class exports.AutoTest
             @checkLineStructure nextLine
                     
             # Then we add it to the tree
-            @addLine
             newNode = @createNode(nextLine, [])
             type    = @nodeType(nextLine.lineType)
             depth   = nextLine.lineDepthAbs

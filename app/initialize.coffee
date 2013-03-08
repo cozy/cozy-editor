@@ -54,6 +54,10 @@ $("#well-result").layout
  * callback to execute after editor's initialization 
  * the contexte (this) inside the function is the editor
 ###
+
+# a global var to share the editor to check after a paste event
+__editorToCheck = null
+
 cb = () ->
 
 
@@ -62,10 +66,11 @@ cb = () ->
     editorCtrler      = this
     editorBody$       = @editorBody$
     recordButton      = $ "#record-button"
+    recordPasteButton = $ "#record-paste-button"
     loadHtmlBtn       = $ "#loadHtmlBtn"
     serializerDisplay = $ "#resultText"
     playAllButton     = $ "#play-all-button"
-    playRandomButton     = $ "#play-random-button"
+    playRandomButton  = $ "#play-random-button"
     playCurrentButton = $ "#play-current-button"
     recordList        = $ '#record-list'
     recordSaveButton  = $ '#record-save-button'
@@ -109,11 +114,11 @@ cb = () ->
     this.replaceContent( require('views/templates/content-shortlines-marker') )
     this.replaceContent( require('views/templates/content-full-relative-indent') )
     this.replaceContent( require('views/templates/content-shortlines-all-hacked') )
-    content = require('views/templates/content-shortlines-large')
     content = require('views/templates/test2')
     content = require('views/templates/content-shortlines-medium')
-    ###
     content = require('views/templates/content-shortlines-small')
+    ###
+    content = require('views/templates/content-shortlines-large')
     @replaceContent content()
     move_ed_2_ed2()
     # beautify(editorBody$)
@@ -133,6 +138,7 @@ cb = () ->
             printBreakPoint(range.endContainer,range.endOffset, 'end   :')
             console.log "range.toHtml= #{range.toHtml()}"
             i++
+        editorCtrler.setFocus()
 
     printBreakPoint = (startCont,offset, prefix) ->
         cont = startCont
@@ -160,7 +166,7 @@ cb = () ->
     # Allows user to load a file in the Cozy format
     $('#contentSelect').on "change" , (e) ->
         editorCtrler.replaceContent( require("views/templates/#{e.currentTarget.value}")() )
-        checkEditor()
+        checkEditor(editorCtrler)
 
     # Allows user to load a style sheet for the page
     $('#cssSelect').on "change" , (e) ->
@@ -269,13 +275,13 @@ cb = () ->
 
     $("#loadMdBtn").on "click", () ->
         editorCtrler.setEditorContent serializerDisplay[0].value
-        checkEditor()
+        checkEditor(editorCtrler)
 
     $("#loadHtmlBtn").on "click", () ->
         # htmlStrg = serializerDisplay[0].value
         # htmlStrg = htmlStrg.replace(/>[\n ]*</g, "><")
         editorCtrler.replaceContent serializerDisplay[0].value,  true
-        checkEditor()
+        checkEditor(editorCtrler)
 
     $("#addClass").toggle(
         () ->
@@ -363,13 +369,27 @@ cb = () ->
 
     #### -------------------------------------------------------------------
     # auto check of the syntax after a paste
-    editorBody$.on "paste", () ->
+
+    # init of the variable referencing the editor to check after a paste event.
+    __editorToCheck = null
+
+    editor1.editorBody$.on "paste", () ->
+        __editorToCheck = editor1
+        window.setTimeout(checkEditor, 400)
+
+
+    editor2.editorBody$.on "paste", () ->
+        __editorToCheck = editor2
+        window.setTimeout(checkEditor, 400)
+
+    editor3.editorBody$.on "paste", () ->
+        __editorToCheck = editor3
         window.setTimeout(checkEditor, 400)
         
     
     #### -------------------------------------------------------------------
     # Recording stuff
-
+    
     recordStop = () ->
         if recordButton.hasClass "btn-warning"
             recordButton.removeClass "btn-warning"
@@ -390,7 +410,7 @@ cb = () ->
             editor2.setEditorContent strg
             serializerDisplay.val strg
 
-    Recorder = require('./recorder').Recorder
+    Recorder = require('./views/recorder').Recorder
     recorder = new Recorder(editorCtrler, 
                             editorBody$, 
                             serializerDisplay, 
@@ -406,6 +426,15 @@ cb = () ->
         else
             recordButton.removeClass "btn-warning"
             recorder.stopRecordSession()
+
+    recordPaste = () ->
+        if not recordPasteButton.hasClass "btn-warning"
+            recordPasteButton.addClass "btn-warning"
+            recorder.startPasteSession()
+        else
+            recordPasteButton.removeClass "btn-warning"
+            recorder.stopPasteSession()
+
 
     saveCurrentRecordedTest = () ->
         title = recordSaveInput.val()
@@ -425,6 +454,8 @@ cb = () ->
 
     recordButton.click recordTest
 
+    recordPasteButton.click recordPaste
+
     recordSaveButton.click saveCurrentRecordedTest
 
     recordSaveInput.on 'keypress', (e) ->
@@ -432,13 +463,8 @@ cb = () ->
             saveCurrentRecordedTest()            
     
     playRandomButton.click ->
-        # if this.classList.contains('btn-warning')
-        #     this.classList.remove('btn-warning')
-        #     recorder._stopPlayRandomAction()
-        # else
-        #     recorder._playRandomAction()
         this.classList.add('btn-warning')
-        recorder._playRandomAction()
+        recorder.playRandomTests()
         this.classList.remove('btn-warning')
 
 
@@ -447,8 +473,8 @@ cb = () ->
     recorder.load()
 
 
-###
- * Check editor structure
+###****************************************************
+ * 2 - CHECK EDITOR STRUCTURE
 ###
 
 checker  = new AutoTest()
@@ -457,8 +483,12 @@ checkLog = ''
 
 serializerDisplay = $ "#resultText"
 
+
+
 checkEditor = (editor) ->
-    console.log 'checkEditor()'
+    if !editor
+        editor = __editorToCheck
+    console.log 'checkEditor()', editor.editorTarget
     res  = checker.checkLines(editor) 
     date = new Date()
     h = date.getHours() + ''
@@ -488,19 +518,18 @@ checkEditor = (editor) ->
   
 
 ###****************************************************
- * 3 - creation of the editor
+ * 3 - CREATION OF THE EDITOR
 ###
 editor1 = 0
 editor2 = 0
 editor3 = 0
-
 
 $ ->
     editor2 = new CNeditor( document.querySelector('#editorIframe2'), () ->
         editor1 = new CNeditor document.querySelector('#editorIframe'), cb 
         # editor.editor2 = editor2
         editor3 = new CNeditor( document.querySelector('#editorDiv3'), () ->
-            content = require('views/templates/content-shortlines-small')
+            content = require('views/templates/content-shortlines-large')
             @replaceContent content()
         )
     )

@@ -368,14 +368,14 @@ selection.getSegment = (cont,offset) ->
         else if cont.id? and cont.id.substr(0,5) == 'CNID_'
             startDiv = cont
         else
-            startDiv = selection._getSegment(cont)
+            startDiv = selection.getNestedSegment(cont)
     else
-        startDiv = selection._getSegment(cont)
+        startDiv = selection.getNestedSegment(cont)
     return startDiv
 
 # Get segment that contains given element.
 # Prerequisite : elt must be in a segment of a line.
-selection._getSegment = (elt)->
+selection.getNestedSegment = (elt)->
     parent = elt.parentNode
     until (parent.nodeName == 'DIV'                                            \
             and parent.id?                                                     \
@@ -387,7 +387,36 @@ selection._getSegment = (elt)->
         parent = elt.parentNode
     return elt
 
+###*
+ * Returns the normalized break point at the end of the previous segment of the
+ * segment of an element.
+ * @param {[type]} elmt [description]
+###
+selection.setBpPreviousSegEnd = (elmt) ->
+    seg   = selection.getNestedSegment(elmt)
+    index = selection.getSegmentIndex(seg)
+    # by default normalizeBP will return a bp at the end of previous segment
+    return bp = selection.normalizeBP(seg.parentNode, index)
 
+
+###*
+ * Returns the normalized break point at the start of the next segment of the
+ * segment of an element.
+ * @param {[type]} elmt [description]
+###
+selection.setBpNextSegEnd = (elmt) ->
+    seg   = selection.getNestedSegment(elmt)
+    index = selection.getSegmentIndex(seg) + 1
+    # by default normalizeBP will return a bp at the end of previous segment
+    return bp = selection.normalizeBP(seg.parentNode, index, true)
+
+
+selection.getSegmentIndex = (segment)->
+    for sibling, i in segment.parentNode.childNodes
+        if sibling == segment
+            index = i
+            break
+    return index
 
 
 exports.selection = selection
