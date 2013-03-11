@@ -486,32 +486,51 @@ class exports.Recorder
         return type
 
 
+
     ###*
      * The mad monkey ! Main method to start a random serie of tests.
     ###
-    playRandomTests : ()->
+    launchMadMonkey : (nbRound)->
+        if !nbRound
+            nbRound = 0
+
         historySummary = {}
         history = []
+        res = true
         sel = @editor.getEditorSelection()
-        # start with a selection
-        action = @_generateRandomAction('selection')
-        res    = @_playAction(action)
+        @_initEditorForMadMonkey()
+
+        # if error while simulation, catch it to savec history.
+        window.onerror = (errormsg, url, lineNumber) =>
+            # save the history to replay the bug
+            @_saveMadMonkeyJourney(history)
+            # Display failure information
+            fullType = @_getFullActionType(action)
+            serializerDisplay = $ "#resultText"
+            checkLog  = serializerDisplay.val()
+            checkLog += ' !!! RANDOM TEST FOUND A FAILURE : cf console \n\n'
+            checkLog += 'action fullType : ' + fullType + '\n\naction data :\n'
+            checkLog += JSON.stringify(action) + '\n\nInitial html :\n'
+            checkLog += '\nInitial selection : ' + selBeforeAction + ' \n'
+            serializerDisplay.val(checkLog)
+            console.log errormsg
+
         # play random actions
-        for i in [1..10000]
+        for i in [1..5000] by 1
+
             # if the number of line is too small, open a new content
             if @editor.linesDiv.children.length < 5
-                content = require('views/templates/content-shortlines-large')
-                @editor.replaceContent content()
-                action = @_generateRandomAction('selection')
-                res    = @_playAction(action)
-
+                @_initEditorForMadMonkey()
+            
             # keep state before action
             selBeforeAction  = rangy.serializeSelection(sel, true, @editorBody$[0])
             htmlBeforeAction = @editor.linesDiv.innerHTML
+            
             # play a random action
             actionType = @_randomChoice(@actionTypes)
             action     = @_generateRandomAction(actionType.type)
             res = res && @_playAction(action)
+
             # manage history and historysummary
             fullType = @_getFullActionType(action)
             if historySummary[fullType]
@@ -523,6 +542,7 @@ class exports.Recorder
                 htmlBeforeAction : htmlBeforeAction
                 action           : action
                 fullType         : fullType
+            
             # check action result
             if !res
                 break
@@ -530,11 +550,15 @@ class exports.Recorder
         serializerDisplay = $ "#resultText"
         checkLog = serializerDisplay.val()
 
+
         if res
             checkLog += '\n random test successfull\n' 
             checkLog += JSON.stringify(historySummary)
             serializerDisplay.val(checkLog)
             $('#well-editor').css('background-color','')
+            history = []
+            if nbRound > 0
+                window.setTimeout(@launchMadMonkey(nbRound-1),5000)
 
         else
             # Display failure information
@@ -545,17 +569,7 @@ class exports.Recorder
             checkLog += htmlBeforeAction
 
             # Save last action
-            @_recordingSession = []
-            for step in history
-                action = step.action
-                delete action.result
-                @_recordingSession.push(action)
-            @initialState = 
-                html      : history[0].htmlBeforeAction
-                selection : history[0].selBeforeAction
-            @finalState =
-                html : @.editor.linesDiv.innerHTML
-            @saveCurrentRecordedTest('Random test in failure')
+            @_saveMadMonkeyJourney(history)
 
             # Display result
             serializerDisplay.val(checkLog)
@@ -564,7 +578,33 @@ class exports.Recorder
             debugger
 
         return true
-        
+    
+    _initEditorForMadMonkey : () ->
+        # content = require('views/templates/content-for-mad-monkey')
+        content = require('views/templates/content-shortlines-large')
+        @editor.replaceContent content()
+        action = @_generateRandomAction('selection')
+        res    = @_playAction(action)
+
+    _saveMadMonkeyJourney : (history)->
+        @_recordingSession = []
+        n = history.length
+        nbOfStepsToSave = 3
+        nmin = Math.max(n-nbOfStepsToSave,0)
+        nmax = n-1
+        for i in [nmin .. nmax] by 1
+            step = history[i]
+        # for step in history
+            action = step.action
+            delete action.result
+            @_recordingSession.push(action)
+        @initialState = 
+            html      : history[nmin].htmlBeforeAction
+            selection : history[nmin].selBeforeAction
+        @finalState =
+            html : @.editor.linesDiv.innerHTML
+        @saveCurrentRecordedTest('Random test in failure')
+
 
     actionTypes : [
             type   : 'selection'

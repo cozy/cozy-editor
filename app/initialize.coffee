@@ -117,8 +117,10 @@ cb = () ->
     content = require('views/templates/test2')
     content = require('views/templates/content-shortlines-medium')
     content = require('views/templates/content-shortlines-small')
-    ###
     content = require('views/templates/content-shortlines-large')
+    content = require('views/templates/content-for-mad-monkey')
+    ###
+    content = require('views/templates/content-deep-tree')
     @replaceContent content()
     move_ed_2_ed2()
     # beautify(editorBody$)
@@ -464,7 +466,7 @@ cb = () ->
     
     playRandomButton.click ->
         this.classList.add('btn-warning')
-        recorder.playRandomTests()
+        recorder.launchMadMonkey(2)
         this.classList.remove('btn-warning')
 
 

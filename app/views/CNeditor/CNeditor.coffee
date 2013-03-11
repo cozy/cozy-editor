@@ -726,7 +726,16 @@ class exports.CNeditor
     updateCurrentSelIsStartIsEnd : () ->
 
         sel                = @getEditorSelection()
-        range              = sel.getRangeAt(0)
+        # if sel.rangeCount == 0
+        #     throw 666
+        #     debugger
+
+        try
+            range              = sel.getRangeAt(0)
+        catch e
+            console.log e
+            throw 777
+        
 
         # normalize if carret has been moved or if we are in Chrome
         if @newPosition or @isChromeOrSafari
@@ -2441,35 +2450,41 @@ class exports.CNeditor
         # adjust depth of the sons and siblings of endLine if deltadpeth > 1
         firstNextLine = startLine.lineNext
         firstNextLineDepth = firstNextLine.lineDepthAbs
-        # delta0 = firstNextLine.lineDepthAbs - endLineDepth
         delta1 = firstNextLine.lineDepthAbs - startLineDepth
-        delta  =  endLineDepth - startLineDepth
+        delta  = endLineDepth - startLineDepth
 
+        lineIt = firstNextLine
         if delta1 > 1
-            line = firstNextLine
-            while line!= null and line.lineDepthAbs >= firstNextLineDepth
-                newDepth = line.lineDepthAbs - delta
-                line.setDepthAbs(newDepth)
-                line = line.lineNext
+            while lineIt != null && lineIt.lineDepthAbs > startLineDepth
+                lineIt = @_unIndentBlock(lineIt,delta)
         # lineAfterEndLineSons = line
 
 
-        line = firstNextLine
-        if startLine.lineDepthAbs == 1
-            minDepthToCheck = 0
-        else
-            minDepthToCheck = 1
-        while line != null and line.lineDepthAbs > minDepthToCheck
-            prev = @_findPrevSibling(line)
+        # depth are ok, now check type : for each line after firstNextLine find
+        # its previous sibling and compare type
+        lineIt = firstNextLine
+        while lineIt != null
+            prev = @_findPrevSibling(lineIt)
             if prev == null
-                if line.lineType[0] != 'T'
-                    line.setType('T'+line.lineType[1])
-            else if prev.lineType[1] != line.lineType[1] # ex : Lu and Th : Th => Tu
-                line.setType(line.lineType[0]+prev.lineType[1])
-            line = line.lineNext
+                if lineIt.lineType[0] != 'T'
+                    lineIt.setType('T'+lineIt.lineType[1])
+            else if prev.lineType[1] != lineIt.lineType[1] # ex : Lu and Th : Th => Tu
+                lineIt.setType(lineIt.lineType[0]+prev.lineType[1])
+            lineIt = lineIt.lineNext
         
         return true
             
+
+    _unIndentBlock: (firstLine,delta) ->
+        line = firstLine
+        firstLineDepth = firstLine.lineDepthAbs
+        newDepth = Math.max(1,line.lineDepthAbs - delta)
+        delta = line.lineDepthAbs - newDepth
+        while line!= null and line.lineDepthAbs >= firstLineDepth
+            newDepth = line.lineDepthAbs - delta
+            line.setDepthAbs(newDepth)
+            line = line.lineNext
+        return line
 
 
     _adaptDepthV0 : (startLine, startLineDepthAbs, endLineDepthAbs, deltaDepth) ->
