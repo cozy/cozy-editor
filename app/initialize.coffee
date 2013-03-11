@@ -116,9 +116,9 @@ cb = () ->
     this.replaceContent( require('views/templates/content-shortlines-all-hacked') )
     content = require('views/templates/test2')
     content = require('views/templates/content-shortlines-medium')
-    content = require('views/templates/content-shortlines-small')
     content = require('views/templates/content-shortlines-large')
     content = require('views/templates/content-for-mad-monkey')
+    content = require('views/templates/content-shortlines-small')
     ###
     content = require('views/templates/content-deep-tree')
     @replaceContent content()
@@ -131,7 +131,7 @@ cb = () ->
         sel = editorCtrler.getEditorSelection()
         i = 0
         l = sel.rangeCount
-        while i<l
+        while i < l
             range = sel.getRangeAt(i)
             console.log "------------"
             console.log "  Range N°#{i}"
@@ -466,7 +466,7 @@ cb = () ->
     
     playRandomButton.click ->
         this.classList.add('btn-warning')
-        recorder.launchMadMonkey(2)
+        recorder.launchMadMonkey(1)
         this.classList.remove('btn-warning')
 
 
@@ -507,7 +507,6 @@ checkEditor = (editor) ->
             ed = 'editor2'
         else
             ed = 'editor3'
-
 
     if res
         checkLog += st + 'Syntax test success  (' + ed + ')\n' 

@@ -248,6 +248,22 @@ selection.normalizeBP = (cont, offset, preferNext) ->
 
 
 ###*
+ * Normalize an array of breakpoints.
+ * @param  {Array} bps   An array of break points to normalize
+ * @param  {boolean} preferNext [optional] if true, in case BP8, we will choose
+ *                              to go in next sibling - if it exists - rather 
+ *                              than in the previous one.
+ * @return {Array} A ref to the array of normalized bp.
+###
+selection.normalizeBPs = (bps, preferNext) ->
+    for bp in bps
+        newBp     = selection.normalizeBP(bp.cont,bp.offset,preferNext)
+        bp.cont   = newBp.cont
+        bp.offset = newBp.offset
+    return bps
+
+
+###*
  * return the div corresponding to an element inside a line and tells wheter
  * the breabk point is at the end or at the beginning of the line
  * @param  {element} cont   the container of the break point

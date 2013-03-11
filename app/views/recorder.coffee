@@ -473,12 +473,19 @@ class exports.Recorder
     _getFullActionType : (action) ->
         if action.keyboard
             type = action.keyboard.which
-            if type == 13
-                type = 'return'
-            else if type == 8
-                type = 'backspace'
-            else if type == 46
-                type = 'suppr'
+            switch type
+                when 13
+                    type = 'return'
+                when 8
+                    type = 'backspace'
+                when 46
+                    type = 'suppr'
+                when 9
+                    if action.keyboard.shiftKey
+                        type = 'un-tab'
+                    else
+                        type = 'tab'
+
         else if action.selection
             type = 'selection'
         else if action.paste
@@ -494,16 +501,21 @@ class exports.Recorder
         if !nbRound
             nbRound = 0
 
+        @isMonkeyOn = true
         historySummary = {}
         history = []
         res = true
         sel = @editor.getEditorSelection()
         @_initEditorForMadMonkey()
 
+
+        that = this
         # if error while simulation, catch it to savec history.
         window.onerror = (errormsg, url, lineNumber) =>
             # save the history to replay the bug
-            @_saveMadMonkeyJourney(history)
+            if @isMonkeyOn
+                @_saveMadMonkeyJourney(history)
+                @isMonkeyOn = false
             # Display failure information
             fullType = @_getFullActionType(action)
             serializerDisplay = $ "#resultText"
@@ -513,40 +525,54 @@ class exports.Recorder
             checkLog += JSON.stringify(action) + '\n\nInitial html :\n'
             checkLog += '\nInitial selection : ' + selBeforeAction + ' \n'
             serializerDisplay.val(checkLog)
+
+            # window.chc = that
+            # window.restoreStep = (n) ->
+            #     step = history[n]
+            #     content = step.htmlBeforeAction
+            #     that.editor.replaceContent content
+            #     rangy.deserializeSelection(step.selBeforeAction, that.editorBody$[0])
+
+            # window.playStep = (n) ->
+            #     that._playAction(history[n].action)
+
             console.log errormsg
 
         # play random actions
-        for i in [1..5000] by 1
+        for i in [1..10000] by 1
 
             # if the number of line is too small, open a new content
             if @editor.linesDiv.children.length < 5
                 @_initEditorForMadMonkey()
             
-            # keep state before action
-            selBeforeAction  = rangy.serializeSelection(sel, true, @editorBody$[0])
-            htmlBeforeAction = @editor.linesDiv.innerHTML
-            
-            # play a random action
+            # create a random action
             actionType = @_randomChoice(@actionTypes)
             action     = @_generateRandomAction(actionType.type)
-            res = res && @_playAction(action)
 
-            # manage history and historysummary
-            fullType = @_getFullActionType(action)
-            if historySummary[fullType]
-                historySummary[fullType] += 1
-            else
-                historySummary[fullType] = 1
+            # add action and context in history
+            selBeforeAction  = rangy.serializeSelection(sel, true, @editorBody$[0])
+            htmlBeforeAction = @editor.linesDiv.innerHTML
+            fullType         = @_getFullActionType(action)
             history.push
                 selBeforeAction  : selBeforeAction
                 htmlBeforeAction : htmlBeforeAction
                 action           : action
                 fullType         : fullType
             
+            # play action
+            res = res && @_playAction(action)
+
+            # manage historysummary
+            if historySummary[fullType]
+                historySummary[fullType] += 1
+            else
+                historySummary[fullType] = 1
+            
             # check action result
             if !res
                 break
 
+        @isMonkeyOn = false
         serializerDisplay = $ "#resultText"
         checkLog = serializerDisplay.val()
 
@@ -557,7 +583,7 @@ class exports.Recorder
             serializerDisplay.val(checkLog)
             $('#well-editor').css('background-color','')
             history = []
-            if nbRound > 0
+            if nbRound > 1
                 window.setTimeout(@launchMadMonkey(nbRound-1),5000)
 
         else
@@ -580,8 +606,8 @@ class exports.Recorder
         return true
     
     _initEditorForMadMonkey : () ->
-        # content = require('views/templates/content-for-mad-monkey')
-        content = require('views/templates/content-shortlines-large')
+        # content = require('views/templates/content-shortlines-large')
+        content = require('views/templates/content-for-mad-monkey')
         @editor.replaceContent content()
         action = @_generateRandomAction('selection')
         res    = @_playAction(action)
@@ -672,6 +698,24 @@ class exports.Recorder
                 ctrlKey  : false
                 keyCode  : 8
                 which    : 8
+        ,
+            type     : 'tab'
+            weight   : 1
+            keyboard :
+                altKey   : false
+                shiftKey : false
+                ctrlKey  : false
+                keyCode  : 9
+                which    : 9
+        ,
+            type     : 'un-tab'
+            weight   : 1
+            keyboard :
+                altKey   : false
+                shiftKey : true
+                ctrlKey  : false
+                keyCode  : 9
+                which    : 9
         ]
     linesDistance : [
             weight   : 100

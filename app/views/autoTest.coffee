@@ -238,6 +238,13 @@ class exports.AutoTest
                 @checkElement(child1, line)
                 child1 = child1.nextSibling
 
+        # 5- Segments should not be empty (exept in case of an empty line)
+        if children.length > 2
+            for i in [0..children.length-2]
+                if children[i].textContent == ''
+                    txt = "no empty segment in a non empty line"
+                    @logErr(line,txt)
+
 
     buildTree : () ->
         # We are going to represent the DIVs with a tree, hence we need to 

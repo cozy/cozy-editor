@@ -516,131 +516,139 @@ class exports.CNeditor
     #                               N°102 f is stroke) or "space" ...
     #
     _keyDownCallBack : (e) =>
-        # 1- Prepare the shortcut corresponding to pressed keys
-        [metaKeyCode,keyCode] = @getShortCut(e)
-        shortcut = metaKeyCode + '-' + keyCode
-        # console.log '_keyDownCallBack', shortcut
-        switch e.keyCode
-            when 16 #Shift
-                e.preventDefault()
-                return
-            when 17 #Ctrl
-                e.preventDefault()
-                return
-            when 18 #Alt
-                e.preventDefault()
-                return
+        try
+            
+            # 1- Prepare the shortcut corresponding to pressed keys
+            [metaKeyCode,keyCode] = @getShortCut(e)
+            shortcut = metaKeyCode + '-' + keyCode
+            # console.log '_keyDownCallBack', shortcut
+            switch e.keyCode
+                when 16 #Shift
+                    e.preventDefault()
+                    return
+                when 17 #Ctrl
+                    e.preventDefault()
+                    return
+                when 18 #Alt
+                    e.preventDefault()
+                    return
 
-        # Add a new history step if the short cut is different from previous
-        # shortcut and only in case a a return, a backspace, a space...
-        # This means that in case of multiple return, only the first one is in
-        # history. A letter such as 'a' doesn't increase the history.
-        if @_lastKey != shortcut and \
-               shortcut in ['-tab', '-return', '-backspace', '-suppr',
-                            'CtrlShift-down', 'CtrlShift-up',
-                            'CtrlShift-left', 'CtrlShift-right',
-                            'Ctrl-B', 'Ctrl-U', 
-                            'Ctrl-V', 'Shift-tab', '-space', '-other', 'Alt-A']
-            @_addHistory()
-           
-        @_lastKey = shortcut
+            # Add a new history step if the short cut is different from previous
+            # shortcut and only in case a a return, a backspace, a space...
+            # This means that in case of multiple return, only the first one is in
+            # history. A letter such as 'a' doesn't increase the history.
+            if @_lastKey != shortcut and \
+                   shortcut in ['-tab', '-return', '-backspace', '-suppr',
+                                'CtrlShift-down', 'CtrlShift-up',
+                                'CtrlShift-left', 'CtrlShift-right',
+                                'Ctrl-B', 'Ctrl-U', 
+                                'Ctrl-V', 'Shift-tab', '-space', '-other', 'Alt-A']
+                @_addHistory()
+               
+            @_lastKey = shortcut
 
-        @currentSel =
-            sel              : null
-            range            : null
-            startLine        : null
-            endLine          : null
-            rangeIsStartLine : null
-            rangeIsEndLine   : null
-            startBP          : null
-            endBP            : null
+            @currentSel =
+                sel              : null
+                range            : null
+                startLine        : null
+                endLine          : null
+                rangeIsStartLine : null
+                rangeIsEndLine   : null
+                startBP          : null
+                endBP            : null
 
-        # 2- manage the newPosition flag
-        #    newPosition == true if the position of caret or selection has been
-        #    modified with keyboard or mouse.
-        #    If newPosition == true and a character is typed or a suppression
-        #    key is pressed, then selection must be "normalized" so that its
-        #    break points are in text nodes. Normalization is done by 
-        #    updateCurrentSel or updateCurrentSelIsStartIsEnd that is chosen 
-        #    before to run the action corresponding to the shorcut.
+            # 2- manage the newPosition flag
+            #    newPosition == true if the position of caret or selection has been
+            #    modified with keyboard or mouse.
+            #    If newPosition == true and a character is typed or a suppression
+            #    key is pressed, then selection must be "normalized" so that its
+            #    break points are in text nodes. Normalization is done by 
+            #    updateCurrentSel or updateCurrentSelIsStartIsEnd that is chosen 
+            #    before to run the action corresponding to the shorcut.
 
-        # Set a flag if the user moved the caret with keyboard
-        if keyCode in ['left','up','right','down',
-                              'pgUp','pgDwn','end', 'home',
-                              'return', 'suppr', 'backspace']      \
-           and shortcut not in ['CtrlShift-down', 'CtrlShift-up',
-                            'CtrlShift-right', 'CtrlShift-left']
-            @newPosition = true
-        
-                 
-        # 5- launch the action corresponding to the pressed shortcut
-        switch shortcut
-            when '-return'
-                @updateCurrentSelIsStartIsEnd()
-                @_return()
-                @newPosition = false
-                e.preventDefault()
-            when '-backspace'
-                @updateCurrentSelIsStartIsEnd()
-                @_backspace()
-                @newPosition = true # important, for instance deletion of a range within a single line
-                e.preventDefault()
-            when '-tab'
-                @tab()
-                e.preventDefault()
-            when 'Shift-tab'
-                @shiftTab()
-                e.preventDefault()
-            when '-suppr'
-                @updateCurrentSelIsStartIsEnd()
-                @_suppr(e)
+            # Set a flag if the user moved the caret with keyboard
+            if keyCode in ['left','up','right','down',
+                                  'pgUp','pgDwn','end', 'home',
+                                  'return', 'suppr', 'backspace']      \
+               and shortcut not in ['CtrlShift-down', 'CtrlShift-up',
+                                'CtrlShift-right', 'CtrlShift-left']
                 @newPosition = true
-            # when 'CtrlShift-down'
-            #     @_moveLinesDown()
-            #     e.preventDefault()
-            # when 'CtrlShift-up'
-            #     @_moveLinesUp()
-            #     e.preventDefault()
-            when 'Ctrl-A'
-                selection.selectAll(this)
-                e.preventDefault()
-            when 'Alt-L'
-                @markerList()
-                e.preventDefault()
-            # TOGGLE LINE TYPE (Alt + a)                  
-            when 'Alt-A'
-                @toggleType()
-                e.preventDefault()
-            when '-other', '-space'
-                if @newPosition
-                    sel = @updateCurrentSel() 
-                    if ! sel.theoricalRange.collapsed
-                        @_backspace()
+            
+                     
+            # 5- launch the action corresponding to the pressed shortcut
+            switch shortcut
+                when '-return'
+                    @updateCurrentSelIsStartIsEnd()
+                    @_return()
                     @newPosition = false
-            # PASTE (Ctrl + v)                  
-            when 'Ctrl-V'
-                true
-            when 'Ctrl-B'
-                @strongSelection()
-                e.preventDefault()
-            when 'Ctrl-U'
-                @underlineSelection()
-                e.preventDefault()
-            when 'Ctrl-K'
-                @linkifySelection()
-                e.preventDefault()
-            # SAVE (Ctrl + s)                  
-            when 'Ctrl-S'
-                $(@editorTarget).trigger jQuery.Event('saveRequest')
-                e.preventDefault()
-            # UNDO (Ctrl + z)
-            when 'Ctrl-Z'
-                @unDo()
-                e.preventDefault()
-            # REDO (Ctrl + y)
-            when 'Ctrl-Y'
-                @reDo()
-                e.preventDefault()
+                    throw 666
+                    e.preventDefault()
+                when '-backspace'
+                    @updateCurrentSelIsStartIsEnd()
+                    @_backspace()
+                    @newPosition = true # important, for instance deletion of a range within a single line
+                    e.preventDefault()
+                when '-tab'
+                    @tab()
+                    e.preventDefault()
+                when 'Shift-tab'
+                    @shiftTab()
+                    e.preventDefault()
+                when '-suppr'
+                    @updateCurrentSelIsStartIsEnd()
+                    @_suppr(e)
+                    @newPosition = true
+                # when 'CtrlShift-down'
+                #     @_moveLinesDown()
+                #     e.preventDefault()
+                # when 'CtrlShift-up'
+                #     @_moveLinesUp()
+                #     e.preventDefault()
+                when 'Ctrl-A'
+                    selection.selectAll(this)
+                    e.preventDefault()
+                when 'Alt-L'
+                    @markerList()
+                    e.preventDefault()
+                # TOGGLE LINE TYPE (Alt + a)                  
+                when 'Alt-A'
+                    @toggleType()
+                    e.preventDefault()
+                when '-other', '-space'
+                    if @newPosition
+                        sel = @updateCurrentSel() 
+                        if ! sel.theoricalRange.collapsed
+                            @_backspace()
+                        @newPosition = false
+                # PASTE (Ctrl + v)                  
+                when 'Ctrl-V'
+                    true
+                when 'Ctrl-B'
+                    @strongSelection()
+                    e.preventDefault()
+                when 'Ctrl-U'
+                    @underlineSelection()
+                    e.preventDefault()
+                when 'Ctrl-K'
+                    @linkifySelection()
+                    e.preventDefault()
+                # SAVE (Ctrl + s)                  
+                when 'Ctrl-S'
+                    $(@editorTarget).trigger jQuery.Event('saveRequest')
+                    e.preventDefault()
+                # UNDO (Ctrl + z)
+                when 'Ctrl-Z'
+                    @unDo()
+                    e.preventDefault()
+                # REDO (Ctrl + y)
+                when 'Ctrl-Y'
+                    @reDo()
+                    e.preventDefault()
+
+        catch error
+            alert('A bug occured, we prefer to undo your last action not to take any risk.\n\nMessage :\n' + error)
+            e.preventDefault()
+            @unDo()
     
 
     ###*
@@ -724,18 +732,8 @@ class exports.CNeditor
      * @return {object} @currentSel
     ###
     updateCurrentSelIsStartIsEnd : () ->
-
         sel                = @getEditorSelection()
-        # if sel.rangeCount == 0
-        #     throw 666
-        #     debugger
-
-        try
-            range              = sel.getRangeAt(0)
-        catch e
-            console.log e
-            throw 777
-        
+        range              = sel.getRangeAt(0)
 
         # normalize if carret has been moved or if we are in Chrome
         if @newPosition or @isChromeOrSafari
@@ -1531,6 +1529,7 @@ class exports.CNeditor
             # => remove segment
             if segment.textContent == ''
                 segment     = @_removeSegment(segment, breakPoints)
+                selection.normalizeBPs(breakPoints)
                 nextSegment = segment.nextSibling
                 
             # case of a non empty segment followed by a segment with same meta
@@ -1558,17 +1557,18 @@ class exports.CNeditor
      *                         if doesn't exist, to the next sibling.
     ###
     _removeSegment : (segment,breakPoints) ->
-        # if not done, attach the corresponding segment to each bp
-        if breakPoints.length > 0 && !breakPoints[0].seg
+        # attach the corresponding segment to each bp (must be done each time,
+        # because the normalization might have move the bp to a new segment and
+        # normalization doesn't update bp.seg )
+        if breakPoints.length > 0
             for bp in breakPoints
                 bp.seg = selection.getNestedSegment(bp.cont)
         # modify the bp that are in the segment that will be deleted
         for bp in breakPoints
             if bp.seg == segment
                 offset = selection.getSegmentIndex(segment)
-                newBp  = selection.normalizeBP(segment.parentNode, offset)
-                bp.cont   = newBp.cont
-                bp.offset = newBp.offset
+                bp.cont   = segment.parentNode
+                bp.offset = offset
         # keep a ref to the previous sibling or, if doesn't exist, next sibling.
         newRef = segment.previousSibling
         if !newRef
@@ -1683,7 +1683,7 @@ class exports.CNeditor
                 # if new content is empty we remove the corresponding segment
                 # (except if it is the last one in the line)
                 if textNode.textContent.length == 0
-                    @_fusionSimilarSegments(sel.startLine.line$[0], [bp])
+                    @_fusionSimilarSegments(startLine.line$[0], [bp])
                 @_setCaret(bp.cont, bp.offset)
 
         # 2- Case of a selection contained in a line
@@ -2092,6 +2092,8 @@ class exports.CNeditor
                     line.lineDepthRel += 1
 
         line.setType(typeTarget)
+        @adjustSiblingsToType(line)
+
 
     _chooseTypeTarget : (prevSibType,nextSibType) ->
         # If there are no siblings => Tu
@@ -2110,6 +2112,7 @@ class exports.CNeditor
         else
             typeTarget = 'Tu'
         return typeTarget
+
 
 
     ### ------------------------------------------------------------------------
@@ -2136,6 +2139,11 @@ class exports.CNeditor
                 break
             else
                 line = line.lineNext
+
+        return true
+
+
+
     ###*
      * un-tab a single line
      * @param  {line} line the line to un-tab
@@ -2183,8 +2191,19 @@ class exports.CNeditor
 
                 typeTarget = @_chooseTypeTarget(prevSibType,nextSibType)
 
-        line.setType(typeTarget)
 
+        line.setType(typeTarget)
+        @adjustSiblingsToType(line)
+
+    adjustSiblingsToType: (line) ->
+        lineIt = line
+        loop
+            if lineIt.lineDepthAbs == line.lineDepthAbs
+                if lineIt.lineType[1] != line.lineType[1]
+                    lineIt.setType(lineIt.lineType[0] + line.lineType[1])
+            lineIt = lineIt.lineNext
+            if  lineIt == null or lineIt.lineDepthAbs < line.lineDepthAbs
+                break
 
 
     ### ------------------------------------------------------------------------
@@ -2193,6 +2212,7 @@ class exports.CNeditor
     #   e = event
     ###
     _return : () ->
+        
         currSel   = this.currentSel
         startLine = currSel.startLine
         endLine   = currSel.endLine
@@ -2202,6 +2222,7 @@ class exports.CNeditor
             
         else if endLine == startLine
             currSel.range.deleteContents()
+            @_fusionSimilarSegments(startLine.line$[0],[])
         else
             @_deleteMultiLinesSelections()
             currSel   = @updateCurrentSelIsStartIsEnd()
@@ -2243,6 +2264,7 @@ class exports.CNeditor
                 targetLineDepthRel : startLine.lineDepthRel
                 fragment           : endOfLineFragment
             )
+            @_fusionSimilarSegments(newLine.line$[0], [])
             # Position caret
             @_setCaret(newLine.line$[0].firstChild.firstChild,0)
 
@@ -2792,6 +2814,11 @@ class exports.CNeditor
                 if linePrev != null then linePrev.lineNext = lineNew
                 linePrev = lineNew
                 @_lines[lineID_st] = lineNew
+                # if some lines are empty, add the text node 
+                if htmlLine.textContent == ''
+                    if htmlLine.firstChild.children.length == 0
+                        txt = document.createTextNode('')
+                        htmlLine.firstChild.appendChild(txt)
         @_highestId = lineID
 
 
