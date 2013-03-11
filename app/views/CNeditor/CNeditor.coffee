@@ -214,10 +214,10 @@ class exports.CNeditor
         @_firstLine   = null          # pointer to the first line
         @_history     =               # for history management
             index        : 0
-            history      : [null]
-            historySelect: [null]
-            historyScroll: [null]
-            historyPos   : [null]
+            history      : new Array(100)   # the length of the history is 100 steps
+            historySelect: new Array(100)
+            historyScroll: new Array(100)
+            historyPos   : new Array(100)
         @_lastKey     = null      # last pressed key (avoid duplication)
 
 
@@ -516,6 +516,7 @@ class exports.CNeditor
     #                               N°102 f is stroke) or "space" ...
     #
     _keyDownCallBack : (e) =>
+        # try actions, in case of error, undo
         try
             
             # 1- Prepare the shortcut corresponding to pressed keys
@@ -581,7 +582,6 @@ class exports.CNeditor
                     @updateCurrentSelIsStartIsEnd()
                     @_return()
                     @newPosition = false
-                    throw 666
                     e.preventDefault()
                 when '-backspace'
                     @updateCurrentSelIsStartIsEnd()
@@ -3115,37 +3115,61 @@ class exports.CNeditor
      * No effect if the url popover is displayed
     ###
     _addHistory : () ->
-        # do nothing it urlpopover is on, otherwise its html will also be 
+        console.log '_addHistory' , @_history.historyPos.length, @_history.historyPos
+        # do nothing if urlpopover is on, otherwise its html will also be 
         # serialized in the history.
         if @isUrlPopoverOn
             return
-        # 0 - mark selection
+
+        # 0- prepare history arrays in case of some undo habe been done
+        if @_history.index < 99
+            i = 99 - @_history.index
+            while i--
+                @_history.historySelect.pop()
+                @_history.historyScroll.pop()
+                @_history.historyPos.pop()
+                @_history.history.pop()
+                @_history.historySelect.unshift(undefined)
+                @_history.historyScroll.unshift(undefined)
+                @_history.historyPos.unshift(undefined)
+                @_history.history.unshift(undefined)
+
+        # 1- mark selection
         savedSel = @saveEditorSelection()
         
-        # save html selection
+        # 2- save html selection
         @_history.historySelect.push savedSel
         
-        # save scrollbar position
+        # 3- save scrollbar position
         savedScroll =
             xcoord: @linesDiv.scrollTop
             ycoord: @linesDiv.scrollLeft
         @_history.historyScroll.push savedScroll
         
-        # save newPosition flag
+        # 4- save newPosition flag
         @_history.historyPos.push @newPosition
         
-        # 1- add the html content with markers to the history
+        # 5- add the html content with markers to the history
         @_history.history.push @linesDiv.innerHTML
         
-        # 2 - update the index
-        @_history.index = @_history.history.length - 1
+        # 6- update the index
+        # @_history.index = @_history.history.length - 1
+        @_history.index = 99
+
+        # 7- if history is too long, drop 10 last positions
+        @_history.historySelect.shift()
+        @_history.historyScroll.shift()
+        @_history.historyPos.shift()
+        @_history.history.shift()
+
 
     ### -------------------------------------------------------------------------
     #  undoPossible
     # Return true only if unDo can be called
     ###
     undoPossible : () ->
-        return (@_history.index > 0)
+        i = @_history.index
+        return (i > 0 && @_history.historyPos[i] != undefined )
 
     ### -------------------------------------------------------------------------
     #  redoPossible
@@ -3189,12 +3213,14 @@ class exports.CNeditor
             @_readHtml()
             # 4 - update the index
             @_history.index -= 1
+            console.log 'undo', @_history.index
 
     ### -------------------------------------------------------------------------
     #  reDo :
     # Redo a undo-ed action
     ###
     reDo : () ->
+        
         # if there is an action to redo
         if @redoPossible()
             # restore newPosition
@@ -3216,6 +3242,7 @@ class exports.CNeditor
             @linesDiv.scrollLeft = ycoord
             # 4 - restore lines structure
             @_readHtml()
+            console.log 'reDo', @_history.index
 
 
     ### ------------------------------------------------------------------------
