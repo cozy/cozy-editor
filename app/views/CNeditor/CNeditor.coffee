@@ -168,28 +168,30 @@ class exports.CNeditor
 
 
     loadEditor : () =>
+        # preparation of the iframe
         if @isInIframe
-            # preparation of the iframe
             editor_html$ = @editorTarget$.contents().find("html")
             @editorBody$ = editor_html$.find("body")
-            # @editorBody$.parent().attr('id','__ed-iframe-html')
-            # @editorBody$.attr("id","__ed-iframe-body")
-
-            # @document = @editorBody$[0].ownerDocument
             editor_head$ = editor_html$.find("head")
             cssLink = '<link id="editorCSS" '
             cssLink += 'href="stylesheets/CNeditor.css" rel="stylesheet">'
             editor_head$.html(cssLink)
+        
+        # preparation of the div
         else
             @editorBody$ = @editorTarget$
 
-            @getEditorSelection = () ->
-                return rangy.getSelection()
+            # @getEditorSelection = () ->
+            #     return rangy.getSelection()
             
-            @saveEditorSelection = () ->
-                sel = rangy.getSelection()
-                return rangy.serializeSelection sel, true, @linesDiv
+            # @saveEditorSelection = () ->
+            #     sel = this.document.getSelection()
+            #     if sel.rangeCount == 0
+            #         return false
+            #     return @serializeRange(sel.getRangeAt(0))
 
+        # a ref to the document (different wether the editor is in an iframe or
+        # in a div)
         @document = @editorBody$[0].ownerDocument
 
         # Create div that will contains line
@@ -198,12 +200,9 @@ class exports.CNeditor
         @linesDiv.setAttribute('class','editor-frame')
         @linesDiv.setAttribute('contenteditable','true')
         @editorBody$.append @linesDiv
-        # @editorBody$.prop '__editorCtl', this
     
-        # init clipboard div
+        # init clipboard div and url popover
         @_initClipBoard()
-
-        # init url popover
         @_initUrlPopover()
 
         # set the properties of the editor
@@ -212,15 +211,20 @@ class exports.CNeditor
         @_highestId   = 0             # last inserted line identifier
         @_deepest     = 1             # current maximum indentation
         @_firstLine   = null          # pointer to the first line
+
+        # init history
+        HISTORY_SIZE  = 100
+        @HISTORY_SIZE = HISTORY_SIZE
         @_history     =               # for history management
-            index        : 0
-            history      : new Array(100)   # the length of the history is 100 steps
-            historySelect: new Array(100)
-            historyScroll: new Array(100)
-            historyPos   : new Array(100)
+            index        : HISTORY_SIZE - 1
+            history      : new Array(HISTORY_SIZE)   # the length of the history is 100 steps
+            historySelect: new Array(HISTORY_SIZE)
+            historyScroll: new Array(HISTORY_SIZE)
+            historyPos   : new Array(HISTORY_SIZE)
         @_lastKey     = null      # last pressed key (avoid duplication)
 
-
+        # get a reference on the selection object of the editor
+        @currentSel = sel : @getEditorSelection()
 
         # if chrome => listen to keyup to correct the insertion of the
         # first caracter of an empty line
@@ -260,7 +264,7 @@ class exports.CNeditor
 
         # listen keydown on capturing phase (before bubbling)
         # main actions triger.
-        @linesDiv.addEventListener('keydown', @_keyDownCallBack, true)
+        @linesDiv.addEventListener('keydown', @_keyDownCallBackTry, true)
         
         if @isChromeOrSafari
            @linesDiv.addEventListener('keyup', @_keyUpCorrection, false)
@@ -298,7 +302,7 @@ class exports.CNeditor
     _unRegisterEventListeners : () ->
         # listen keydown on capturing phase (before bubbling)
         # main actions triger.
-        @linesDiv.removeEventListener('keydown', @_keyDownCallBack, true)
+        @linesDiv.removeEventListener('keydown', @_keyDownCallBackTry, true)
         
         if @isChromeOrSafari
            @linesDiv.removeEventListener('keyup', @_keyUpCorrection, false)
@@ -337,19 +341,24 @@ class exports.CNeditor
      * @return {selection} The selection on the editor.
     ###
     getEditorSelection : () ->
-        return rangy.getIframeSelection @editorTarget
+        return this.document.getSelection()
+        # return rangy.getIframeSelection @editorTarget
 
 
     ###*
      * this method is modified during construction if the editor target is not
      * an iframe
-     * @return {[type]} [description]
+     * @return {String} Returns the serialized current selection within the 
+     *                  editor. In case serialisation is impossible (for 
+     *                  instance if there is no selectio within editor), then
+     *                  false is returned.
     ###
     saveEditorSelection : () ->
-        sel = rangy.getIframeSelection @editorTarget
-        return rangy.serializeSelection sel, true, @linesDiv
-
-
+        sel = this.document.getSelection()
+        if sel.rangeCount == 0
+            return false
+        return  @serializeRange(sel.getRangeAt(0))
+        
 
 
     ### ------------------------------------------------------------------------
@@ -396,6 +405,9 @@ class exports.CNeditor
 
         @linesDiv.innerHTML = htmlString
         @_readHtml()
+        @_setCaret(@linesDiv.firstChild.firstChild, 0, true)
+        @newPosition = true
+        # @_initHistory()
 
     ### ------------------------------------------------------------------------
     # Clear editor content
@@ -482,6 +494,32 @@ class exports.CNeditor
         return [metaKeyCode,keyCode]
 
 
+    ###*
+     * Callback to be used in production.
+     * In case of error thrown by the editor, we catch it and undo the content
+     * to avoid to loose data.
+     * @param  {event} e  The key event
+    ###
+    _keyDownCallBackTry : (e) =>
+        # try actions, in case of error, undo
+        try
+            @_keyDownCallBack(e)
+        catch error
+            alert('A bug occured, we prefer to undo your last action not to take any risk.\n\nMessage :\n' + error)
+            e.preventDefault()
+            @unDo()
+    
+
+    ###*
+     * Change the callback called by keydown event for the "test" callback.
+     * The aim is that during test we don't want to intercept errors so that 
+     * the test can detect the error.
+    ###
+    registerKeyDownCbForTest : ()=>
+        @linesDiv.removeEventListener('keydown', @_keyDownCallBackTry, true)
+        @linesDiv.addEventListener('keydown', @_keyDownCallBack, true)
+
+
     ### ------------------------------------------------------------------------
     #   _keyDownCallBack
     # 
@@ -516,140 +554,141 @@ class exports.CNeditor
     #                               N°102 f is stroke) or "space" ...
     #
     _keyDownCallBack : (e) =>
-        # try actions, in case of error, undo
-        try
             
-            # 1- Prepare the shortcut corresponding to pressed keys
-            [metaKeyCode,keyCode] = @getShortCut(e)
-            shortcut = metaKeyCode + '-' + keyCode
-            # console.log '_keyDownCallBack', shortcut
-            switch e.keyCode
-                when 16 #Shift
-                    e.preventDefault()
-                    return
-                when 17 #Ctrl
-                    e.preventDefault()
-                    return
-                when 18 #Alt
-                    e.preventDefault()
-                    return
+        # 1- Prepare the shortcut corresponding to pressed keys
+        [metaKeyCode,keyCode] = @getShortCut(e)
+        shortcut = metaKeyCode + '-' + keyCode
+        # console.log '_keyDownCallBack', shortcut
+        switch e.keyCode
+            when 16 #Shift
+                e.preventDefault()
+                return
+            when 17 #Ctrl
+                e.preventDefault()
+                return
+            when 18 #Alt
+                e.preventDefault()
+                return
 
-            # Add a new history step if the short cut is different from previous
-            # shortcut and only in case a a return, a backspace, a space...
-            # This means that in case of multiple return, only the first one is in
-            # history. A letter such as 'a' doesn't increase the history.
-            if @_lastKey != shortcut and \
-                   shortcut in ['-tab', '-return', '-backspace', '-suppr',
-                                'CtrlShift-down', 'CtrlShift-up',
-                                'CtrlShift-left', 'CtrlShift-right',
-                                'Ctrl-B', 'Ctrl-U', 
-                                'Ctrl-V', 'Shift-tab', '-space', '-other', 'Alt-A']
-                @_addHistory()
-               
-            @_lastKey = shortcut
+        # Add a new history step if the short cut is different from previous
+        # shortcut and only in case a a return, a backspace, a space...
+        # This means that in case of multiple return, only the first one is in
+        # history. A letter such as 'a' doesn't increase the history.
 
-            @currentSel =
-                sel              : null
-                range            : null
-                startLine        : null
-                endLine          : null
-                rangeIsStartLine : null
-                rangeIsEndLine   : null
-                startBP          : null
-                endBP            : null
+        if @_lastKey != shortcut and \
+               shortcut in ['-return', '-backspace', '-suppr',
+                            'CtrlShift-down', 'CtrlShift-up',
+                            'CtrlShift-left', 'CtrlShift-right', 
+                            'Ctrl-V', '-space', '-other']
 
-            # 2- manage the newPosition flag
-            #    newPosition == true if the position of caret or selection has been
-            #    modified with keyboard or mouse.
-            #    If newPosition == true and a character is typed or a suppression
-            #    key is pressed, then selection must be "normalized" so that its
-            #    break points are in text nodes. Normalization is done by 
-            #    updateCurrentSel or updateCurrentSelIsStartIsEnd that is chosen 
-            #    before to run the action corresponding to the shorcut.
+        # if  \
+        #        shortcut in ['-return', '-backspace', '-suppr',
+        #                     'CtrlShift-down', 'CtrlShift-up',
+        #                     'CtrlShift-left', 'CtrlShift-right', 
+        #                     'Ctrl-V', '-space', '-other']
+            @_addHistory()
+           
+        @_lastKey = shortcut
 
-            # Set a flag if the user moved the caret with keyboard
-            if keyCode in ['left','up','right','down',
-                                  'pgUp','pgDwn','end', 'home',
-                                  'return', 'suppr', 'backspace']      \
-               and shortcut not in ['CtrlShift-down', 'CtrlShift-up',
-                                'CtrlShift-right', 'CtrlShift-left']
+        @currentSel =
+            sel              : null
+            range            : null
+            startLine        : null
+            endLine          : null
+            rangeIsStartLine : null
+            rangeIsEndLine   : null
+            startBP          : null
+            endBP            : null
+
+
+        # 2- manage the newPosition flag
+        #    newPosition == true if the position of caret or selection has been
+        #    modified with keyboard or mouse.
+        #    If newPosition == true and a character is typed or a suppression
+        #    key is pressed, then selection must be "normalized" so that its
+        #    break points are in text nodes. Normalization is done by 
+        #    updateCurrentSel or updateCurrentSelIsStartIsEnd that is chosen 
+        #    before to run the action corresponding to the shorcut.
+
+        # Set a flag if the user moved the caret with keyboard
+        if keyCode in ['left','up','right','down',
+                              'pgUp','pgDwn','end', 'home',
+                              'return', 'suppr', 'backspace']      \
+           and shortcut not in ['CtrlShift-down', 'CtrlShift-up',
+                            'CtrlShift-right', 'CtrlShift-left']
+            @newPosition = true
+        
+                 
+        # 5- launch the action corresponding to the pressed shortcut
+        switch shortcut
+            when '-return'
+                @updateCurrentSelIsStartIsEnd()
+                @_return()
+                @newPosition = false
+                e.preventDefault()
+            when '-backspace'
+                @updateCurrentSelIsStartIsEnd()
+                @_backspace()
+                @newPosition = true # important, for instance deletion of a range within a single line
+                e.preventDefault()
+            when '-tab'
+                @tab()
+                e.preventDefault()
+            when 'Shift-tab'
+                @shiftTab()
+                e.preventDefault()
+            when '-suppr'
+                @updateCurrentSelIsStartIsEnd()
+                @_suppr(e)
                 @newPosition = true
-            
-                     
-            # 5- launch the action corresponding to the pressed shortcut
-            switch shortcut
-                when '-return'
-                    @updateCurrentSelIsStartIsEnd()
-                    @_return()
+            # when 'CtrlShift-down'
+            #     @_moveLinesDown()
+            #     e.preventDefault()
+            # when 'CtrlShift-up'
+            #     @_moveLinesUp()
+            #     e.preventDefault()
+            when 'Ctrl-A'
+                selection.selectAll(this)
+                e.preventDefault()
+            when 'Alt-L'
+                @markerList()
+                e.preventDefault()
+            # TOGGLE LINE TYPE (Alt + a)                  
+            when 'Alt-A'
+                @toggleType()
+                e.preventDefault()
+            when '-other', '-space'
+                if @newPosition
+                    sel = @updateCurrentSel() 
+                    if ! sel.theoricalRange.collapsed
+                        @_backspace()
                     @newPosition = false
-                    e.preventDefault()
-                when '-backspace'
-                    @updateCurrentSelIsStartIsEnd()
-                    @_backspace()
-                    @newPosition = true # important, for instance deletion of a range within a single line
-                    e.preventDefault()
-                when '-tab'
-                    @tab()
-                    e.preventDefault()
-                when 'Shift-tab'
-                    @shiftTab()
-                    e.preventDefault()
-                when '-suppr'
-                    @updateCurrentSelIsStartIsEnd()
-                    @_suppr(e)
-                    @newPosition = true
-                # when 'CtrlShift-down'
-                #     @_moveLinesDown()
-                #     e.preventDefault()
-                # when 'CtrlShift-up'
-                #     @_moveLinesUp()
-                #     e.preventDefault()
-                when 'Ctrl-A'
-                    selection.selectAll(this)
-                    e.preventDefault()
-                when 'Alt-L'
-                    @markerList()
-                    e.preventDefault()
-                # TOGGLE LINE TYPE (Alt + a)                  
-                when 'Alt-A'
-                    @toggleType()
-                    e.preventDefault()
-                when '-other', '-space'
-                    if @newPosition
-                        sel = @updateCurrentSel() 
-                        if ! sel.theoricalRange.collapsed
-                            @_backspace()
-                        @newPosition = false
-                # PASTE (Ctrl + v)                  
-                when 'Ctrl-V'
-                    true
-                when 'Ctrl-B'
-                    @strongSelection()
-                    e.preventDefault()
-                when 'Ctrl-U'
-                    @underlineSelection()
-                    e.preventDefault()
-                when 'Ctrl-K'
-                    @linkifySelection()
-                    e.preventDefault()
-                # SAVE (Ctrl + s)                  
-                when 'Ctrl-S'
-                    $(@editorTarget).trigger jQuery.Event('saveRequest')
-                    e.preventDefault()
-                # UNDO (Ctrl + z)
-                when 'Ctrl-Z'
-                    @unDo()
-                    e.preventDefault()
-                # REDO (Ctrl + y)
-                when 'Ctrl-Y'
-                    @reDo()
-                    e.preventDefault()
+            # PASTE (Ctrl + v)                  
+            when 'Ctrl-V'
+                true
+            when 'Ctrl-B'
+                @strong()
+                e.preventDefault()
+            when 'Ctrl-U'
+                @underline()
+                e.preventDefault()
+            when 'Ctrl-K'
+                @linkifySelection()
+                e.preventDefault()
+            # SAVE (Ctrl + s)                  
+            when 'Ctrl-S'
+                $(@editorTarget).trigger jQuery.Event('saveRequest')
+                e.preventDefault()
+            # UNDO (Ctrl + z)
+            when 'Ctrl-Z'
+                @unDo()
+                e.preventDefault()
+            # REDO (Ctrl + y)
+            when 'Ctrl-Y'
+                @reDo()
+                e.preventDefault()
 
-        catch error
-            alert('A bug occured, we prefer to undo your last action not to take any risk.\n\nMessage :\n' + error)
-            e.preventDefault()
-            @unDo()
-    
+
 
     ###*
      * updates @currentSel =
@@ -843,15 +882,63 @@ class exports.CNeditor
         return true
 
 
+    ###*
+     * Check if the first range of the selection is NOT in the editor
+     * @param  {Boolean}  expectWide [optional] If true, tests if the first
+     *                               range of the selection is collapsed. If it
+     *                               is the case, then return false
+     * @return {Boolean} True if there is a selection, false otherwise.
+    ###
+    hasNoSelection : (expectWide) ->
+        sel = this.document.getSelection()
+        if sel.rangeCount > 0
+            rg = sel.getRangeAt(0)
+            
+            if expectWide and rg.collapsed
+                return true
+            
+            cont = rg.startContainer
+            while cont != null
+                if cont == @linesDiv
+                    break
+                cont = cont.parentNode
+            if cont == null
+                return true
 
-    strongSelection : () ->
-        @_applyMetaDataOnSelection('CNE_strong') if @isEnabled
+            cont = rg.endContainer
+            while cont == null
+                if cont == @linesDiv
+                    return false
+                cont = cont.parentNode
+            if cont == null
+                return true
+        else
+            return true
+            
 
-    underlineSelection : () ->
-        @_applyMetaDataOnSelection('CNE_underline') if @isEnabled
+    ###*
+     * Put a strong (bold) css class on the selection of the editor.
+     * History is incremented before action and focus is set on the editor.
+     * @return {[type]} [description]
+    ###
+    strong : () ->
+        if !@isEnabled or @hasNoSelection(true)
+            return true
+        @._addHistory()
+        @._applyMetaDataOnSelection('CNE_strong')
+
+
+
+    underline : () ->
+        if ! @isEnabled or @hasNoSelection(true)
+            return true
+        @._addHistory()
+        @._applyMetaDataOnSelection('CNE_underline')
+
+
 
     linkifySelection: () ->
-        if ! @isEnabled
+        if ! @isEnabled or @hasNoSelection()
             return true
 
         currentSel = @updateCurrentSelIsStartIsEnd()
@@ -944,8 +1031,10 @@ class exports.CNeditor
 
     ###*
      * Close the popover and revert modifications if isLinkCreation == true
-     * @param  {boolean} doNotRestoreOginalSel If true, restores the caret at
-     *                                         its position before.
+     * @param  {boolean} doNotRestoreOginalSel If true, lets the caret at its
+     *                                         position (used when you click
+     *                                         outside url popover in order not 
+     *                                         to loose the new selection)
     ###
     _cancelUrlPopover : (doNotRestoreOginalSel) =>
         pop = @urlPopover
@@ -960,17 +1049,20 @@ class exports.CNeditor
         # link.
         if pop.isLinkCreation
             if doNotRestoreOginalSel
-                sel = @getEditorSelection()
-                sel = rangy.serializeSelection sel, true, @linesDiv
+                # sel = @getEditorSelection()
+                # sel = rangy.serializeSelection sel, true, @linesDiv
+                serial = @serializeSelection()
                 # TODO : don't use history to retrieve the initial state...
                 # juste save the initial line should be enough.
                 @unDo()
-                rangy.deserializeSelection sel, @linesDiv
+                if serial
+                    @deSerializeSelection(serial)
             else
                 @unDo()
             
         else if !doNotRestoreOginalSel
-            @currentSel.sel.setSingleRange(pop.initialSelRg)
+            @currentSel.sel.removeAllRanges()
+            @currentSel.sel.addRange(pop.initialSelRg)
 
         # restore editor enabled
         @setFocus()
@@ -1008,7 +1100,8 @@ class exports.CNeditor
         # 3- in case of a link creation, addhistory has already be done, it must 
         # then be done if non a link creation.
         if !pop.isLinkCreation
-            @currentSel.sel.setSingleRange pop.initialSelRg # otherwise addhistory will not work
+            @currentSel.sel.removeAllRanges()
+            @currentSel.sel.addRange(pop.initialSelRg) # otherwise addhistory will not work
             @_addHistory()
 
         # 4- case of a deletion of the urlInput value => 'remove the link'
@@ -1140,8 +1233,8 @@ class exports.CNeditor
             return false
 
     ###*
-     * applies a metadata such as STRONG, UNDERLINED, A/href etc... on the
-     * selected text.
+     * Applies a metadata such as STRONG, UNDERLINED, A/href etc... on the
+     * selected text. The selection must not be collapsed.
      * @param  {string} metaData  The css class of the meta data or 'A' if link
      * @param  {string} others... Other params if metadata requires 
      *                            some (href for instance)
@@ -1152,20 +1245,30 @@ class exports.CNeditor
 
         # 1- create a range for each selected line and put them in 
         # an array (linesRanges)
-        line = @currentSel.startLine
-        endLine = @currentSel.endLine
+        line = currentSel.startLine
+        endLine = currentSel.endLine
 
-        # case when the selection on the first line starts at the end of line
+        # case when the selection starts at the end of a non empty line
         if currentSel.firstLineIsEnd
-            line = line.lineNext
-            range.setStartBefore(line.line$[0].firstChild)
-            selection.normalize(range)
+            # if start line is empty : apply style to its segment, otherwise
+            # begin on next line.
+            if line.line$[0].textContent != '' 
+                line = line.lineNext
+                if line == null
+                    return
+                range.setStartBefore(line.line$[0].firstChild)
+                selection.normalize(range)
 
-        # case when the selection on the last line ends at the start of line
+        # case when the selection ends at the start of a non empty line
         if currentSel.lastLineIsStart
-            endLine = endLine.linePrev
-            range.setEndBefore(endLine.line$[0].lastChild)
-            selection.normalize(range)
+            # if last line is empty : apply style to its segment, otherwise 
+            # begin on previous line.
+            if line.line$[0].textContent != ''
+                endLine = endLine.linePrev
+                if line == null
+                    return
+                range.setEndBefore(endLine.line$[0].lastChild)
+                selection.normalize(range)
 
         # case when metadata is an mono line metadata ('A' for instance), then
         # we limit the selection to the first line
@@ -1174,11 +1277,8 @@ class exports.CNeditor
             selection.normalize(range)
             endLine = line
 
-        # re check if range is collapsed
+        # check if range is collapsed, then nothing to do.
         if range.collapsed
-            rg = @currentSel.theoricalRange
-            segment = selection.getSegment(rg.startContainer,rg.startOffset)
-            @_showUrlPopover(segment, false)
             return
 
         # if a single line selection
@@ -1219,21 +1319,18 @@ class exports.CNeditor
         addMeta = !isAlreadyMeta
 
         # 3- Apply the correct action on each lines and getback the breakpoints
-        # corresponding of the initial range
+        # corresponding to the initial range
         bps = []
         for range in linesRanges
             bps.push( @_applyMetaData(range, addMeta, metaData, others) )
         
         # 4- Position selection
-        rg = document.createRange()
+        rg = this.document.createRange() # be carefull : chrome requires the range to be created by the document where the range will be in. In our case, we must use the editor document.
         bp1 = bps[0][0]
         bp2 = bps[bps.length - 1][1]
         rg.setStart(bp1.cont, bp1.offset)
         rg.setEnd(  bp2.cont, bp2.offset)
-        if @isFirefox
-            sel = this.currentSel.sel
-        else
-            sel = document.getSelection()
+        sel = this.currentSel.sel
         sel.removeAllRanges()
         sel.addRange(rg)
 
@@ -1297,7 +1394,12 @@ class exports.CNeditor
      * @param  {range} range    The range on which we want to apply the 
      *                          metadata. The range must be within a single line
      *                          and normalized (its breakpoints must be in text
-     *                          nodes)
+     *                          nodes). The start breakpoint can not be at the
+     *                          end of the line, except in the case of an empty 
+     *                          line fully selected. Same for end breakpoint : 
+     *                          it can not be at the beginning of the line, 
+     *                          except in the case of an empty line fully 
+     *                          selected.
      * @param  {boolean} addMeta  True if the action is to add the metaData, 
      *                            False if the action is to remove it.
      * @param  {string} metaData The name of the meta data to look for. It can
@@ -1324,17 +1426,26 @@ class exports.CNeditor
 
         # 2- create start segment
         #    We split the segment in two of the same type and class if :
-        #      - the start break point is not strictly inside a node  text
         #      - the start segment doesn't have the required property
+        #      - the start break point is not strictly inside a node text
         
-        if range.startOffset == range.startContainer.length
+
+        if bp1.offset == 0
+            # nothing special, the full segment will be converted, empty or not.
+        
+        # case bp1 is at the end of the non empty text node : we start on the
+        # next segment. This one must exist, otherwise range would start at the 
+        # end of a non empty line
+        else if bp1.offset == bp1.cont.length
             startSegment = startSegment.nextSibling
             # rem : nextSibling can not be </br> because the start break point 
-            # can not be at the end of the line.
-            if startSegment == null
+            # can not be at the end of a non empty line. In the latter case the
+            # range should have been moved to next line before calling this 
+            # function.
+            if startSegment == null or startSegment.nodeName == 'BR'
                 return
 
-        else if 0 < bp1.offset < bp1.cont.length
+        else # ie :  0 < bp1.offset < bp1.cont.length
             isAlreadyMeta = @_isAlreadyMeta(startSegment, metaData, others)
             if       isAlreadyMeta && !addMeta \
                  or !isAlreadyMeta && addMeta
@@ -1375,14 +1486,19 @@ class exports.CNeditor
         #      - the end break point is not strictly inside a node  text
         #      - the end segment doesn't have the required property
         
-        if range.endOffset == 0
+        if bp2.offset == bp2.cont.length
+            # nothing special, the full segment will be converted, empty or not.
+            
+        else if bp2.offset == 0
             endSegment = endSegment.previousSibling
-            # rem : previousSibling should not be null because we check that the
-            # range is not collapsed
+            # rem : previousSibling should not be null because the end break
+            # point can not be at the start of a non empty line. In the latter 
+            # case the range should have been moved to previous line before
+            # calling this function.
             if endSegment == null
                 return
 
-        else if 0 < bp2.offset < bp2.cont.length
+        else # cas :  0 < bp2.offset < bp2.cont.length
             # isAlreadyMeta = endSegment.classList.contains(metaData)
             isAlreadyMeta = @_isAlreadyMeta(endSegment, metaData, others)
             if  isAlreadyMeta && !addMeta or \
@@ -1566,7 +1682,7 @@ class exports.CNeditor
         # modify the bp that are in the segment that will be deleted
         for bp in breakPoints
             if bp.seg == segment
-                offset = selection.getSegmentIndex(segment)
+                offset = selection.getNodeIndex(segment)
                 bp.cont   = segment.parentNode
                 bp.offset = offset
         # keep a ref to the previous sibling or, if doesn't exist, next sibling.
@@ -1782,15 +1898,16 @@ class exports.CNeditor
 
 
 
-    ### ------------------------------------------------------------------------
-    #  titleList
-    # 
-    # Turn selected lines in a title List (Th)
+    ###*
+     * Turn selected lines in a title List (Th). History is incremented.
+     * @param  {Line} l [optionnal] The line to convert in Th
     ###
     titleList : (l) ->
 
-        if ! @isEnabled
+        if ! @isEnabled  or @hasNoSelection()
             return true
+
+        @._addHistory()
 
         # 1- find first and last div of the lines to turn into markers
         if l?
@@ -1828,18 +1945,18 @@ class exports.CNeditor
 
 
 
-    ### ------------------------------------------------------------------------
-    #  markerList
-    # 
-    #  Turn selected lines in a Marker List
+    ###*
+     * Turn selected lines or the one given in parameter in a 
+     * Marker List line (Tu)
+     * @param  {Line} l [optional] The line to turn in to a Tu
     ###
-
     markerList : (l) ->
 
-        if ! @isEnabled
+        if ! @isEnabled  or @hasNoSelection()
             return true
 
         @_addHistory()
+
         # 1- find first and last div of the lines to turn into markers
         if l?
             startDivID = l.lineID
@@ -1899,14 +2016,18 @@ class exports.CNeditor
                 return 0
 
 
-    ### ------------------------------------------------------------------------
-    # Toggle the selected lines type
-    #   cycle : Tu <=> Th
+    ###*
+     * Toggle the type of the selected lines.
+     * Lx => Tx and Tu <=> Th
+     * Increments history.
+     * @return {[type]} [description]
     ###
     toggleType : () ->
 
-        if ! @isEnabled
+        if ! @isEnabled  or @hasNoSelection()
             return true
+
+        @._addHistory()
 
         # 1- Variables
         sel   = @getEditorSelection()
@@ -2013,16 +2134,17 @@ class exports.CNeditor
 
 
 
-    ### ------------------------------------------------------------------------
-    #  tab
-    # 
-    # tab keypress
-    #   l = optional : a line to indent. If none, the selection will be indented
+    ###*
+     * Indent selection. History is incremented. 
+     * @param  {[type]} l [description]
+     * @return {[type]}   [description]
     ###
     tab :  (l) ->
 
-        if ! @isEnabled
+        if ! @isEnabled  or @hasNoSelection()
             return true
+
+        @._addHistory()
 
         # 1- Variables
         if l?
@@ -2115,11 +2237,16 @@ class exports.CNeditor
 
 
 
-    ### ------------------------------------------------------------------------
-    #  shiftTab
-    #   param : myRange : if defined, refers to a specific region to untab
+    ###*
+     * Un-indent the selection. History is incremented.
+     * @param  {Range} range [optional] A range containing the lines to un-indent
     ###
     shiftTab : (range) ->
+
+        if ! @isEnabled or @hasNoSelection()
+            return true
+
+        @._addHistory()
 
         # 1- Variables
         unless range?
@@ -2166,9 +2293,9 @@ class exports.CNeditor
                     nextL.setType('T'+nextL.lineType[1])
                 # if the line under is already deaper, all sons must have
                 # their depth reduced
-                if line.lineNext? and line.lineNext.lineDepthAbs > line.lineDepthAbs
-                    nextL = line.lineNext
-                    while nextL.lineDepthAbs > line.lineDepthAbs
+                nextL = line.lineNext
+                if nextL and nextL.lineDepthAbs > line.lineDepthAbs
+                    while nextL && nextL.lineDepthAbs > line.lineDepthAbs
                         nextL.setDepthAbs(nextL.lineDepthAbs - 1)
                         nextL = nextL.lineNext
                     if nextL? and nextL.lineType[0]=='L'
@@ -2410,7 +2537,8 @@ class exports.CNeditor
 
         # Get start and end positions of the selection.
         if startLine?
-            range = rangy.createRange()
+            # range = rangy.createRange()
+            range = this.document.createRange()
             selection.cleanSelection startLine, endLine, range
             replaceCaret = false
         else
@@ -2686,9 +2814,12 @@ class exports.CNeditor
     ###
     _setCaret : (startContainer, startOffset, preferNext) ->
         bp = selection.normalizeBP(startContainer, startOffset, preferNext)
-        range = rangy.createRange()
-        range.collapseToPoint bp.cont, bp.offset
-        @currentSel.sel.setSingleRange range
+        range = this.document.createRange()
+        range.setStart(bp.cont, bp.offset)
+        range.collapse(true)
+        sel = this.document.getSelection()
+        sel.removeAllRanges()
+        sel.addRange(range)
         return bp
     
     _setCaretAfter : (elemt) ->
@@ -2816,7 +2947,7 @@ class exports.CNeditor
                 @_lines[lineID_st] = lineNew
                 # if some lines are empty, add the text node 
                 if htmlLine.textContent == ''
-                    if htmlLine.firstChild.children.length == 0
+                    if htmlLine.firstChild.childNodes.length == 0
                         txt = document.createTextNode('')
                         htmlLine.firstChild.appendChild(txt)
         @_highestId = lineID
@@ -2922,7 +3053,7 @@ class exports.CNeditor
                     line = line.lineNext
                 # select a block from first line to untab (lineStart)
                 #                  to last  line to untab (line)
-                myRange = rangy.createRange()
+                myRange = this.document.createRange()
                 myRange.setStart(lineStart.line$[0], 0)
                 myRange.setEnd(line.line$[0], 0)
                 # untab this selected block.
@@ -2943,7 +3074,7 @@ class exports.CNeditor
             #       the block's prev line (linePrev)
             else
                 # untab lineNext
-                myRange = rangy.createRange()
+                myRange = this.document.createRange()
                 myRange.setStart(lineNext.line$[0], 0)
                 myRange.setEnd(lineNext.line$[0], 0)
                 numOfUntab = lineNext.lineDepthAbs - linePrev.lineDepthAbs
@@ -3056,7 +3187,7 @@ class exports.CNeditor
                     line = line.lineNext
                 # select the block from first line to untab (lineNext)
                 # to last  line to untab (line)
-                myRange = rangy.createRange()
+                myRange = this.document.createRange()
                 myRange.setStart(lineNext.line$[0], 0)
                 myRange.setEnd(line.line$[0], 0)
                 # untab this selected block.
@@ -3077,7 +3208,7 @@ class exports.CNeditor
             #       the block's last line (lineEnd)
             else
                 # untab linePrev
-                myRange = rangy.createRange()
+                myRange = this.document.createRange()
                 myRange.setStart(linePrev.line$[0], 0)
                 myRange.setEnd(linePrev.line$[0], 0)
                 numOfUntab = linePrev.lineDepthAbs - lineEnd.lineDepthAbs
@@ -3115,15 +3246,16 @@ class exports.CNeditor
      * No effect if the url popover is displayed
     ###
     _addHistory : () ->
-        console.log '_addHistory' , @_history.historyPos.length, @_history.historyPos
+        # console.log '_addHistory' , @_history.historyPos.length, @_history.historyPos
         # do nothing if urlpopover is on, otherwise its html will also be 
         # serialized in the history.
         if @isUrlPopoverOn
             return
 
-        # 0- prepare history arrays in case of some undo habe been done
-        if @_history.index < 99
-            i = 99 - @_history.index
+        # 1- If some undo has been done, delete the steps forward (redo will
+        # be then impossible)
+        if @_history.index < @HISTORY_SIZE - 1
+            i = @HISTORY_SIZE - 1 - @_history.index
             while i--
                 @_history.historySelect.pop()
                 @_history.historyScroll.pop()
@@ -3134,10 +3266,8 @@ class exports.CNeditor
                 @_history.historyPos.unshift(undefined)
                 @_history.history.unshift(undefined)
 
-        # 1- mark selection
+        # 2- save selection
         savedSel = @saveEditorSelection()
-        
-        # 2- save html selection
         @_history.historySelect.push savedSel
         
         # 3- save scrollbar position
@@ -3153,23 +3283,33 @@ class exports.CNeditor
         @_history.history.push @linesDiv.innerHTML
         
         # 6- update the index
-        # @_history.index = @_history.history.length - 1
-        @_history.index = 99
+        @_history.index = @HISTORY_SIZE - 1
 
-        # 7- if history is too long, drop 10 last positions
+        # 7- drop first position
         @_history.historySelect.shift()
         @_history.historyScroll.shift()
         @_history.historyPos.shift()
         @_history.history.shift()
 
+        # @__printHistory('_addHistory')
 
-    ### -------------------------------------------------------------------------
+
+    _initHistory : () ->
+        HISTORY_SIZE  = @HISTORY_SIZE
+        h = @_history
+        h.history       = new Array(HISTORY_SIZE)
+        h.historySelect = new Array(HISTORY_SIZE)
+        h.historyScroll = new Array(HISTORY_SIZE)
+        h.historyPos    = new Array(HISTORY_SIZE)
+        @._addHistory()
+
+    ### ------------------------------------------------------------------------
     #  undoPossible
     # Return true only if unDo can be called
     ###
     undoPossible : () ->
         i = @_history.index
-        return (i > 0 && @_history.historyPos[i] != undefined )
+        return (i >= 0 && @_history.historyPos[i] != undefined )
 
     ### -------------------------------------------------------------------------
     #  redoPossible
@@ -3178,71 +3318,214 @@ class exports.CNeditor
     redoPossible : () ->
         return (@_history.index < @_history.history.length-2)
 
-    ### -------------------------------------------------------------------------
-    #  unDo :
-    # Undo the previous action
 
-    ###
-    ###*
+    ###*------------------------------------------------------------------------
      * Undo the previous action
     ###
     unDo : () ->
         # if there is an action to undo
-        if @undoPossible()
-            # if we are in an unsaved state
-            if @_history.index == @_history.history.length-1
-                # save current state
-                @_addHistory()
-                # re-evaluate index
-                @_history.index -= 1
+        if @undoPossible() and @isEnabled
+            @_forceUndo()
 
-            # restore newPosition
-            @newPosition = @_history.historyPos[@_history.index]
-            # 0 - restore html
-            if @isUrlPopoverOn
-                @_cancelUrlPopover()
-            @linesDiv.innerHTML = @_history.history[@_history.index]
-            # 1 - restore selection
-            savedSel = @_history.historySelect[@_history.index]
-            rangy.deserializeSelection savedSel, @linesDiv
-            # 2 - restore scrollbar position
-            savedScroll = @_history.historyScroll[@_history.index]
-            @linesDiv.scrollTop = savedScroll.xcoord
-            @linesDiv.scrollLeft = savedScroll.ycoord
-            # 3 - restore the lines structure
-            @_readHtml()
-            # 4 - update the index
+    _forceUndo : () ->
+        # if we are in an unsaved state
+        if @_history.index == @_history.history.length-1
+            # save current state
+            @_addHistory()
+            # re-evaluate index
             @_history.index -= 1
-            console.log 'undo', @_history.index
 
-    ### -------------------------------------------------------------------------
+        stepIndex = @_history.index
+
+        # 1- restore newPosition
+        @newPosition = @_history.historyPos[stepIndex]
+
+        # 2- restore html
+        if @isUrlPopoverOn
+            @_cancelUrlPopover()
+        @linesDiv.innerHTML = @_history.history[stepIndex]
+
+        # 3- restore selection
+        savedSel = @_history.historySelect[stepIndex]
+        if savedSel
+            @deSerializeSelection(savedSel)
+
+        # 4- restore scrollbar position
+        savedScroll = @_history.historyScroll[stepIndex]
+        @linesDiv.scrollTop = savedScroll.xcoord
+        @linesDiv.scrollLeft = savedScroll.ycoord
+
+        # 5- restore the lines structure
+        @_readHtml()
+
+        # 6- update the index
+        @_history.index -= 1
+
+        # console.log 'undo', @_history.index
+        # @__printHistory('unDo')
+
+    ### ------------------------------------------------------------------------
     #  reDo :
     # Redo a undo-ed action
     ###
     reDo : () ->
         
         # if there is an action to redo
-        if @redoPossible()
+        if @redoPossible() and @isEnabled
+
+            # 0- update the index
+            index = (@_history.index += 1)
+            # i == index of stpe to redo
+            i = index + 1
+
             # restore newPosition
-            @newPosition = @_history.historyPos[@_history.index+1]
-            # 0 - update the index
-            @_history.index += 1
-            # 1 - restore html
+            @newPosition = @_history.historyPos[i]
+
+            # 1- restore html
             if @isUrlPopoverOn
                 @_cancelUrlPopover()
-            @linesDiv.innerHTML = @_history.history[@_history.index+1]
-            # 2 - restore selection
-            savedSel = @_history.historySelect[@_history.index+1]
-            savedSel.restored = false
-            rangy.deserializeSelection(savedSel, @linesDiv)
-            # 3 - restore scrollbar position
-            xcoord = @_history.historyScroll[@_history.index+1].xcoord
-            ycoord = @_history.historyScroll[@_history.index+1].ycoord
+            @linesDiv.innerHTML = @_history.history[i]
+
+            # 2- restore selection
+            savedSel = @_history.historySelect[i]
+            if savedSel
+                @deSerializeSelection(savedSel)
+
+            # 3- restore scrollbar position
+            xcoord = @_history.historyScroll[i].xcoord
+            ycoord = @_history.historyScroll[i].ycoord
             @linesDiv.scrollTop = xcoord
             @linesDiv.scrollLeft = ycoord
+
             # 4 - restore lines structure
             @_readHtml()
-            console.log 'reDo', @_history.index
+
+            # console.log 'reDo', @_history.index
+            # @__printHistory('reDo')
+
+
+    ###*
+     * A utility fuction for debugging
+     * @param  {string} txt A text to print in front of the log
+    ###
+    __printHistory : (txt) ->
+        if ! txt
+            txt = ''
+        console.log txt + ' _history.index : ' + @._history.index
+        for step, i in @._history.history
+            if @._history.index == i
+                arrow = ' <---'
+            else
+                arrow = ' '
+                content = $(step).text()
+                content = '_' if content == ''
+            console.log i, content , @._history.historySelect[i] , arrow
+        return true
+
+
+    ###*
+     * Deserialize a range and return it.
+     * @param  {String} serial   A string corresponding to a serialized range.
+     * @param  {element} rootNode The root node used for the serialization
+     * @return {range}          The expected range
+    ###
+    deSerializeRange : (serial, rootNode) ->
+        if !rootNode
+            rootNode = this.linesDiv
+        range = rootNode.ownerDocument.createRange()
+        serials = serial.split(',')
+        startPath = serials[0].split('/')
+        endPath   = serials[1].split('/')
+
+        # deserialize start breakpoint
+        startCont = rootNode
+        i = startPath.length
+        while --i
+            parentCont = startCont
+            startCont = startCont.childNodes[ startPath[i] ]
+        offset = parseInt(startPath[i], 10)
+        # it happens that an empty text node has been removed : in this case, 
+        # startCont is null and offset == 0. In this case insert a text node.
+        if !startCont and offset == 0
+            startCont = document.createTextNode('')
+            parentCont.appendChild(startCont)
+        range.setStart(startCont,offset)
+
+        # deserialize end breakpoint
+        endCont = rootNode
+        i = endPath.length
+        while --i
+            parentCont = endCont
+            endCont = endCont.childNodes[ endPath[i] ]
+        offset = parseInt(endPath[i], 10)
+        # it happens that an empty text node has been removed : in this case, 
+        # startCont is null and offset == 0. In this case insert a text node.
+        if !endCont and offset == 0
+            endCont = document.createTextNode('')
+            parentCont.appendChild(endCont)
+        range.setEnd(endCont,offset)
+
+        return range
+
+    ###*
+     * Serialize a range. 
+     * The breakpoint are 2 strings separated by a comma.
+     * Structure of a serialized bp : {offset}{/index}*
+     * Global struct : {startOffset}{/index}*,{endOffset}{/index}*
+     * @param  {Range} range    The range to serialize
+     * @param  {element} rootNode [optional] the root used for serialization.
+     *                            If none, we use the body of the ownerDocument
+     *                            of range.startContainer
+     * @return {String}          The string, exemple : "10/0/2/1,3/1", or false
+     *                           if the rootNode is not a parent of one of the 
+     *                           range's break point.
+    ###
+    serializeRange : (range, rootNode) ->
+        if !rootNode
+            rootNode = this.linesDiv
+
+        # serialise start breakpoint
+        res  = range.startOffset
+        node = range.startContainer
+        while node != null and node != rootNode
+            i = 0
+            sib = node.previousSibling
+            while sib != null
+                i++
+                sib = sib.previousSibling
+            res += '/' + i
+            node = node.parentNode
+
+        if node == null
+            return false
+            
+        # serialise end breakpoint
+        res += ',' + range.endOffset
+        node = range.endContainer
+        while node != null and node != rootNode
+            i = 0
+            sib = node.previousSibling
+            while sib != null
+                i++
+                sib = sib.previousSibling
+            res += '/' + i
+            node = node.parentNode
+
+        if node == null
+            return false
+            
+        return res
+
+    serializeSel : () ->
+        s = this.document.getSelection()
+        if s.rangeCount == 0
+            return false
+        return @serializeRange(s.getRangeAt(0))
+
+    deSerializeSelection : (serial) ->
+        sel = this.document.getSelection()
+        sel.removeAllRanges()
+        sel.addRange(@.deSerializeRange(serial))
 
 
     ### ------------------------------------------------------------------------
@@ -3292,10 +3575,11 @@ class exports.CNeditor
         # save current selection in this.currentSel
         @updateCurrentSelIsStartIsEnd()
         # move caret into the sandbox
-        range = rangy.createRange()
+        range = this.document.createRange()
         range.selectNodeContents mySandBox
         sel = @getEditorSelection()
-        sel.setSingleRange range
+        sel.removeAllRanges()
+        sel.addRange(range)
         range.detach()
         # check whether the browser is a Webkit or not
         if event and event.clipboardData and event.clipboardData.getData

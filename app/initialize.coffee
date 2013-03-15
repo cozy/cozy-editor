@@ -60,6 +60,8 @@ __editorToCheck = null
 
 cb = () ->
 
+    # During test we want errors not to be intercepted :
+    @registerKeyDownCbForTest()
 
     #### -------------------------------------------------------------------
     # buttons init, beautify actions
@@ -108,19 +110,20 @@ cb = () ->
     
     #### -------------------------------------------------------------------
     ### initialize content of the editor
-    this.replaceContent( require('views/templates/content-empty') )
     this.replaceContent( require('views/templates/content-full') )
     this.replaceContent( require('views/templates/content-full-marker') )
     this.replaceContent( require('views/templates/content-shortlines-marker') )
     this.replaceContent( require('views/templates/content-full-relative-indent') )
+    this.replaceContent( require('views/templates/content-empty') )
     this.replaceContent( require('views/templates/content-shortlines-all-hacked') )
     content = require('views/templates/test2')
     content = require('views/templates/content-shortlines-medium')
     content = require('views/templates/content-shortlines-large')
     content = require('views/templates/content-for-mad-monkey')
     content = require('views/templates/content-shortlines-small')
-    ###
     content = require('views/templates/content-deep-tree')
+    ###
+    content = require('views/templates/content-empty')
     @replaceContent content()
     move_ed_2_ed2()
     # beautify(editorBody$)
@@ -138,7 +141,8 @@ cb = () ->
             console.log range
             printBreakPoint(range.startContainer,range.startOffset, 'start :')
             printBreakPoint(range.endContainer,range.endOffset, 'end   :')
-            console.log "range.toHtml= #{range.toHtml()}"
+            html = range.cloneContents().innerHTML
+            console.log "range.toHtml= #{html}"
             i++
         editorCtrler.setFocus()
 
@@ -180,36 +184,47 @@ cb = () ->
     $("#indentBtn").on "click", () ->
         editorCtrler.tab()
         editorCtrler.setFocus()
+
     $("#unIndentBtn").on "click", () ->
         editorCtrler.shiftTab()
         editorCtrler.setFocus()
+
     $("#markerListBtn").on "click", () ->
         editorCtrler.markerList()
         editorCtrler.setFocus()
+
     $("#titleBtn").on "click", () ->
         editorCtrler.titleList()
         editorCtrler.setFocus()
+
     $("#toggleBtn").on "click", () ->
         editorCtrler.toggleType()
         editorCtrler.setFocus()
+
     $("#strongBtn").on "click", () ->
-        editorCtrler.applyMetaDataOnSelection('CNE_strong')
+        editorCtrler.strong()
         editorCtrler.setFocus()
+
     $("#underlineBtn").on "click", () ->
-        editorCtrler.applyMetaDataOnSelection('CNE_underline')
+        editorCtrler.underline()
         editorCtrler.setFocus()
+
     $("#labelBtn").on "click", () ->
         editorCtrler.applyMetaDataOnSelection('CNE_label')
         editorCtrler.setFocus()
+
     $("#linkBtn").on "click", () ->
         editorCtrler.linkifySelection()
         editorCtrler.setFocus()
+
     $("#clearBtn").on "click", () ->
         editorCtrler.deleteContent()
         editorCtrler.setFocus()
+
     $("#undoBtn").on "click", () ->
         editorCtrler.unDo()
         editorCtrler.setFocus()
+        
     $("#redoBtn").on "click", () ->
         editorCtrler.reDo()
         editorCtrler.setFocus()
@@ -466,7 +481,7 @@ cb = () ->
     
     playRandomButton.click ->
         this.classList.add('btn-warning')
-        recorder.launchMadMonkey(1)
+        recorder.launchMadMonkey(5)
         this.classList.remove('btn-warning')
 
 
@@ -490,7 +505,7 @@ serializerDisplay = $ "#resultText"
 checkEditor = (editor) ->
     if !editor
         editor = __editorToCheck
-    console.log 'checkEditor()', editor.editorTarget
+    # console.log 'checkEditor()', editor.editorTarget.id
     res  = checker.checkLines(editor) 
     date = new Date()
     h = date.getHours() + ''
@@ -516,7 +531,14 @@ checkEditor = (editor) ->
         checkLog += st + ' !!! Syntax test FAILLURE : cf console  !!!   (' + ed + ')\n' 
         serializerDisplay.val(checkLog)
         $('#well-editor').css('background-color','#c10000')
-  
+
+
+###****************************************************
+ * Augment editor class with userfull functions
+###
+
+
+
 
 ###****************************************************
  * 3 - CREATION OF THE EDITOR
@@ -527,10 +549,21 @@ editor3 = 0
 
 $ ->
     editor2 = new CNeditor( document.querySelector('#editorIframe2'), () ->
+        
+        @registerKeyDownCbForTest()
+        
         editor1 = new CNeditor document.querySelector('#editorIframe'), cb 
-        # editor.editor2 = editor2
+        
         editor3 = new CNeditor( document.querySelector('#editorDiv3'), () ->
+            @registerKeyDownCbForTest()
             content = require('views/templates/content-shortlines-large')
             @replaceContent content()
+
+            # add shortcuts on global objects
+            window.ed1 = editor1
+            window.ed2 = editor2
+            window.ed3 = editor3
+            window._history = ()->
+                editor1.__printHistory.call(editor1,'editor1')
         )
     )

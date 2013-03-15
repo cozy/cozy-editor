@@ -272,47 +272,98 @@ selection.normalizeBPs = (bps, preferNext) ->
 ###
 selection.getLineDivIsStartIsEnd = (cont, offset)->
     
-    parent  = cont
-    isStart = true
-    isEnd   = true
 
-    # 1- walk trew each parent of the container until reaching the div 
-    # on each parent check if breakpoint is still at the end or start
+    # 1- Check offset position in its container. If we are already in the line
+    # div, directly return the result.
+    if (       cont.nodeName == 'DIV'                                          \
+           and cont.id?                                                        \
+           and cont.id.substr(0,5) == 'CNID_'  )
+        
+        if cont.textContent == '' # case : <div><xx></xx>...</br></div>
+            return div:cont, isStart:true, isEnd:true
+
+        isStart = (offset==0)
+        n       = cont.childNodes.length
+        isEnd   = (offset==n) or (offset==n-1)
+        return div:cont, isStart:isStart, isEnd:isEnd
+
+    else
+        if cont.length? # case of cont is a text node
+            isStart = (offset==0)
+            isEnd = (offset==cont.length)
+        else              # we are in an element but not in the line div
+            isStart = (offset==0)
+            isEnd   = (offset==cont.childNodes.length)
+
+    # 2- walk throught each parent of the container until reaching the div. 
+    # Check the index of each parent to know if it is at the end or beginning.
+
+    parent  = cont.parentNode
     while !(parent.nodeName == 'DIV'              \
             and parent.id?                        \
             and parent.id.substr(0,5) == 'CNID_') \
           and parent.parentNode != null
-
-        # 1.1 check isStart isEnd
-        isStart = isStart && (offset==0)
-        if parent.length?
-            isEnd = isEnd && (offset==parent.length)
-        else
-            isEnd = isEnd && (offset==parent.childNodes.length-1)
-        # 1.2 prepare next loop :
-        # 1.2.1 find offset of the current element among its siblings
-        if parent.previousSibling == null
-            offset = 0
-        else if parent.nextSibling == null
-            offset = parent.parentNode.childNodes.length - 1
-        else if parent.nextSibling.nextSibling == null
-            offset = parent.parentNode.childNodes.length - 2
-        else
-            # we are not at the beginning nor the end, we can set 1
-            # to the parent offset because it is not important to know the
-            # exact offset in this case
-            offset = 1
-        # 1.2.2 go up to the parent level
+        index = selection.getNodeIndex(cont)
+        isStart = isStart && (index==0)
+        isEnd = isEnd && (index==parent.childNodes.length-1)
+        cont = parent
         parent = parent.parentNode
 
-    # 2 check isStart isEnd for the div
-    nodesNum = parent.childNodes.length
-    isStart = isStart && (offset==0)
-    if parent.textContent == '' # case : <div><span>|</br></div>
-        isStart = true
-    isEnd = isEnd && (offset==nodesNum-1 or offset==nodesNum-2)
-
+    # 3- parent is the line div, check isStart isEnd
+    if parent.textContent == '' # case : <div><xx></xx>...</br></div>
+        return div:parent, isStart:true, isEnd:true
+    index = selection.getNodeIndex(cont)
+    n     = parent.childNodes.length
+    isStart = isStart && (index==0)
+    isEnd   = isEnd && ((index==n-1) or (index==n-2))
+    
     return div:parent, isStart:isStart, isEnd:isEnd
+
+    # # 1- walk trew each parent of the container until reaching the div.
+    # # On each parent check if breakpoint is still at the end or start
+    # while !(parent.nodeName == 'DIV'              \
+    #         and parent.id?                        \
+    #         and parent.id.substr(0,5) == 'CNID_') \
+    #       and parent.parentNode != null
+
+    #     # 1.1 check isStart isEnd
+    #     isStart = isStart && (offset==0)
+
+    #     # 1.2 check isEnd
+    #     if parent.length?
+    #         isEnd = isEnd && (offset==parent.length)
+    #     else if parent.lastChild == null
+    #         isEnd = true
+    #     else # we are in a non empty element but not in the line div
+    #         isEnd = isEnd && (offset==parent.childNodes.length)
+
+    #     # 1.3 prepare next loop :
+    #     # 1.3.1 find offset of the current element among its siblings
+    #     offset = selection.getNodeIndex(parent)
+    #     # 1.3.2 go up to the parent level
+    #     parent = parent.parentNode
+
+    #     # if parent.previousSibling == null
+    #     #     offset = 0
+    #     # else if parent.nextSibling == null
+    #     #     offset = parent.parentNode.childNodes.length - 1
+    #     # else if parent.nextSibling.nodeName == 'BR'
+    #     #     offset = parent.parentNode.childNodes.length - 2
+    #     # else
+    #     #     # we are not at the beginning nor the end, nor before a br : then we
+    #     #     # can set 1 to the parent offset because it is not important to know
+    #     #     # the exact offset in this case.
+    #     #     offset = 1
+
+    # # 2 check isStart isEnd at the line div level
+    # nodesNum = parent.childNodes.length
+    # isStart = isStart && (offset==0)
+    # isEnd   = isEnd && (offset==nodesNum or offset==nodesNum-1)
+    # if parent.textContent == '' # case : <div><xx></xx>...</br></div>
+    #     isStart = true
+    #     isEnd   = true
+
+    # return div:parent, isStart:isStart, isEnd:isEnd
 
 
 # BJA : usage qu'interne, à voir.
@@ -410,7 +461,7 @@ selection.getNestedSegment = (elt)->
 ###
 selection.setBpPreviousSegEnd = (elmt) ->
     seg   = selection.getNestedSegment(elmt)
-    index = selection.getSegmentIndex(seg)
+    index = selection.getNodeIndex(seg)
     # by default normalizeBP will return a bp at the end of previous segment
     return bp = selection.normalizeBP(seg.parentNode, index)
 
@@ -422,14 +473,14 @@ selection.setBpPreviousSegEnd = (elmt) ->
 ###
 selection.setBpNextSegEnd = (elmt) ->
     seg   = selection.getNestedSegment(elmt)
-    index = selection.getSegmentIndex(seg) + 1
+    index = selection.getNodeIndex(seg) + 1
     # by default normalizeBP will return a bp at the end of previous segment
     return bp = selection.normalizeBP(seg.parentNode, index, true)
 
 
-selection.getSegmentIndex = (segment)->
-    for sibling, i in segment.parentNode.childNodes
-        if sibling == segment
+selection.getNodeIndex = (node)->
+    for sibling, i in node.parentNode.childNodes
+        if sibling == node
             index = i
             break
     return index

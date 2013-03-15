@@ -1,4 +1,5 @@
 {AutoTest} = require('views/autoTest')
+selection = require('views/CNeditor/selection').selection
 
 class exports.Recorder
 
@@ -16,6 +17,7 @@ class exports.Recorder
         @records           = []
         @checker = new AutoTest()
         @keyEvent = document.createEvent('KeyboardEvent')
+
 
     ### Functionalities ###
 
@@ -134,16 +136,17 @@ class exports.Recorder
         if state
             @.editor.replaceContent(state.html)
             if state.selection
-                rangy.deserializeSelection(state.selection, @editorBody$[0])
+                @editor.deSerializeSelection(state.selection)
+                # rangy.deserializeSelection(state.selection, @editorBody$[0])
 
 
     ### Listeners ###
     
     selectionRecorder : =>
-        sel = @editor.getEditorSelection()
-        serializedSelection = rangy.serializeSelection sel, true, @editorBody$[0]
+        # sel = @editor.serializeSel()
+        # serializedSelection = rangy.serializeSelection sel, true, @editorBody$[0]
         action =
-            selection : serializedSelection
+            selection : @editor.serializeSel()
 
 
         @_recordingSession.push action
@@ -204,7 +207,7 @@ class exports.Recorder
 
         if keyCode in ['up','down','right','left','home','pgUp','pgDwn']
             sel = @editor.getEditorSelection()
-            serializedSelection = rangy.serializeSelection sel, true, @editorBody$[0]
+            serializedSelection = @editor.serializeRange(sel.getRangeAt(0))
             serializedEvent.selection = serializedSelection
             @_recordingSession.push serializedEvent
             # @_refreshResultDisplay()
@@ -400,7 +403,8 @@ class exports.Recorder
             debugger;
 
         if action.selection?
-            rangy.deserializeSelection(action.selection, @editorBody$[0])
+            # rangy.deserializeSelection(action.selection, @editorBody$[0])
+            @editor.deSerializeSelection(action.selection)
 
         if action.paste?
             @editor.clipboard.innerHTML = action.paste
@@ -408,6 +412,7 @@ class exports.Recorder
             @editor._processPaste()
 
         if action.keyboard?
+
             k = action.keyboard
             if @keyEvent.initKeyEvent # ff
                 @keyEvent.initKeyEvent(
@@ -485,6 +490,9 @@ class exports.Recorder
                         type = 'un-tab'
                     else
                         type = 'tab'
+                when 66
+                    if action.keyboard.ctrlKey
+                        type = 'bold'
 
         else if action.selection
             type = 'selection'
@@ -497,7 +505,7 @@ class exports.Recorder
     ###*
      * The mad monkey ! Main method to start a random serie of tests.
     ###
-    launchMadMonkey : (nbRound)->
+    launchMadMonkey : (nbRound)=>
         if !nbRound
             nbRound = 0
 
@@ -508,9 +516,8 @@ class exports.Recorder
         sel = @editor.getEditorSelection()
         @_initEditorForMadMonkey()
 
-
         that = this
-        # if error while simulation, catch it to savec history.
+        # if error while simulation, catch it to save history.
         window.onerror = (errormsg, url, lineNumber) =>
             # save the history to replay the bug
             if @isMonkeyOn
@@ -526,19 +533,29 @@ class exports.Recorder
             checkLog += '\nInitial selection : ' + selBeforeAction + ' \n'
             serializerDisplay.val(checkLog)
 
-            # window.chc = that
-            # window.restoreStep = (n) ->
-            #     step = history[n]
-            #     content = step.htmlBeforeAction
-            #     that.editor.replaceContent content
-            #     rangy.deserializeSelection(step.selBeforeAction, that.editorBody$[0])
+            # tools to help debug
+            window.chc = that
+            window.restoreStep = (n) ->
+                step = history[n]
+                content = step.htmlBeforeAction
+                that.editor.replaceContent content
+                that.editor.deSerializeSelection(step.selBeforeAction)
+                # rangy.deserializeSelection(step.selBeforeAction, that.editorBody$[0])
 
-            # window.playStep = (n) ->
-            #     that._playAction(history[n].action)
+            window.playStep = (n) ->
+                that._playAction(history[n].action)
 
             console.log errormsg
+            ###
+             Good debugg ! ! !  :-)
+            ###
+            debugger
+            window.restoreStep(history.length-1)
+            window.playStep(history.length-1)
+
 
         # play random actions
+        start = new Date().getTime()
         for i in [1..10000] by 1
 
             # if the number of line is too small, open a new content
@@ -547,12 +564,20 @@ class exports.Recorder
             
             # create a random action
             actionType = @_randomChoice(@actionTypes)
-            action     = @_generateRandomAction(actionType.type)
+            try 
+                action     = @_generateRandomAction(actionType.type)
+            catch e
+                if e.message == 'no range to choose'
+                    @_initEditorForMadMonkey()
+                    continue
+                else
+                    throw e
 
             # add action and context in history
-            selBeforeAction  = rangy.serializeSelection(sel, true, @editorBody$[0])
+            selBeforeAction  = @editor.serializeRange(sel.getRangeAt(0))
             htmlBeforeAction = @editor.linesDiv.innerHTML
             fullType         = @_getFullActionType(action)
+            action.fullType  = fullType
             history.push
                 selBeforeAction  : selBeforeAction
                 htmlBeforeAction : htmlBeforeAction
@@ -561,6 +586,9 @@ class exports.Recorder
             
             # play action
             res = res && @_playAction(action)
+            if fullType == 'bold'
+                action = @_generateRandomAction('selection')
+                res    = @_playAction(action)
 
             # manage historysummary
             if historySummary[fullType]
@@ -571,6 +599,7 @@ class exports.Recorder
             # check action result
             if !res
                 break
+        end = new Date().getTime()
 
         @isMonkeyOn = false
         serializerDisplay = $ "#resultText"
@@ -580,11 +609,13 @@ class exports.Recorder
         if res
             checkLog += '\n random test successfull\n' 
             checkLog += JSON.stringify(historySummary)
+            checkLog += '\nduration : ' + (end-start)/1000 +'s (' + (end-start)/10000 +'ms/action)'
+
             serializerDisplay.val(checkLog)
             $('#well-editor').css('background-color','')
             history = []
             if nbRound > 1
-                window.setTimeout(@launchMadMonkey(nbRound-1),5000)
+                window.setTimeout(@launchMadMonkey,5000, nbRound-1)
 
         else
             # Display failure information
@@ -640,7 +671,10 @@ class exports.Recorder
             weight : 0
         ,
             type   : 'keyEvent'
-            weight : 10
+            weight : 3
+        ,
+            type   : 'bold'
+            weight : 1
         ]
 
     rangeTypes : [
@@ -665,7 +699,7 @@ class exports.Recorder
             weight : 1
         ,
             type   : 'middle'
-            weight : 1
+            weight : 3
         ,
             type   : 'end'
             weight : 1
@@ -716,6 +750,7 @@ class exports.Recorder
                 ctrlKey  : false
                 keyCode  : 9
                 which    : 9
+        ,
         ]
     linesDistance : [
             weight   : 100
@@ -779,10 +814,20 @@ class exports.Recorder
                 action = keyboard : @_randomChoice(@keyEventTypes).keyboard
             
             when 'selection'
-                action = @_randomSelection()
+                action = selection : @_randomSelection()
             
             when 'paste'
                 action = @_randomPaste()
+
+            when 'bold'
+                action = 
+                        keyboard :
+                            altKey   : false
+                            shiftKey : false
+                            ctrlKey  : true
+                            keyCode  : 66
+                            which    : 66
+                        selection : @_randomSelection(true)
 
         return action
 
@@ -795,8 +840,14 @@ class exports.Recorder
 
 
 
-    _randomSelection : () ->
+    _randomSelection : (onlyNonEmptyRange) ->
+
         rangeType = @_randomChoice(@rangeTypes)
+
+        if onlyNonEmptyRange
+            while rangeType.type.slice(0,5) != 'range'
+                rangeType = @_randomChoice(@rangeTypes)
+
         switch rangeType.type
 
             when "endLastLine"
@@ -810,11 +861,38 @@ class exports.Recorder
                 startBP = @_selectRandomBP(l)
                 
             when "rangeMonoLine"
-                l       = @_selectRandomLine()
-                startBP = @_selectRandomBP(l)
-                endBP = startBP
-                while startBP.cont == endBP.cont && startBP.offset == endBP.offset
+                # find any range inside a line
+                if !onlyNonEmptyRange 
+                    l = @_selectRandomLine()
+                    startBP = @_selectRandomBP(l)
                     endBP   = @_selectRandomBP(l)
+                # find a non empty range
+                else
+                    # impossible if all lines are empty
+                    if @editor.linesDiv.textContent == ''
+                        throw new Error('no range to choose')
+                    # loop until a non empty line
+                    l = @_selectRandomLine()
+                    while l.textContent == ''
+                        l = @_selectRandomLine()
+                    # find 2 random bp
+                    startBP = @_selectRandomBP(l)
+                    endBP   = @_selectRandomBP(l)
+                    # check that the 2 breakpoints have caracters between them
+                    rg = @editor.document.createRange()
+                    rg.setStart(endBP.cont,endBP.offset)
+                    rg.setEnd(startBP.cont,startBP.offset)
+                    while rg.toString() == ''
+                        startBP = @_selectRandomBP(l)
+                        endBP   = @_selectRandomBP(l)
+                        # check that the 2 breakpoints have caracters between them
+                        rg.setStart(endBP.cont,endBP.offset)
+                        rg.setEnd(startBP.cont,startBP.offset)
+                    # sbpn = selection.normalizeBP(startBP.cont,startBP.offset)
+                    # ebpn = selection.normalizeBP(endBP.cont,endBP.offset)
+                    # while sbpn.cont == ebpn.cont && sbpn.offset == ebpn.offset
+                    #     endBP = @_selectRandomBP(l)
+                    #     ebpn  = selection.normalizeBP(endBP.cont,endBP.offset)
 
             when "rangeMultiLine"
                 ar = @_selectRandomTwoLines()
@@ -822,21 +900,66 @@ class exports.Recorder
                 l2 = ar[1]
                 startBP = @_selectRandomBP(l1)
                 endBP   = @_selectRandomBP(l2)
-                # l1      = @_selectRandomLine()
-                # startBP = @_selectRandomBP(l1)
-                # l2      = @_selectRandomLine()
-                # while l2 == l1
-                #     l2  = @_selectRandomLine()
-                # endBP = @_selectRandomBP(l2)
 
-        rg = document.createRange()
+                # if !onlyNonEmptyRange 
+                # # If onlyNonEmptyRange then :
+                # #  - check that startBP is not at the end of the line
+                # #  - check that endBP is not at the beginning of the line
+                # # The reason is that for meta data (bold), only the selected 
+                # # part of the 1st line will be taken into.
+                # else
+                #     # impossible if less than thwo lines are not empty
+                #     nbNonEmptyLine = 0
+                #     for l in @editor.linesDiv.childNodes
+                #         if l.textContent != ''
+                #             nbNonEmptyLine += 1
+                #     if nbNonEmptyLine < 2
+                #         throw new Error('no range to choose')
+
+                #     # choose 2 lines with at least one not empty
+                #     ar = @_selectRandomTwoLines()
+                #     l1 = ar[0]
+                #     l2 = ar[1]
+                #     while l1.textContent == '' or l2.textContent == ''
+                #         ar = @_selectRandomTwoLines()
+                #         l1 = ar[0]
+                #         l2 = ar[1]
+                        
+                #     # Choose a breakoint in each, but not at the end of start 
+                #     # line nor at the beginning of endLine.
+                #     startBP = @_selectRandomBP(l1)
+                #     endBP   = @_selectRandomBP(l2)
+                #     start = selection.getLineDivIsStartIsEnd(
+                #                             startBP.cont, startBP.offset)
+                #     end   = selection.getLineDivIsStartIsEnd(
+                #                             endBP.cont, endBP.offset)
+                #     while start.isEnd
+                #         startBP = @_selectRandomBP(l1)
+                #         start = selection.getLineDivIsStartIsEnd(
+                #                             startBP.cont, startBP.offset)
+                #     while end.isStart
+                #         endBP   = @_selectRandomBP(l2)
+                #         end   = selection.getLineDivIsStartIsEnd(
+                #                             endBP.cont   , endBP.offset )
+
+        rg = @editor.document.createRange()
         rg.setStart(startBP.cont,startBP.offset)
         if endBP
             rg.setEnd(endBP.cont,endBP.offset)
+            # if start and end are not respected, it is because end is before
+            # start : just inverse the breakpoint to create the range.
+            if rg.startContainer != startBP.cont         \
+              or rg.startOffset  != startBP.offset       \
+              or rg.endContainer != endBP.cont           \
+              or rg.endOffset    != endBP.offset 
+                rg.setStart(endBP.cont,endBP.offset)
+                rg.setEnd(startBP.cont,startBP.offset)
+
         else
             rg.collapse(true)
-        sel = rangy.serializeRange(rg, true, @editorBody$[0])
-        return selection : sel 
+        
+        return @editor.serializeRange(rg)
+
                 
 
     ###*
