@@ -405,6 +405,7 @@ class exports.Recorder
         if action.selection?
             # rangy.deserializeSelection(action.selection, @editorBody$[0])
             @editor.deSerializeSelection(action.selection)
+            @editor.newPosition = true
 
         if action.paste?
             @editor.clipboard.innerHTML = action.paste

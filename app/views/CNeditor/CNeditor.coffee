@@ -66,7 +66,7 @@ class Line
               depthRelative , # 
               prevLine      , # The prev line, null if nextLine is given
               nextLine      , # The next line, null if prevLine is given
-              fragment        # [optional] a fragment to insert in the line, no br at the end
+              fragment        # [optional] a fragment to insert in the line
             ] = arguments
         # Increment the counter for lines id
         editor._highestId += 1
@@ -217,7 +217,7 @@ class exports.CNeditor
         @HISTORY_SIZE = HISTORY_SIZE
         @_history     =               # for history management
             index        : HISTORY_SIZE - 1
-            history      : new Array(HISTORY_SIZE)   # the length of the history is 100 steps
+            history      : new Array(HISTORY_SIZE)
             historySelect: new Array(HISTORY_SIZE)
             historyScroll: new Array(HISTORY_SIZE)
             historyPos   : new Array(HISTORY_SIZE)
@@ -251,6 +251,7 @@ class exports.CNeditor
         @_lastKey = null
         # if the start of selection after a click is in a link, then show
         # url popover to edit the link.
+        @updateCurrentSel()
         segments = @_getLinkSegments()
         if segments
             @_showUrlPopover(segments,false)
@@ -389,7 +390,7 @@ class exports.CNeditor
             else
                 @replaceCSS("stylesheets/app-deep-4.css")
         
-    ###* ------------------------------------------------------------------------
+    ###* -----------------------------------------------------------------------
      * Initialize the editor content from a html string
      * The html string should not been pretified because of the spaces and
      * charriage return. 
@@ -401,7 +402,7 @@ class exports.CNeditor
             htmlString = htmlString.replace(/>[\n ]*</g, "><")
 
         if @.isUrlPopoverOn
-            @_cancelUrlPopover()
+            @_cancelUrlPopover(false)
 
         @linesDiv.innerHTML = htmlString
         @_readHtml()
@@ -488,7 +489,8 @@ class exports.CNeditor
         shortcut = metaKeyCode + '-' + keyCode
         
         # a,s,v,y,z alone are simple characters
-        if metaKeyCode == '' && keyCode in ['A', 'B', 'U', 'K', 'L', 'S', 'V', 'Y', 'Z']
+        if metaKeyCode == '' && keyCode in 
+             ['A', 'B', 'U', 'K', 'L', 'S', 'V', 'Y', 'Z']
             keyCode = 'other'
 
         return [metaKeyCode,keyCode]
@@ -629,7 +631,9 @@ class exports.CNeditor
             when '-backspace'
                 @updateCurrentSelIsStartIsEnd()
                 @_backspace()
-                @newPosition = true # important, for instance deletion of a range within a single line
+                # important, for instance in the case of a deletion of a range
+                # within a single line
+                @newPosition = true 
                 e.preventDefault()
             when '-tab'
                 @tab()
@@ -819,8 +823,8 @@ class exports.CNeditor
 
 
     ###*
-     * This function is called only if in Chrome, because the insertion of a caracter
-     * by the browser may be out of a span. 
+     * This function is called only if in Chrome, because the insertion of a 
+     * caracter by the browser may be out of a span. 
      * This is du to a bug in Chrome : you can create a range with its start 
      * break point in an empty span. But if you add this range to the selection,
      * then this latter will not respect your range and its start break point 
@@ -925,7 +929,9 @@ class exports.CNeditor
         if !@isEnabled or @hasNoSelection(true)
             return true
         @._addHistory()
-        @._applyMetaDataOnSelection('CNE_strong')
+        rg = @._applyMetaDataOnSelection('CNE_strong')
+        if !rg
+            @._removeLastHistoryStep()
 
 
 
@@ -943,12 +949,12 @@ class exports.CNeditor
 
         currentSel = @updateCurrentSelIsStartIsEnd()
         range = currentSel.theoricalRange
-        # Show url popover if range is collapsed
+        # Show url popover if range is collapsed in a link segment
         if range.collapsed
             segments = @_getLinkSegments()
             if segments
                 @_showUrlPopover(segments,false)
-        # if selection !collapsed, 2 cases : 
+        # if selection is not collapsed, 2 cases : 
         # the start breakpoint is in a link or not
         else
             segments = @_getLinkSegments()
@@ -958,9 +964,10 @@ class exports.CNeditor
             # case when the start break point is not in a link
             else
                 @_addHistory()
-                @_applyMetaDataOnSelection('A','http://')
-                segments = @_getLinkSegments()
-                @_showUrlPopover(segments,true)
+                rg = @_applyMetaDataOnSelection('A','http://')
+                if rg
+                    segments = @_getLinkSegments(rg)
+                    @_showUrlPopover(segments,true)
         
         return true
             
@@ -1010,7 +1017,7 @@ class exports.CNeditor
         seg.parentElement.parentElement.appendChild(pop)
         
         # add event listener to detect a click outside of the popover
-        pop.evt = @editorBody$[0].addEventListener('click',@_detectClickOutUrlPopover)
+        pop.evt = @editorBody$[0].addEventListener('mouseup',@_detectClickOutUrlPopover)
         
         # select and put focus in the popover
         pop.urlInput.select()
@@ -1038,11 +1045,14 @@ class exports.CNeditor
     ###
     _cancelUrlPopover : (doNotRestoreOginalSel) =>
         pop = @urlPopover
-        @editorBody$[0].removeEventListener('click', @_detectClickOutUrlPopover)
-        # pop.style.display = 'none'
+        segments = pop.segments
+        # remove the click listener
+        @editorBody$[0].removeEventListener('mouseup', @_detectClickOutUrlPopover)
+        # remove popover
         pop.parentElement.removeChild(pop)
-         
-        seg.style.removeProperty('background-color') for seg in pop.segments
+        @.isUrlPopoverOn = false
+        # remove the "selected style" of the segments
+        seg.style.removeProperty('background-color') for seg in segments
         # case of a link creation called and cancelled : a segment for the link
         # to creat has already been added in order to show the selection when 
         # popover is visible. As it is canceled, we undo in order to remove this
@@ -1051,18 +1061,24 @@ class exports.CNeditor
             if doNotRestoreOginalSel
                 # sel = @getEditorSelection()
                 # sel = rangy.serializeSelection sel, true, @linesDiv
-                serial = @serializeSelection()
+                
+                # rg = this.document.createRange()
+                # rg.setStartBefore(segments[0])
+                # rg.setEndAfter(segments[segments.length-1])
+                # serial = @serializeRange(rg)
+                serial = @serializeSel()
                 # TODO : don't use history to retrieve the initial state...
                 # juste save the initial line should be enough.
-                @unDo()
+                @_forceUndo()
                 if serial
                     @deSerializeSelection(serial)
             else
-                @unDo()
+                @_forceUndo()
             
         else if !doNotRestoreOginalSel
-            @currentSel.sel.removeAllRanges()
-            @currentSel.sel.addRange(pop.initialSelRg)
+            sel = this.document.getSelection()
+            sel.removeAllRanges()
+            sel.addRange(pop.initialSelRg)
 
         # restore editor enabled
         @setFocus()
@@ -1093,8 +1109,9 @@ class exports.CNeditor
 
         # 2- remove background of selection and hide popover
         # pop.style.display = 'none'
-        @editorBody$[0].removeEventListener('click', @_detectClickOutUrlPopover)
+        @editorBody$[0].removeEventListener('mouseup', @_detectClickOutUrlPopover)
         pop.parentElement.removeChild(pop)
+        @.isUrlPopoverOn = false
         seg.style.removeProperty('background-color') for seg in segments
 
         # 3- in case of a link creation, addhistory has already be done, it must 
@@ -1202,15 +1219,19 @@ class exports.CNeditor
 
 
     ###*
-     * Tests if a the start break point of the selection is in a segment being 
-     * a link. If yes returns the array of the segments corresponding to the
-     * link, false otherwise.
+     * Tests if a the start break point of the selection or of a range is in a 
+     * segment being a link. If yes returns the array of the segments 
+     * corresponding to the link starting in this bp, false otherwise.
      * The link can be composed of several segments, but they are on a single
-     * line.
+     * line. Only the start break point is taken into account, not the end bp.
+     * Prerequisite : thit.currentSel must havec been updated before calling
+     * this function.
+     * @param {Range} rg [optionnal] The range to use instead of selection.
      * @return {Boolean} The segment if in a link, false otherwise
     ###
-    _getLinkSegments : () ->
-        rg = @updateCurrentSel().theoricalRange
+    _getLinkSegments : (rg) ->
+        if ! rg
+            rg = @currentSel.theoricalRange
         segment1 = selection.getSegment(rg.startContainer,rg.startOffset)
         segments = [segment1]
         if (segment1.nodeName == 'A')
@@ -1242,6 +1263,8 @@ class exports.CNeditor
     _applyMetaDataOnSelection : (metaData, others...) ->
         currentSel = @updateCurrentSelIsStartIsEnd()
         range = currentSel.theoricalRange
+        if range.collapsed
+            return
 
         # 1- create a range for each selected line and put them in 
         # an array (linesRanges)
@@ -1258,28 +1281,32 @@ class exports.CNeditor
                     return
                 range.setStartBefore(line.line$[0].firstChild)
                 selection.normalize(range)
+                if range.collapsed
+                    return
 
-        # case when the selection ends at the start of a non empty line
+        # case when the selection ends at the start of the line
         if currentSel.lastLineIsStart
             # if last line is empty : apply style to its segment, otherwise 
             # begin on previous line.
-            if line.line$[0].textContent != ''
+            if endLine.line$[0].textContent != ''
                 endLine = endLine.linePrev
-                if line == null
+                if endLine == null
                     return
                 range.setEndBefore(endLine.line$[0].lastChild)
                 selection.normalize(range)
+                if range.collapsed
+                    return
 
-        # case when metadata is an mono line metadata ('A' for instance), then
+        # case when metadata is a mono line metadata ('A' for instance), then
         # we limit the selection to the first line
         if metaData == 'A' and line != endLine
             range.setEndBefore(line.line$[0].lastChild)
             selection.normalize(range)
             endLine = line
 
-        # check if range is collapsed, then nothing to do.
-        if range.collapsed
-            return
+            # check if range is collapsed, then nothing to do.
+            if range.collapsed
+                return
 
         # if a single line selection
         if line == endLine
@@ -1288,14 +1315,15 @@ class exports.CNeditor
         # if a multi line selection
         else
             # range for the 1st line
-            rg = range.cloneRange()
-            rg.setEndBefore(line.line$[0].lastChild)
-            selection.normalize(rg)
-            linesRanges = [rg]
+            rgStart = range.cloneRange()
+            rgStart.setEndBefore(line.line$[0].lastChild)
+            selection.normalize(rgStart)
+            # linesRanges = @_prepareStartSeg(rgStart)
+            linesRanges = [rgStart]
             # ranges for the lines in the middle
             line = line.lineNext
             while line != endLine
-                rg = document.createRange()
+                rg = this.document.createRange()
                 rg.selectNodeContents(line.line$[0])
                 selection.normalize(rg)
                 linesRanges.push(rg)
@@ -1322,7 +1350,7 @@ class exports.CNeditor
         # corresponding to the initial range
         bps = []
         for range in linesRanges
-            bps.push( @_applyMetaData(range, addMeta, metaData, others) )
+            bps.push( @_applyMetaOnLineRange(range, addMeta, metaData, others) )
         
         # 4- Position selection
         rg = this.document.createRange() # be carefull : chrome requires the range to be created by the document where the range will be in. In our case, we must use the editor document.
@@ -1410,8 +1438,7 @@ class exports.CNeditor
      * @return {array}          [bp1,bp2] : the breakpoints corresponding to the
      *                          initial range after the line transformation.
     ###
-    _applyMetaData : (range, addMeta, metaData, others) ->
-
+    _applyMetaOnLineRange : (range, addMeta, metaData, others) ->
         # 1- var
         lineDiv =  selection.getLineDiv(range.startContainer,range.startOffset)
         startSegment = range.startContainer.parentNode
@@ -3302,6 +3329,17 @@ class exports.CNeditor
         h.historyScroll = new Array(HISTORY_SIZE)
         h.historyPos    = new Array(HISTORY_SIZE)
         @._addHistory()
+
+    _removeLastHistoryStep : () ->
+        @_history.historySelect.pop()
+        @_history.historyScroll.pop()
+        @_history.historyPos.pop()
+        @_history.history.pop()
+        @_history.historySelect.unshift(undefined)
+        @_history.historyScroll.unshift(undefined)
+        @_history.historyPos.unshift(undefined)
+        @_history.history.unshift(undefined)
+        @_history.index = @HISTORY_SIZE - 1
 
     ### ------------------------------------------------------------------------
     #  undoPossible

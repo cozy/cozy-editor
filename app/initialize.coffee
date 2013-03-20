@@ -120,10 +120,10 @@ cb = () ->
     content = require('views/templates/content-shortlines-medium')
     content = require('views/templates/content-shortlines-large')
     content = require('views/templates/content-for-mad-monkey')
-    content = require('views/templates/content-shortlines-small')
     content = require('views/templates/content-deep-tree')
-    ###
     content = require('views/templates/content-empty')
+    ###
+    content = require('views/templates/content-shortlines-small')
     @replaceContent content()
     move_ed_2_ed2()
     # beautify(editorBody$)
@@ -556,7 +556,8 @@ $ ->
         
         editor3 = new CNeditor( document.querySelector('#editorDiv3'), () ->
             @registerKeyDownCbForTest()
-            content = require('views/templates/content-shortlines-large')
+            # content = require('views/templates/content-shortlines-large')
+            content = require('views/templates/content-shortlines-small')
             @replaceContent content()
 
             # add shortcuts on global objects
