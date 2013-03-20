@@ -1010,10 +1010,12 @@ class exports.CNeditor
         if href == '' or href == 'http:///'
             href = 'http://'
         pop.urlInput.value = href
+        pop.link.href = href
         txt = ''
         txt += seg.textContent for seg in segments
         pop.textInput.value = txt
         pop.initialTxt = txt
+
         
         # Insert the popover
         seg.parentElement.parentElement.appendChild(pop)
@@ -1189,7 +1191,7 @@ class exports.CNeditor
             <span class="CNE_urlpop_head">Link</span>
             <span  class="CNE_urlpop_shortcuts">(Ctrl+K)</span>
             <div class="CNE_urlpop-content">
-                <a>Open link <span class="CNE_urlpop_shortcuts">(Ctrl+click)</span></a></br>
+                <a target="_blank">Open link <span class="CNE_urlpop_shortcuts">(Ctrl+click)</span></a></br>
                 <span>url</span><input type="text"></br>
                 <span>Text</span><input type="text"></br>
                 <button>ok</button>
@@ -1197,6 +1199,7 @@ class exports.CNeditor
                 <button>Delete</button>
             </div>
             """
+        pop.link = pop.getElementsByTagName('A')[0]
         b = document.querySelector('body')
         # b.insertBefore(frag,b.firstChild)
         [btnOK, btnCancel, btnDelete] = pop.querySelectorAll('button')
