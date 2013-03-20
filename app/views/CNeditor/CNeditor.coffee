@@ -999,8 +999,10 @@ class exports.CNeditor
         
         # positionnate the popover (centered for now)
         seg = segments[0]
-        d = @linesDiv.getBoundingClientRect()
-        pop.style.left = Math.round( (d.width - 300)/2 ) + 'px'
+        # d = @linesDiv.getBoundingClientRect()
+        # pop.style.left = Math.round( (d.width - 300)/2 ) + 'px'
+        pop.style.left = seg.offsetLeft + 'px'
+
         pop.style.top = seg.offsetTop + 20 + 'px'
         
         # update the inputs fields of popover
@@ -1185,9 +1187,9 @@ class exports.CNeditor
         pop.innerHTML = 
             """
             <span class="CNE_urlpop_head">Link</span>
-            <span>(Ctrl+K)</span>
+            <span  class="CNE_urlpop_shortcuts">(Ctrl+K)</span>
             <div class="CNE_urlpop-content">
-                <a>Accéder au lien (Ctrl+click)</a></br>
+                <a>Open link <span class="CNE_urlpop_shortcuts">(Ctrl+click)</span></a></br>
                 <span>url</span><input type="text"></br>
                 <span>Text</span><input type="text"></br>
                 <button>ok</button>
