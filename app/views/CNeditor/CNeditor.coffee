@@ -1895,7 +1895,7 @@ class exports.CNeditor
             sel.range.deleteContents()
             bp =
                 cont   : sel.range.startContainer
-                offset : sel.range.offset
+                offset : sel.range.startOffset
             @_fusionSimilarSegments(sel.startLine.line$[0], [bp])
             @_setCaret(bp.cont, bp.offset)
 
