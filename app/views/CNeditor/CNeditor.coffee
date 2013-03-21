@@ -244,7 +244,12 @@ class exports.CNeditor
     _mouseupCB : () =>
         @newPosition = true
 
-    _keyupCast : () =>
+    _keyupCast : (e) =>
+        [metaKeyCode,keyCode] = @getShortCut(e)
+        shortcut = metaKeyCode + '-' + keyCode
+        switch shortcut
+            when 'Ctrl-S', 'Ctrl-other'
+                return
         @editorTarget$.trigger jQuery.Event("onKeyUp")
 
     _clickCB : (e) =>
@@ -320,11 +325,13 @@ class exports.CNeditor
 
 
     disable : () ->
+        console.log '== DISABLE'
         @isEnabled = false
         @_unRegisterEventListeners()
 
 
     enable : () ->
+        console.log '== ENABLE'
         @isEnabled = true
         @_registerEventListeners()
 
@@ -519,7 +526,9 @@ class exports.CNeditor
     ###
     registerKeyDownCbForTest : ()=>
         @linesDiv.removeEventListener('keydown', @_keyDownCallBackTry, true)
-        @linesDiv.addEventListener('keydown', @_keyDownCallBack, true)
+        # otherwise _unRegisterEventListeners will no longer work
+        @_keyDownCallBackTry = @_keyDownCallBack 
+        @linesDiv.addEventListener('keydown', @_keyDownCallBackTry, true)
 
 
     ### ------------------------------------------------------------------------
@@ -626,11 +635,14 @@ class exports.CNeditor
                  
         # 5- launch the action corresponding to the pressed shortcut
         switch shortcut
+
             when '-return'
                 @updateCurrentSelIsStartIsEnd()
                 @_return()
                 @newPosition = false
                 e.preventDefault()
+                @editorTarget$.trigger jQuery.Event('onChange')
+
             when '-backspace'
                 @updateCurrentSelIsStartIsEnd()
                 @_backspace()
@@ -638,62 +650,85 @@ class exports.CNeditor
                 # within a single line
                 @newPosition = true 
                 e.preventDefault()
+                @editorTarget$.trigger jQuery.Event('onChange')
+
             when '-tab'
                 @tab()
                 e.preventDefault()
+                @editorTarget$.trigger jQuery.Event('onChange')
+
             when 'Shift-tab'
                 @shiftTab()
                 e.preventDefault()
+                @editorTarget$.trigger jQuery.Event('onChange')
+
             when '-suppr'
                 @updateCurrentSelIsStartIsEnd()
                 @_suppr(e)
                 @newPosition = true
+                @editorTarget$.trigger jQuery.Event('onChange')
+
             # when 'CtrlShift-down'
             #     @_moveLinesDown()
             #     e.preventDefault()
             # when 'CtrlShift-up'
             #     @_moveLinesUp()
             #     e.preventDefault()
+            #     
             when 'Ctrl-A'
                 selection.selectAll(this)
                 e.preventDefault()
+
             when 'Alt-L'
                 @markerList()
                 e.preventDefault()
-            # TOGGLE LINE TYPE (Alt + a)                  
+                @editorTarget$.trigger jQuery.Event('onChange')
+
             when 'Alt-A'
                 @toggleType()
                 e.preventDefault()
+                @editorTarget$.trigger jQuery.Event('onChange')
+
             when '-other', '-space'
                 if @newPosition
                     sel = @updateCurrentSel() 
                     if ! sel.theoricalRange.collapsed
                         @_backspace()
                     @newPosition = false
-            # PASTE (Ctrl + v)                  
+                @editorTarget$.trigger jQuery.Event('onChange')
+
             when 'Ctrl-V'
-                true
+                @editorTarget$.trigger jQuery.Event('onChange')
+                return true
+
             when 'Ctrl-B'
-                @strong()
+                # @strong()
                 e.preventDefault()
-            when 'Ctrl-U'
-                @underline()
-                e.preventDefault()
+                @editorTarget$.trigger jQuery.Event('onChange')
+
+            # when 'Ctrl-U'
+            #     @underline()
+            #     e.preventDefault()
+            #     @editorTarget$.trigger jQuery.Event('onChange')
+
             when 'Ctrl-K'
                 @linkifySelection()
                 e.preventDefault()
-            # SAVE (Ctrl + s)                  
+
             when 'Ctrl-S'
-                $(@editorTarget).trigger jQuery.Event('saveRequest')
+                @editorTarget$.trigger jQuery.Event('saveRequest')
                 e.preventDefault()
-            # UNDO (Ctrl + z)
+                e.stopPropagation()
+
             when 'Ctrl-Z'
                 @unDo()
                 e.preventDefault()
-            # REDO (Ctrl + y)
+                @editorTarget$.trigger jQuery.Event('onChange')
+
             when 'Ctrl-Y'
                 @reDo()
                 e.preventDefault()
+                @editorTarget$.trigger jQuery.Event('onChange')
 
 
 
@@ -1002,10 +1037,7 @@ class exports.CNeditor
         
         # positionnate the popover (centered for now)
         seg = segments[0]
-        # d = @linesDiv.getBoundingClientRect()
-        # pop.style.left = Math.round( (d.width - 300)/2 ) + 'px'
         pop.style.left = seg.offsetLeft + 'px'
-
         pop.style.top = seg.offsetTop + 20 + 'px'
         
         # update the inputs fields of popover
@@ -1013,13 +1045,19 @@ class exports.CNeditor
         if href == '' or href == 'http:///'
             href = 'http://'
         pop.urlInput.value = href
-        pop.link.href = href
         txt = ''
         txt += seg.textContent for seg in segments
         pop.textInput.value = txt
         pop.initialTxt = txt
 
-        
+        if isLinkCreation
+            pop.titleElt.textContent = 'Create Link'
+            pop.link.style.display = 'none'
+        else
+            pop.titleElt.textContent = 'Edit Link'
+            pop.link.style.display = 'inline-block'
+            pop.link.href = href
+
         # Insert the popover
         seg.parentElement.parentElement.appendChild(pop)
         
@@ -1104,7 +1142,11 @@ class exports.CNeditor
     ###*
      * Close the popover and applies modifications to the link.
     ###
-    _validateUrlPopover : () =>
+    _validateUrlPopover : (event) =>
+        
+        if event
+            event.stopPropagation()
+
         pop = @urlPopover
         segments = pop.segments
 
@@ -1177,6 +1219,9 @@ class exports.CNeditor
         # 8- restore editor enabled
         @enable()
 
+        # 9- warn that a change occured
+        @editorTarget$.trigger jQuery.Event('onChange')
+
     ###*
      * initialise the popover during the editor initialization.
     ###
@@ -1200,7 +1245,9 @@ class exports.CNeditor
                 <button>Delete</button>
             </div>
             """
+        pop.titleElt = pop.firstChild 
         pop.link = pop.getElementsByTagName('A')[0]
+
         b = document.querySelector('body')
         # b.insertBefore(frag,b.firstChild)
         [btnOK, btnCancel, btnDelete] = pop.querySelectorAll('button')
@@ -1216,8 +1263,11 @@ class exports.CNeditor
         pop.addEventListener 'keypress', (e) =>
             if e.keyCode == 13
                 @_validateUrlPopover()
+                e.stopPropagation()
             else if e.keyCode == 27
                 @_cancelUrlPopover(false)
+
+            return false
         
         @urlPopover = pop
 
@@ -3388,7 +3438,7 @@ class exports.CNeditor
 
         # 2- restore html
         if @isUrlPopoverOn
-            @_cancelUrlPopover()
+            @_cancelUrlPopover(false)
         @linesDiv.innerHTML = @_history.history[stepIndex]
 
         # 3- restore selection
@@ -3429,7 +3479,7 @@ class exports.CNeditor
 
             # 1- restore html
             if @isUrlPopoverOn
-                @_cancelUrlPopover()
+                @_cancelUrlPopover(false)
             @linesDiv.innerHTML = @_history.history[i]
 
             # 2- restore selection
