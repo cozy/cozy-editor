@@ -556,7 +556,10 @@ class exports.CNeditor
     #                               N°102 f is stroke) or "space" ...
     #
     _keyDownCallBack : (e) =>
-            
+        
+        if ! @isEnabled
+            return
+
         # 1- Prepare the shortcut corresponding to pressed keys
         [metaKeyCode,keyCode] = @getShortCut(e)
         shortcut = metaKeyCode + '-' + keyCode
