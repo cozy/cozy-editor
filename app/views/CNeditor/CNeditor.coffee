@@ -1487,6 +1487,8 @@ class exports.CNeditor
                     span = document.createElement(startSegment.nodeName)
                     if startSegment.className != ''
                         span.className = startSegment.className
+                    if startSegment.nodeName == 'A'
+                        span.href = startSegment.href
                     span = frag1.appendChild(span)
                     span.appendChild(frag1.firstChild)
                     rg.setEndAfter(startSegment)
