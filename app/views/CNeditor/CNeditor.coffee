@@ -1121,8 +1121,9 @@ class exports.CNeditor
         # 3- in case of a link creation, addhistory has already be done, it must 
         # then be done if non a link creation.
         if !pop.isLinkCreation
-            @currentSel.sel.removeAllRanges()
-            @currentSel.sel.addRange(pop.initialSelRg) # otherwise addhistory will not work
+            sel = this.document.getSelection()
+            sel.removeAllRanges()
+            sel.addRange(pop.initialSelRg) # otherwise addhistory will not work
             @_addHistory()
 
         # 4- case of a deletion of the urlInput value => 'remove the link'
@@ -1143,10 +1144,7 @@ class exports.CNeditor
             bp2 = bps[1]
             rg.setStart(bp1.cont, bp1.offset)
             rg.setEnd(  bp2.cont, bp2.offset)
-            if @isFirefox
-                sel = this.currentSel.sel
-            else
-                sel = document.getSelection()
+            sel = this.document.getSelection()
             sel.removeAllRanges()
             sel.addRange(rg)
             @setFocus()
@@ -1669,7 +1667,7 @@ class exports.CNeditor
         nextSegment = segment.nextSibling
         # case of a line with only one segment : nothing to do
         if nextSegment.nodeName == 'BR'
-            return
+            return breakPoints
 
         while nextSegment.nodeName != 'BR'
             
@@ -1917,7 +1915,7 @@ class exports.CNeditor
             sel.range.deleteContents()
             bp =
                 cont   : sel.range.startContainer
-                offset : sel.range.offset
+                offset : sel.range.startOffset
             @_fusionSimilarSegments(sel.startLine.line$[0], [bp])
             @_setCaret(bp.cont, bp.offset)
 
