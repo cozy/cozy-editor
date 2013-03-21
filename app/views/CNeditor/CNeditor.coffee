@@ -558,7 +558,7 @@ class exports.CNeditor
     _keyDownCallBack : (e) =>
         
         if ! @isEnabled
-            return
+            return true
 
         # 1- Prepare the shortcut corresponding to pressed keys
         [metaKeyCode,keyCode] = @getShortCut(e)
