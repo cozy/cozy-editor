@@ -259,9 +259,14 @@ class exports.CNeditor
         @updateCurrentSel()
         segments = @_getLinkSegments()
         if segments
-            @_showUrlPopover(segments,false)
-            e.stopPropagation()
-            e.preventDefault()
+            if e.ctrlKey
+                url = segments[0].href
+                window.open(url,'_blank')
+                e.preventDefault()
+            else
+                @_showUrlPopover(segments,false)
+                e.stopPropagation()
+                e.preventDefault()
 
     _pasteCB : (event) =>
         @paste event
