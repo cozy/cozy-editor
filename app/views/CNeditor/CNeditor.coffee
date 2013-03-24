@@ -3878,15 +3878,15 @@ class exports.CNeditor
 
         # endOffset = targetNode.length - startOffset
         
-        # prepare lineElements
+        # prepare lineElements of the first line
         if frag.childNodes.length > 0
             lineElements = Array.prototype.slice.call(frag.firstChild.childNodes)
             lineElements.pop() # remove the </br>
         else
             # ?? in which case do we come here ? please document...
             lineElements = [frag]
-        # loop on each element to insert (only one for now)
 
+        # loop on each element to insert (only one for now)
         for segToInsert in lineElements
             @_insertSegment(segToInsert,bp)
         if bp.cont.nodeName != '#text'
@@ -4007,13 +4007,16 @@ class exports.CNeditor
 
 
     _insertTextInSegment : (txt, bp, targetSeg) ->
+        if txt == ''
+            return true
+            
         if !targetSeg
             targetSeg = selection.getSegment(bp.cont)
         targetText = targetSeg.textContent
         offset = bp.offset
-        newText      = targetText.substr(0,offset)
-        newText     += txt
-        newText     += targetText.substr(offset)
+        newText  = targetText.substr(0,offset)
+        newText += txt
+        newText += targetText.substr(offset)
         targetSeg.textContent = newText
         offset += txt.length
         bp.cont = targetSeg.firstChild
