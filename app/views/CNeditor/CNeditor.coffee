@@ -330,13 +330,11 @@ class exports.CNeditor
 
 
     disable : () ->
-        console.log '== DISABLE'
         @isEnabled = false
         @_unRegisterEventListeners()
 
 
     enable : () ->
-        console.log '== ENABLE'
         @isEnabled = true
         @_registerEventListeners()
 
@@ -707,7 +705,7 @@ class exports.CNeditor
                 return true
 
             when 'Ctrl-B'
-                # @strong()
+                @strong()
                 e.preventDefault()
                 @editorTarget$.trigger jQuery.Event('onChange')
 
@@ -1749,6 +1747,11 @@ class exports.CNeditor
                 segment     = nextSegment
                 nextSegment = nextSegment.nextSibling
 
+        # check if last segment is empty and is not the only segment
+        if segment.textContent == '' and segment.previousSibling != null
+            segment = @_removeSegment(segment, breakPoints)
+            selection.normalizeBPs(breakPoints)
+
         return breakPoints
 
     ###*
@@ -2429,17 +2432,20 @@ class exports.CNeditor
     #   e = event
     ###
     _return : () ->
-        
         currSel   = this.currentSel
         startLine = currSel.startLine
         endLine   = currSel.endLine
 
         # 1- Delete the selections so that the selection is collapsed
         if currSel.range.collapsed
-            
         else if endLine == startLine
-            currSel.range.deleteContents()
-            @_fusionSimilarSegments(startLine.line$[0],[])
+            rg = currSel.range
+            rg.deleteContents()
+            bp1 = selection.normalizeBP(rg.startContainer, rg.startOffset)
+            @_fusionSimilarSegments(startLine.line$[0],[bp1])
+            rg.setStart(bp1.cont,bp1.offset)
+            rg.collapse(true)
+
         else
             @_deleteMultiLinesSelections()
             currSel   = @updateCurrentSelIsStartIsEnd()
@@ -2458,6 +2464,7 @@ class exports.CNeditor
 
         # 3- Caret is at the beginning of the line
         else if currSel.rangeIsStartLine
+            # console.log '  F1 - currSel.rangeIsStartLine'
             newLine = @_insertLineBefore (
                 sourceLine         : startLine
                 targetLineType     : startLine.lineType
@@ -2471,8 +2478,8 @@ class exports.CNeditor
         else
             # Deletion of the end of the original line
             currSel.range.setEndBefore( startLine.line$[0].lastChild )
+            testFrag = currSel.range.cloneContents()
             endOfLineFragment = currSel.range.extractContents()
-            currSel.range.deleteContents()
             # insertion
             newLine = @_insertLineAfter (
                 sourceLine         : startLine

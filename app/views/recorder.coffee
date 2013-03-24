@@ -519,7 +519,7 @@ class exports.Recorder
 
         that = this
         # if error while simulation, catch it to save history.
-        window.onerror = (errormsg, url, lineNumber) =>
+        @editor.document.defaultView.onerror = (errormsg, url, lineNumber) =>
             # save the history to replay the bug
             if @isMonkeyOn
                 @_saveMadMonkeyJourney(history)
