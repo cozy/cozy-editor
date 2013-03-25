@@ -128,7 +128,7 @@ body
   border:0
   width:100%
   height:100%
-  font-size:12px
+  font-size:11px
   background-color: #E9EEF2
 
 #recordings
@@ -148,10 +148,11 @@ body
   border-color:#EEEEEE
   padding-top:10px
   padding-bottom:0px
-  margin-bottom:7px
+  margin-bottom:0px
 
 #record-list
-  font-size:13px
+  font-size:12px
+  margin-top: -10px
   
 .btnDiv-RecordLine
   height:20px
@@ -159,10 +160,19 @@ body
   display:inline-block
   position:relative
 
+.btnDiv-RecordLine > .btn-group
+  margin-top: 3px
+
+.btnDiv-RecordLine > .btn-group > .btn-mini
+  line-height: 11px
 
 #record-name
-  margin:0
+  margin-top:0
+  margin-right:0
+  margin-left:0
+  margin-bottom:-11px
   width:98%
+  box-sizing:content-box
 
 .resultActionOK
   color:green

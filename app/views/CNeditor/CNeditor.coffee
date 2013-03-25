@@ -705,7 +705,7 @@ class exports.CNeditor
                 return true
 
             when 'Ctrl-B'
-                @strong()
+                # @strong()
                 e.preventDefault()
                 @editorTarget$.trigger jQuery.Event('onChange')
 
@@ -2636,7 +2636,7 @@ class exports.CNeditor
         if startLine?
             # range = rangy.createRange()
             range = this.document.createRange()
-            selection.cleanSelection startLine, endLine, range
+            selection.cleanSelection(startLine, endLine, range)
             replaceCaret = false
         else
             # currentSel has been updated by _keyDownCallBack
@@ -2650,12 +2650,10 @@ class exports.CNeditor
             replaceCaret = true
             
         # Calculate depth for start and end line
-        startLineDepth = startLine.lineDepthAbs
         endLineDepth   = endLine.lineDepthAbs
-        deltaDepth     = endLineDepth - startLineDepth
 
         # Copy the un-selected end of endLine in a fragment
-        endOfLineFragment = selection.cloneEndFragment range, endLine
+        endOfLineFragment = selection.cloneEndFragment(range, endLine)
 
         # Adapt end line type if needed.
         # @_adaptEndLineType startLine, endLine, endLineDepth
@@ -2664,25 +2662,41 @@ class exports.CNeditor
         range.deleteContents()
 
         # Insert the copied end of line at the end of startLine
-        @_addMissingFragment startLine, endOfLineFragment
+        @_addMissingFragment(startLine, endOfLineFragment)
 
         # Remove endLine from this.lines and updates links
-        @_removeEndLine startLine, endLine
+        @_removeEndLine(startLine, endLine)
 
-        # Adapt depth
-        @_adaptDepth startLine, startLineDepth, endLineDepth, deltaDepth
+        # Adapt depth & type
+        
+        # Calculate depth for start and end line
+        startLineDepth = startLine.lineDepthAbs
+        # endLineDepth   = endLine.lineDepthAbs
+        # deltaDepth     = endLineDepth - startLineDepth
 
+        # adjust depth of the sons and siblings of endLine if deltadpeth > 1
+        firstNextLine = startLine.lineNext
+        if firstNextLine
+            firstNextLineDepth = firstNextLine.lineDepthAbs
+            currentDelta = firstNextLine.lineDepthAbs - startLineDepth
+            deltaInserted  = endLineDepth - startLineDepth
+
+            @_adaptDepth(startLine,deltaInserted, currentDelta, startLineDepth)
+            # @_adaptDepth(startLine, endLineDepth)
+            @_adaptType(startLine)
 
         # Fusion similar segments and place caret if required
         if replaceCaret
-            bp = cont:startContainer, offset:startOffset
+            bp = 
+                cont   : startContainer
+                offset : startOffset
             @_fusionSimilarSegments(startLine.line$[0], [bp])
             @_setCaret(bp.cont, bp.offset)
         else
             @_fusionSimilarSegments(startLine.line$[0], [])
 
 
-    #  adapt the depth of the children and following siblings of end line
+    #  Adapt the depth of the children and following siblings of end line
     #    in case the depth delta between start and end line is
     #    greater than 0, then the structure is not correct : we reduce
     #    the depth of all the children and siblings of endLine.
@@ -2690,26 +2704,53 @@ class exports.CNeditor
     #  Then adapt the type of the first line after the children and siblings of
     #    end line. Its previous sibling or parent might have been deleted, 
     #    we then must find its new one in order to adapt its type.
-    _adaptDepth: (startLine, startLineDepth, endLineDepth, deltaDepth) ->
-        if startLine.lineNext == null 
+    _adaptDepth: (startLine, deltaInserted, currentDelta, minDepth) ->
+        if startLine.lineNext == null
             return
 
-        # adjust depth of the sons and siblings of endLine if deltadpeth > 1
+        # Calculate depth for start and end line
+        # startLineDepth = startLine.lineDepthAbs
+        # # endLineDepth   = endLine.lineDepthAbs
+        # # deltaDepth     = endLineDepth - startLineDepth
+
+        # # adjust depth of the sons and siblings of endLine if deltadpeth > 1
         firstNextLine = startLine.lineNext
-        firstNextLineDepth = firstNextLine.lineDepthAbs
-        delta1 = firstNextLine.lineDepthAbs - startLineDepth
-        delta  = endLineDepth - startLineDepth
+        # firstNextLineDepth = firstNextLine.lineDepthAbs
+        # currentDelta = firstNextLine.lineDepthAbs - startLineDepth
+        # deltaInserted  = endLineDepth - startLineDepth
 
-        lineIt = firstNextLine
-        if delta1 > 1
-            while lineIt != null && lineIt.lineDepthAbs > startLineDepth
-                lineIt = @_unIndentBlock(lineIt,delta)
-        # lineAfterEndLineSons = line
+        if currentDelta > 1
+            lineIt = firstNextLine
+            lineIt = @_unIndentBlock(lineIt,deltaInserted)
+            while lineIt != null && lineIt.lineDepthAbs > minDepth
+                lineIt = @_unIndentBlock(lineIt,deltaInserted)
 
+        return true
 
+    # _adaptDepth: (startLine, endLineDepth) ->
+    #     if startLine.lineNext == null 
+    #         return
+
+    #     # Calculate depth for start and end line
+    #     startLineDepth = startLine.lineDepthAbs
+    #     # endLineDepth   = endLine.lineDepthAbs
+    #     # deltaDepth     = endLineDepth - startLineDepth
+
+    #     # adjust depth of the sons and siblings of endLine if deltadpeth > 1
+    #     firstNextLine = startLine.lineNext
+    #     firstNextLineDepth = firstNextLine.lineDepthAbs
+    #     delta1 = firstNextLine.lineDepthAbs - startLineDepth
+    #     delta  = endLineDepth - startLineDepth
+
+    #     if delta1 > 1
+    #         lineIt = firstNextLine
+    #         while lineIt != null && lineIt.lineDepthAbs > startLineDepth
+    #             lineIt = @_unIndentBlock(lineIt,delta)
+
+    _adaptType: (startLine) ->
         # depth are ok, now check type : for each line after firstNextLine find
         # its previous sibling and compare type
-        lineIt = firstNextLine
+        lineIt = startLine.lineNext
         while lineIt != null
             prev = @_findPrevSibling(lineIt)
             if prev == null
@@ -3868,15 +3909,7 @@ class exports.CNeditor
         # at the end
         bp = 
             cont   : targetNode
-            offset : startOffset        
-        # # except if we are in chrome : normalise can't work in empty line, so we
-        # # have to get the theorical breakpoint where the selection should be.
-        # if @isChromeOrSafari && targetNode.nodeName != '#text'
-        #     breakPoint = selection.normalizeBP(targetNode, startOffset)
-        #     targetNode = breakPoint.cont
-        #     startOffset = breakPoint.offset
-
-        # endOffset = targetNode.length - startOffset
+            offset : startOffset
         
         # prepare lineElements of the first line
         if frag.childNodes.length > 0
@@ -3954,17 +3987,41 @@ class exports.CNeditor
                 lineNextStartLine.linePrev = domWalkContext.lastAddedLine
                 @linesDiv.insertBefore(frag, lineNextStartLine.line$[0])
         ###*
-         * 8- position caret
+         * 8- Adapt lines type.
+        ###
+        # @_adaptDepth(domWalkContext.lastAddedLine, domWalkContext.lastAddedLine.lineDepthAbs)
+        lastAdded = domWalkContext.lastAddedLine
+        if lastAdded.lineNext
+            lastAddedDepth = lastAdded.lineDepthAbs
+            startLineDepth = startLine.lineDepthAbs
+            deltaInserted  = startLineDepth - lastAddedDepth
+            currentDelta   = lastAdded.lineNext.lineDepthAbs - lastAddedDepth
+            @_adaptDepth(
+                domWalkContext.lastAddedLine,  # startLine
+                deltaInserted,                 # deltaInserted
+                currentDelta,                  # currentDelta
+                lastAddedDepth  )              # minDepth
+            @_adaptType(currSel.startLine)
+
+        # res = @checker.checkLines(this)
+        # if ! res
+        #     debugger
+        #     lastAdded = domWalkContext.lastAddedLine
+        #     if lastAdded.lineNext
+        #         startLineDepth = startLine.lineDepthAbs
+        #         deltaInserted  = startLineDepth - lastAdded.lineDepthAbs
+        #         currentDelta   = lastAdded.lineNext.lineDepthAbs - lastAdded.lineDepthAbs
+        #         @_adaptDepth(
+        #             domWalkContext.lastAddedLine,  # startLine
+        #             deltaInserted,                 # deltaInserted
+        #             currentDelta,                  # currentDelta
+        #             lastAddedDepth )               # minDepth
+        #         @_adaptType(currSel.startLine)
+
+        ###*
+         * 9- position caret
         ###
         bp = @_setCaret(bp.cont,bp.offset)
-
-        # if secondAddedLine?
-        #     # Assumption : last inserted line always has at least one <span> with only text inside
-        #     caretTextNodeTarget = lineNextStartLine.linePrev.line$[0].childNodes[0].firstChild
-        #     caretOffset = caretTextNodeTarget.length - endOffset
-        #     currSel.sel.collapse(caretTextNodeTarget, caretOffset)
-        # else
-        #     currSel.sel.collapse(targetNode, startOffset)
 
 
     ###*
@@ -4009,7 +4066,7 @@ class exports.CNeditor
     _insertTextInSegment : (txt, bp, targetSeg) ->
         if txt == ''
             return true
-            
+
         if !targetSeg
             targetSeg = selection.getSegment(bp.cont)
         targetText = targetSeg.textContent
@@ -4096,7 +4153,7 @@ class exports.CNeditor
             p =
                 sourceLine         : context.lastAddedLine
                 fragment           : context.currentLineFrag
-                targetLineType     : "Tu"
+                targetLineType     : "Tu" # context.lastAddedLine.linePrev.lineType
                 targetLineDepthAbs : context.absDepth
                 targetLineDepthRel : context.absDepth
             context.lastAddedLine = @_insertLineAfter(p)
@@ -4271,6 +4328,12 @@ class exports.CNeditor
                     else
                         spanNode = document.createElement('span')
                         spanNode.textContent = child.textContent
+                        classes = child.classList
+                        newClass = ''
+                        for clas in classes
+                            if clas.slice(0,3) == 'CNE'
+                                newClass += ' ' + clas
+                        spanNode.className = newClass
                         context.currentLineEl.appendChild(spanNode)
                     context.isCurrentLineBeingPopulated = true
 
@@ -4314,13 +4377,17 @@ class exports.CNeditor
         lineClass = elemt.className.split('-')
         lineDepthAbs = +lineClass[1]
         lineClass = lineClass[0]
+        
         if !context.prevCNLineAbsDepth
             context.prevCNLineAbsDepth = lineDepthAbs
         deltaDepth = lineDepthAbs - context.prevCNLineAbsDepth
         if deltaDepth > 0
-            # context.absDepth += 1
+            context.absDepth += 1
         else
-            # context.absDepth += deltaDepth
+            context.absDepth += deltaDepth
+            context.absDepth = Math.max(1,context.absDepth)
+        context.prevCNLineAbsDepth = lineDepthAbs
+
         elemtFrag = document.createDocumentFragment()
         n = elemt.childNodes.length
         i = 0
@@ -4338,7 +4405,7 @@ class exports.CNeditor
         p =
             sourceLine         : context.lastAddedLine
             fragment           : elemtFrag
-            targetLineType     : "Tu"
+            targetLineType     : lineClass # "Tu"
             targetLineDepthAbs : context.absDepth
             targetLineDepthRel : context.absDepth
         context.lastAddedLine = @_insertLineAfter(p)

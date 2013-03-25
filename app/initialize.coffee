@@ -60,6 +60,9 @@ __editorToCheck = null
 
 cb = () ->
 
+    # editor1 will have a ref to the checker for test puposes
+    this.checker = checker
+
     # During test we want errors not to be intercepted :
     @registerKeyDownCbForTest()
 
@@ -73,7 +76,6 @@ cb = () ->
     serializerDisplay = $ "#resultText"
     playAllButton     = $ "#play-all-button"
     playRandomButton  = $ "#play-random-button"
-    playCurrentButton = $ "#play-current-button"
     recordList        = $ '#record-list'
     recordSaveButton  = $ '#record-save-button'
     recordSaveInput   = $ '#record-name'
@@ -452,11 +454,9 @@ cb = () ->
             recordPasteButton.removeClass "btn-warning"
             recorder.stopPasteSession()
 
-
     saveCurrentRecordedTest = () ->
         title = recordSaveInput.val()
         recorder.saveCurrentRecordedTest(title)
-
 
 
     # Recorder buttons
@@ -464,10 +464,6 @@ cb = () ->
     playAllButton.click ->
         continuousCheckOff()
         recorder.playAll()
-
-    playCurrentButton.click ->
-        continuousCheckOff()
-        recorder.play()
 
     recordButton.click recordTest
 
@@ -484,9 +480,7 @@ cb = () ->
         recorder.launchMadMonkey(5)
         this.classList.remove('btn-warning')
 
-
     # Load records
-    
     recorder.load()
 
 

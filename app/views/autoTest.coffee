@@ -285,6 +285,10 @@ class exports.AutoTest
                     @myAncestor.push(newNode)
                 else
                     @myAncestor[depth] = newNode
+                    n  = @myAncestor.length - 1
+                    while depth != n
+                        @myAncestor.pop()
+                        n += -1
                 
                 # adds title to the tree
                 if @myAncestor[depth-1] == null

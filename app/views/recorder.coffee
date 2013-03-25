@@ -494,6 +494,9 @@ class exports.Recorder
                 when 66
                     if action.keyboard.ctrlKey
                         type = 'bold'
+                when 65
+                    if action.keyboard.altKey
+                        type = 'toggle'
 
         else if action.selection
             type = 'selection'
@@ -528,9 +531,9 @@ class exports.Recorder
             fullType = @_getFullActionType(action)
             serializerDisplay = $ "#resultText"
             checkLog  = serializerDisplay.val()
-            checkLog += ' !!! RANDOM TEST FOUND A FAILURE : cf console \n\n'
-            checkLog += 'action fullType : ' + fullType + '\n\naction data :\n'
-            checkLog += JSON.stringify(action) + '\n\nInitial html :\n'
+            checkLog += '\n !!! RANDOM TEST FOUND A FAILURE : cf console \n'
+            checkLog += 'action fullType : ' + fullType + ' - action data :\n'
+            checkLog += JSON.stringify(action) + '\nInitial html :\n'
             checkLog += '\nInitial selection : ' + selBeforeAction + ' \n'
             serializerDisplay.val(checkLog)
 
@@ -546,7 +549,7 @@ class exports.Recorder
             window.playStep = (n) ->
                 that._playAction(history[n].action)
 
-            console.log errormsg
+            console.error(errormsg, lineNumber)
             ###
              Good debugg ! ! !  :-)
             ###
@@ -566,7 +569,7 @@ class exports.Recorder
             # create a random action
             actionType = @_randomChoice(@actionTypes)
             try 
-                action     = @_generateRandomAction(actionType.type)
+                action = @_generateRandomAction(actionType.type)
             catch e
                 if e.message == 'no range to choose'
                     @_initEditorForMadMonkey()
@@ -669,7 +672,7 @@ class exports.Recorder
             weight : 1
         ,
             type   : 'paste'
-            weight : 0
+            weight : 1
         ,
             type   : 'keyEvent'
             weight : 3
@@ -752,6 +755,14 @@ class exports.Recorder
                 keyCode  : 9
                 which    : 9
         ,
+            type     : 'toggle'
+            weight   : 1
+            keyboard :
+                altKey   : true
+                shiftKey : false
+                ctrlKey  : false
+                keyCode  : 65
+                which    : 65
         ]
     linesDistance : [
             weight   : 100
