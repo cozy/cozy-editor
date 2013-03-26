@@ -2704,21 +2704,27 @@ class exports.CNeditor
     #  Then adapt the type of the first line after the children and siblings of
     #    end line. Its previous sibling or parent might have been deleted, 
     #    we then must find its new one in order to adapt its type.
+    ###*
+     * After an insertion or deletion of a bloc of lines, the lines following
+     * the bloc might be incoherent (depth and type of the lines)
+     * This function goes throught these lines to correct their depth.
+     * @param  {Line} startLine     The first line after the bloc of inserted or
+     *                              deleted lines
+     * @param  {Number} deltaInserted Delta of depth between the first line of 
+     *                                the block and its last one.
+     * @param  {number} currentDelta  Delta of depth between the last line of 
+     *                                the block (startLine) and the following.
+     * @param  {Number} minDepth      The depth under wich (this one included) 
+     *                                we are sure the structure is valid and 
+     *                                there is no need to check.
+    ###
     _adaptDepth: (startLine, deltaInserted, currentDelta, minDepth) ->
         if startLine.lineNext == null
             return
 
-        # Calculate depth for start and end line
-        # startLineDepth = startLine.lineDepthAbs
-        # # endLineDepth   = endLine.lineDepthAbs
-        # # deltaDepth     = endLineDepth - startLineDepth
 
-        # # adjust depth of the sons and siblings of endLine if deltadpeth > 1
+        # adjust depth of the sons and siblings of endLine if deltadpeth > 1
         firstNextLine = startLine.lineNext
-        # firstNextLineDepth = firstNextLine.lineDepthAbs
-        # currentDelta = firstNextLine.lineDepthAbs - startLineDepth
-        # deltaInserted  = endLineDepth - startLineDepth
-
         if currentDelta > 1
             lineIt = firstNextLine
             lineIt = @_unIndentBlock(lineIt,deltaInserted)
@@ -2726,26 +2732,6 @@ class exports.CNeditor
                 lineIt = @_unIndentBlock(lineIt,deltaInserted)
 
         return true
-
-    # _adaptDepth: (startLine, endLineDepth) ->
-    #     if startLine.lineNext == null 
-    #         return
-
-    #     # Calculate depth for start and end line
-    #     startLineDepth = startLine.lineDepthAbs
-    #     # endLineDepth   = endLine.lineDepthAbs
-    #     # deltaDepth     = endLineDepth - startLineDepth
-
-    #     # adjust depth of the sons and siblings of endLine if deltadpeth > 1
-    #     firstNextLine = startLine.lineNext
-    #     firstNextLineDepth = firstNextLine.lineDepthAbs
-    #     delta1 = firstNextLine.lineDepthAbs - startLineDepth
-    #     delta  = endLineDepth - startLineDepth
-
-    #     if delta1 > 1
-    #         lineIt = firstNextLine
-    #         while lineIt != null && lineIt.lineDepthAbs > startLineDepth
-    #             lineIt = @_unIndentBlock(lineIt,delta)
 
     _adaptType: (startLine) ->
         # depth are ok, now check type : for each line after firstNextLine find
@@ -2762,7 +2748,6 @@ class exports.CNeditor
         
         return true
             
-
     _unIndentBlock: (firstLine,delta) ->
         line = firstLine
         firstLineDepth = firstLine.lineDepthAbs
@@ -2773,67 +2758,6 @@ class exports.CNeditor
             line.setDepthAbs(newDepth)
             line = line.lineNext
         return line
-
-
-    _adaptDepthV0 : (startLine, startLineDepthAbs, endLineDepthAbs, deltaDepth) ->
-        if startLine.lineNext == null 
-            return
-
-        # adjuste depth of the sons and siblings of endLine if deltadpeth > 1
-        line = startLine.lineNext
-        deltaDepth1stLine = line.lineDepthAbs - startLineDepthAbs
-        if deltaDepth1stLine > 1
-            while line!= null and line.lineDepthAbs >= endLineDepthAbs
-                newDepth = line.lineDepthAbs - deltaDepth
-                line.setDepthAbs(newDepth)
-                line = line.lineNext
-        lineAfterEndLineSons = line
-        
-        # adjust the type of line after endLine
-        line = startLine.lineNext
-        # if the line is a line (Lx), then make it "independant"
-        # by turning it in a Tx, except if unecessary (previou is same
-        # type and same prof)
-        if line.lineType[0] == 'L'
-            prev = @_findPrevSiblingT(line)
-            if prev == null
-                line.setType('T' + line.lineType[1])
-            else
-                line.setType( 'L' + prev.lineType[1] )
-
-        # find the previous sibling of all the lines after the sons and siblings
-        # of endLine (if their depth has been adjusted, other wise we start from
-        # the line just after endLine. Only L are to be checked because their
-        # "parent" might have become of a different type.
-        if line == lineAfterEndLineSons
-            line = line.lineNext
-        else
-            line = lineAfterEndLineSons
-        highestPrevSib = line.linePrev
-        minDepth = line.lineDepthAbs + 1
-
-        # while not at the end and we have not reached a line of depth 1 :
-        while line != null && line.lineDepthAbs > 1 
-            depthLine = line.lineDepthAbs
-
-            if line.lineDepthAbs < minDepth
-                minDepth = line.lineDepthAbs
-                if line.lineType[0] == 'L'
-                    prev = highestPrevSib
-                    while prev.lineDepthAbs > depthLine
-                        prev = prev.linePrev
-                    highestPrevSib = prev
-                    if line.lineType[1] != prev.lineType[1]
-                        # adjust all its lines siblings
-                        while line.lineDepthAbs >= prev.lineDepthAbs
-                            if line.lineDepthAbs == prev.lineDepthAbs
-                                if line.lineType[0] == 'L'
-                                    line.setType('L' + prev.lineType[1])
-                                else
-                                    break
-                            line = line.lineNext
-            line = line.lineNext
-
 
 
 
@@ -3987,7 +3911,7 @@ class exports.CNeditor
                 lineNextStartLine.linePrev = domWalkContext.lastAddedLine
                 @linesDiv.insertBefore(frag, lineNextStartLine.line$[0])
         ###*
-         * 8- Adapt lines type.
+         * 8- Adapt lines depth and type.
         ###
         # @_adaptDepth(domWalkContext.lastAddedLine, domWalkContext.lastAddedLine.lineDepthAbs)
         lastAdded = domWalkContext.lastAddedLine
@@ -4002,21 +3926,6 @@ class exports.CNeditor
                 currentDelta,                  # currentDelta
                 lastAddedDepth  )              # minDepth
             @_adaptType(currSel.startLine)
-
-        # res = @checker.checkLines(this)
-        # if ! res
-        #     debugger
-        #     lastAdded = domWalkContext.lastAddedLine
-        #     if lastAdded.lineNext
-        #         startLineDepth = startLine.lineDepthAbs
-        #         deltaInserted  = startLineDepth - lastAdded.lineDepthAbs
-        #         currentDelta   = lastAdded.lineNext.lineDepthAbs - lastAdded.lineDepthAbs
-        #         @_adaptDepth(
-        #             domWalkContext.lastAddedLine,  # startLine
-        #             deltaInserted,                 # deltaInserted
-        #             currentDelta,                  # currentDelta
-        #             lastAddedDepth )               # minDepth
-        #         @_adaptType(currSel.startLine)
 
         ###*
          * 9- position caret
