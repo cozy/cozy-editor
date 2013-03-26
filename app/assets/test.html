@@ -21,12 +21,13 @@
 
         <!-- Your Markup -->
         <script src="javascripts/vendor.js"></script>
-        <script src="CNeditor.js"></script>
+        <script src="javascripts/app.js"></script>
         <div id="mocha"></div>
         <script src="expect.js"></script>
         <script src="mocha.js"></script>
         <script>mocha.setup('bdd')</script>
         <script src="javascripts/tests.js"></script>  
+        <script>require('test/run').run()</script>
         <script>
            mocha.run();
         </script>

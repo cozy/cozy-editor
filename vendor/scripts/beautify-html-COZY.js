@@ -354,6 +354,29 @@ function style_html(html_source, options) {
           return token;
         }
         else {
+          /*
+          28/02/2013 BJA - modification for Cozy Cloud - 
+          sort the order of attributes of a tag so that same dom produces 
+          same html string whatever browser is used.
+          exemples of token to check the regexp :
+          <div id="CNID_9" class="Lu-3">
+          <a href="https://ww@w.coçzycléë&`$o'*;%u+*-/d.~cc?#=" class="CNE_strong"> n</a>
+          <span class="CNE_strong CNE_underline">
+          <div id="CNID_303" class="Th-2">
+          */
+          reg1 = /(<(a|div|span))([^>]*)>/
+          reg2 = /( *[\w]*=\"[-\/@ç'&*+%éèëïîù`ê;~ $#=?.:\w]*\")/g;
+          attributes = reg1.exec(token);
+          if (attributes && attributes.length>2){
+            ele = attributes[1]
+            if (attributes[3] !== ''){
+              attributes = attributes[3].match(reg2);
+              token = ele + attributes.sort().join('') + '>';
+            }
+          }
+          /* 
+          28/02/2013 BJA - end of modification for Cozy Cloud
+          */
           var tag_name_type = 'TK_TAG_' + this.tag_type;
           return [token, tag_name_type];
         }
