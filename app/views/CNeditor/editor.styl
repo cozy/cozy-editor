@@ -156,9 +156,12 @@ lineMixin(rank)
     border-bottom-style: solid
     border-bottom:1px
     border-color:red
-/* buttons */
 
-.todo-button
+.CNE_task_done
+    background-color:white
+    color:#9E9D9D
+
+.CNE_task_btn
     width: 4px
     display: inline-block
     margin-right: 7px
@@ -180,7 +183,13 @@ lineMixin(rank)
 
     color: white
 
-.todo-button:active
+.CNE_task_btn_done
+    background: actioncolor + 20%
+    border-color: actioncolor + 20%
+
+
+
+.CNE_task_btn:active
     background: #23A5E3
     shadow: 1px 3px 2px rgba(0, 0, 0, 0.2) inset, 0 1px 2px rgba(0, 0, 0, 0.0)
     color: white
@@ -188,7 +197,7 @@ lineMixin(rank)
     border-color: actioncolor - 20%
     font-weight: bold
 
-.todo-button:hover
+.CNE_task_btn:hover
     background: actioncolor + 20%
     border-color: actioncolor + 20%
     font-weight: bold

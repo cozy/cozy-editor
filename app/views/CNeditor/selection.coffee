@@ -1,5 +1,5 @@
 
-selection = {}
+µ = {}
 
 ### ------------------------------------------------------------------------
 # UTILITY FUNCTIONS
@@ -15,24 +15,24 @@ selection = {}
 ###*
  * Called only once from the editor - TODO : role to be verified 
 ###
-selection.cleanSelection = (startLine, endLine, range) ->
+µ.cleanSelection = (startLine, endLine, range) ->
     if startLine is null
         startLine = endLine
         endLine   = endLine.lineNext
-        selection.putStartOnStart range, startLine.line$[0].firstElementChild
+        µ.putStartOnStart range, startLine.line$[0].firstElementChild
         endLine.line$.prepend '<span></span>'
-        selection.putEndOnStart range, endLine.line$[0].firstElementChild
+        µ.putEndOnStart range, endLine.line$[0].firstElementChild
     else
         startNode = startLine.line$[0].lastElementChild.previousElementSibling
         endNode   = endLine.line$[0].lastElementChild.previousElementSibling
         range.setStartAfter startNode, 0
         range.setEndAfter endNode, 0
 
-selection.selectAll = (editor) ->
+µ.selectAll = (editor) ->
     range = document.createRange()
     range.setStartBefore(editor.linesDiv.firstChild)
     range.setEndAfter(editor.linesDiv.lastChild)
-    selection.normalize(range)
+    µ.normalize(range)
     sel = editor.getEditorSelection()
     sel.removeAllRanges()
     sel.addRange(range)
@@ -41,7 +41,7 @@ selection.selectAll = (editor) ->
 ###*
  * Called only once from the editor - TODO : role to be verified 
 ###
-selection.cloneEndFragment = (range, endLine) ->
+µ.cloneEndFragment = (range, endLine) ->
     range4fragment = rangy.createRangyRange()
     range4fragment.setStart range.endContainer, range.endOffset
     range4fragment.setEndAfter endLine.line$[0].lastChild
@@ -152,17 +152,17 @@ selection.cloneEndFragment = (range, endLine) ->
         | cont = body          | bpEnd(cont.lastChild) |
         | offset = cont.length |                       |
 ###
-selection.normalize = (range) ->
-    # console.log 'selection.normalize'
+µ.normalize = (range) ->
+    # console.log 'µ.normalize'
     # console.log '  range.startContainer = ', range.startContainer, range.startOffset
     isCollapsed = range.collapsed
-    newStartBP = selection.normalizeBP(range.startContainer, range.startOffset)
+    newStartBP = µ.normalizeBP(range.startContainer, range.startOffset)
     range.setStart(newStartBP.cont,newStartBP.offset)
     if isCollapsed
         range.collapse(true)
         newEndBP = newStartBP
     else
-        newEndBP = selection.normalizeBP(range.endContainer, range.endOffset)
+        newEndBP = µ.normalizeBP(range.endContainer, range.endOffset)
         range.setEnd(newEndBP.cont,newEndBP.offset)
 
     return [newStartBP, newEndBP]
@@ -177,7 +177,7 @@ selection.normalize = (range) ->
  *                              than in the previous one.
  * @return {object} the suggested break point : {cont:newCont,offset:newOffset}
 ###
-selection.normalizeBP = (cont, offset, preferNext) ->
+µ.normalizeBP = (cont, offset, preferNext) ->
     if cont.nodeName == '#text'
         # nothing to do
         res = {cont:cont,offset:offset}
@@ -202,7 +202,13 @@ selection.normalizeBP = (cont, offset, preferNext) ->
         #     BP7              BP8             BP9    BP10
         # if offset = 0 put bp in 1st child
         if offset == 0
-            res = selection.normalizeBP(cont.firstChild,0)
+            if µ.isSegment(cont.firstChild)
+                res = µ.normalizeBP(cont.firstChild,0)
+            else
+                res = µ.normalizeBP(cont.firstChild.nextSibling,0)
+        # if the 1st element is not a segment (a todobtn for instance)
+        else if offset == 1 && !µ.isSegment(cont.firstChild)
+            res = µ.normalizeBP(cont.firstChild.nextSibling,0)
         # if offset in middle, put bp at the end of previous element or at the
         # beginning of next depending on preferNext value.
         else if offset < cont.children.length-1
@@ -211,35 +217,35 @@ selection.normalizeBP = (cont, offset, preferNext) ->
                 if newCont.nodeName == 'BR'
                     newCont   = cont.children[offset-1]
                 newOffset = 0
-                res       = selection.normalizeBP(newCont, newOffset)
+                res       = µ.normalizeBP(newCont, newOffset)
             else
                 newCont   = cont.children[offset-1]
                 newOffset = newCont.childNodes.length
-                res       = selection.normalizeBP(newCont, newOffset)
+                res       = µ.normalizeBP(newCont, newOffset)
         # if offset before or after </br> put bp at the end of element
         # before </br>
         else
             newCont   = cont.children[cont.children.length-2]
             newOffset = newCont.childNodes.length
-            res       = selection.normalizeBP(newCont, newOffset)
+            res       = µ.normalizeBP(newCont, newOffset)
 
     else if cont.nodeName ==  'DIV' and cont.id == "editor-lines"
         # if offset==0 put bp at begin of first node
         if offset == 0
             newCont   = cont.firstChild
             newOffset = 0
-            res       = selection.normalizeBP(newCont, newOffset)
+            res       = µ.normalizeBP(newCont, newOffset)
         # if bp is at end of container, put bp at end of last node
         else if offset == cont.childNodes.length
             newCont   = cont.lastChild
             newOffset = newCont.childNodes.length
-            res       = selection.normalizeBP(newCont, newOffset)
+            res       = µ.normalizeBP(newCont, newOffset)
         # if bp is in the middle of container, put bp at end of the node 
         # before current bp
         else
             newCont   = cont.children[offset-1]
             newOffset = newCont.childNodes.length
-            res       = selection.normalizeBP(newCont, newOffset)
+            res       = µ.normalizeBP(newCont, newOffset)
 
     if !res
         res = {cont:newCont,offset:newOffset}
@@ -255,9 +261,9 @@ selection.normalizeBP = (cont, offset, preferNext) ->
  *                              than in the previous one.
  * @return {Array} A ref to the array of normalized bp.
 ###
-selection.normalizeBPs = (bps, preferNext) ->
+µ.normalizeBPs = (bps, preferNext) ->
     for bp in bps
-        newBp     = selection.normalizeBP(bp.cont,bp.offset,preferNext)
+        newBp     = µ.normalizeBP(bp.cont,bp.offset,preferNext)
         bp.cont   = newBp.cont
         bp.offset = newBp.offset
     return bps
@@ -270,7 +276,7 @@ selection.normalizeBPs = (bps, preferNext) ->
  * @param  {number} offset offset of the break point
  * @return {object}        {div[element], isStart[bool], isEnd[bool]}
 ###
-selection.getLineDivIsStartIsEnd = (cont, offset)->
+µ.getLineDivIsStartIsEnd = (cont, offset)->
     
 
     # 1- Check offset position in its container. If we are already in the line
@@ -288,10 +294,10 @@ selection.getLineDivIsStartIsEnd = (cont, offset)->
         return div:cont, isStart:isStart, isEnd:isEnd
 
     else
-        if cont.length? # case of cont is a text node
+        if cont.length?  # case of cont is a text node
             isStart = (offset==0)
-            isEnd = (offset==cont.length)
-        else              # we are in an element but not in the line div
+            isEnd   = (offset==cont.length)
+        else             # we are in an element but not in the line div
             isStart = (offset==0)
             isEnd   = (offset==cont.childNodes.length)
 
@@ -303,7 +309,7 @@ selection.getLineDivIsStartIsEnd = (cont, offset)->
             and parent.id?                        \
             and parent.id.substr(0,5) == 'CNID_') \
           and parent.parentNode != null
-        index = selection.getNodeIndex(cont)
+        index = µ.getNodeIndex(cont)
         isStart = isStart && (index==0)
         isEnd = isEnd && (index==parent.childNodes.length-1)
         cont = parent
@@ -312,10 +318,10 @@ selection.getLineDivIsStartIsEnd = (cont, offset)->
     # 3- parent is the line div, check isStart isEnd
     if parent.textContent == '' # case : <div><xx></xx>...</br></div>
         return div:parent, isStart:true, isEnd:true
-    index = selection.getNodeIndex(cont)
+    [segmentI,nodeI] = µ.getSegmentIndex(cont)
     n     = parent.childNodes.length
     isStart = isStart && (index==0)
-    isEnd   = isEnd && ((index==n-1) or (index==n-2))
+    isEnd   = isEnd && ((nodeI==n-1) or (nodeI==n-2))
     
     return div:parent, isStart:isStart, isEnd:isEnd
 
@@ -339,7 +345,7 @@ selection.getLineDivIsStartIsEnd = (cont, offset)->
 
     #     # 1.3 prepare next loop :
     #     # 1.3.1 find offset of the current element among its siblings
-    #     offset = selection.getNodeIndex(parent)
+    #     offset = µ.getNodeIndex(parent)
     #     # 1.3.2 go up to the parent level
     #     parent = parent.parentNode
 
@@ -367,7 +373,7 @@ selection.getLineDivIsStartIsEnd = (cont, offset)->
 
 
 # BJA : usage qu'interne, à voir.
-selection.putStartOnStart = (range, elt) ->
+µ.putStartOnStart = (range, elt) ->
     if elt?.firstChild?
         offset = elt.firstChild.textContent.length
         if offset == 0 then elt.firstChild.data = " "
@@ -379,7 +385,7 @@ selection.putStartOnStart = (range, elt) ->
  
 
 # BJA : usage qu'interne, à voir.
-selection.putEndOnStart = (range, elt) ->
+µ.putEndOnStart = (range, elt) ->
     if elt?.firstChild?
         offset = elt.firstChild.textContent.length
         elt.firstChild.data = " " if offset == 0
@@ -397,19 +403,19 @@ selection.putEndOnStart = (range, elt) ->
  * @param  {number} offset Offset of the break point.
  * @return {element}        The DIV of the line where the break point is.
 ###
-selection.getLineDiv = (cont,offset) ->
+µ.getLineDiv = (cont,offset) ->
     if cont.nodeName == 'DIV' 
         if cont.id == 'editor-lines'
             startDiv = cont.children[offset]
         else
-            startDiv = selection._getLineDiv(cont)
+            startDiv = µ._getLineDiv(cont)
     else
-        startDiv = selection._getLineDiv(cont)
+        startDiv = µ._getLineDiv(cont)
     return startDiv
 
 # Get line that contains given element.
 # Prerequisite : elt must be in a div of a line.
-selection._getLineDiv = (elt)->
+µ._getLineDiv = (elt)->
     parent = elt
     until (parent.nodeName == 'DIV'                                            \
             and parent.id?                                                     \
@@ -425,24 +431,26 @@ selection._getLineDiv = (elt)->
  * point is. If the break point is not in a segment, ie in the line div or even
  * in editor-lines, then it is the line div that will be returned.
  * @param  {element} cont   The contener of the break point
- * @param  {number} offset Offset of the break point.
+ * @param  {number} offset  Offset of the break point. Optional if cont is a 
+ *                          text node
  * @return {element}        The DIV of the line where the break point is.
 ###
-selection.getSegment = (cont,offset) ->
+µ.getSegment = (cont,offset) ->
     if cont.nodeName == 'DIV' 
         if cont.id == 'editor-lines'
             startDiv = cont.children[Math.min(offset, cont.children.length-1)]
         else if cont.id? and cont.id.substr(0,5) == 'CNID_'
             startDiv = cont
         else
-            startDiv = selection.getNestedSegment(cont)
+            startDiv = µ.getNestedSegment(cont)
     else
-        startDiv = selection.getNestedSegment(cont)
+        startDiv = µ.getNestedSegment(cont)
     return startDiv
+
 
 # Get segment that contains given element.
 # Prerequisite : elt must be in a segment of a line.
-selection.getNestedSegment = (elt)->
+µ.getNestedSegment = (elt)->
     parent = elt.parentNode
     until (parent.nodeName == 'DIV'                                            \
             and parent.id?                                                     \
@@ -454,16 +462,21 @@ selection.getNestedSegment = (elt)->
         parent = elt.parentNode
     return elt
 
+µ.isSegment = (segment) ->
+    return !segment.classList.contains('CNE_task_btn')
+
+
+
 ###*
  * Returns the normalized break point at the end of the previous segment of the
  * segment of an element.
  * @param {[type]} elmt [description]
 ###
-selection.setBpPreviousSegEnd = (elmt) ->
-    seg   = selection.getNestedSegment(elmt)
-    index = selection.getNodeIndex(seg)
+µ.setBpPreviousSegEnd = (elmt) ->
+    seg   = µ.getNestedSegment(elmt)
+    index = µ.getNodeIndex(seg)
     # by default normalizeBP will return a bp at the end of previous segment
-    return bp = selection.normalizeBP(seg.parentNode, index)
+    return bp = µ.normalizeBP(seg.parentNode, index)
 
 
 ###*
@@ -471,14 +484,24 @@ selection.setBpPreviousSegEnd = (elmt) ->
  * segment of an element.
  * @param {[type]} elmt [description]
 ###
-selection.setBpNextSegEnd = (elmt) ->
-    seg   = selection.getNestedSegment(elmt)
-    index = selection.getNodeIndex(seg) + 1
+µ.setBpNextSegEnd = (elmt) ->
+    seg   = µ.getNestedSegment(elmt)
+    index = µ.getNodeIndex(seg) + 1
     # by default normalizeBP will return a bp at the end of previous segment
-    return bp = selection.normalizeBP(seg.parentNode, index, true)
+    return bp = µ.normalizeBP(seg.parentNode, index, true)
 
 
-selection.getNodeIndex = (node)->
+µ.getSegmentIndex = (segment)->
+    segmentI = 0
+    for sibling, i in segment.parentNode.childNodes
+        if sibling.classList.contains('CNE_task_btn')
+            segmentI += -1
+        if sibling == segment
+            segmentI += i
+            break
+    return [segmentI,i] # [segmentIndex,nodeIndex]
+
+µ.getNodeIndex = (node)->
     for sibling, i in node.parentNode.childNodes
         if sibling == node
             index = i
@@ -486,4 +509,4 @@ selection.getNodeIndex = (node)->
     return index
 
 
-exports.selection = selection
+exports.selection = µ

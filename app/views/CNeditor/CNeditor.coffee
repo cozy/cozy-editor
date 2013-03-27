@@ -378,7 +378,7 @@ class exports.CNeditor
         # char = String.fromCharCode(e.which)
         # console.log '.'
         # console.log '=====  hotStringDetectionKeypress()', char, e.which, e.keyCode, e.altKey
-        initialHotString = @hotString
+        # initialHotString = @hotString
 
         switch e.which
             # @
@@ -396,8 +396,8 @@ class exports.CNeditor
                     else
                         @hotString = ''
         
-        if initialHotString != @hotString
-            console.log 'hotString changed to : ' + '"' + @hotString + '" which:' + e.which + ' keyCode:' + e.keyCode
+        # if initialHotString != @hotString
+        #     console.log 'hotString changed to : ' + '"' + @hotString + '" which:' + e.which + ' keyCode:' + e.keyCode
              
         if @hotString == ' @todo'
             if @_insertTask()
@@ -407,7 +407,7 @@ class exports.CNeditor
             # @showAutocomplete()
 
     _hotStringDetectionKeydown : (e) =>
-        initialHotString = @hotString
+        # initialHotString = @hotString
         switch e.which || e.keyCode
             when 32,  \ # space
                  13     # return
@@ -427,23 +427,62 @@ class exports.CNeditor
             when 8     # backspace
                 @hotString = @hotString.slice(0, -1)
             
-        if initialHotString != @hotString
-            console.log 'hotString changed to : ' + '"' + @hotString + '" which:' + e.which + ' keyCode:' + e.keyCode
-             
+        # if initialHotString != @hotString
+        #     console.log 'hotString changed to : ' + '"' + @hotString + '" which:' + e.which + ' keyCode:' + e.keyCode
     
 
-    _insertTask : () ->
-        currSel = @updateCurrentSel()
-        lineEl  = currSel.startLine.line$[0]
-        txt = lineEl.textContent.trim()
-        if txt == '@tod'
-            lineEl.innerHTML = "<div class='btn btn-info todo-button'></div><span class='CNE_task'></span></br>"
+    _insertTask : (param) ->
+
+        if !param
+            force = false
+        else
+            force = param.force
+            lineDiv = param.lineDiv
+
+        if !lineDiv
+            currSel = @updateCurrentSel()
+            lineDiv  = currSel.startLine.line$[0]
+
+        txt = lineDiv.textContent.trim()
+        if force or txt == '@tod'
+            lineDiv.innerHTML = "<todobtn class='CNE_task_btn'></todobtn><span class='CNE_task'></span></br>"
             txt = this.document.createTextNode('A new task')
-            lineEl.firstChild.nextSibling.appendChild(txt)
+            btn = lineDiv.firstChild
+            btn.addEventListener 'click', @_toggleTask
+            btn.nextSibling.appendChild(txt)
             @_setSelectionOnNode(txt)
             return true
         else
             return false
+
+    _toggleTask : () =>
+        lineDiv = @_getSelectedLineDiv()
+        btn = lineDiv.firstChild
+        if btn.classList.contains('CNE_task_btn_done')
+            btn.className = 'CNE_task_btn'
+            sibling = btn.nextSibling
+            while sibling.nodeName != 'BR'
+                sibling.classList.add('CNE_task')
+                sibling.classList.remove('CNE_task_done')
+                sibling = sibling.nextSibling
+            @_setCaret(btn.nextSibling,0)
+        else
+            btn.className = 'CNE_task_btn CNE_task_btn_done'
+            sibling = btn.nextSibling
+            while sibling.nodeName != 'BR'
+                sibling.classList.remove('CNE_task')
+                sibling.classList.add('CNE_task_done')
+                sibling = sibling.nextSibling
+            @_setCaret(btn.nextSibling,0)
+
+    _turneLineIntoTask : (lineDiv) ->
+        btn = this.document.createElement('SPAN')
+        btn.className = 'CNE_task_btn'
+        first = lineDiv.firstChild
+        lineDiv.insertBefore(btn, first)
+        while first.nodeName != 'BR'
+            first.classList.add('CNE_task')
+            first = first.nextSibling
 
     _previousChar  : () ->
         rg = this.document.getSelection().getRangeAt(0)
@@ -1815,9 +1854,15 @@ class exports.CNeditor
 
         while nextSegment.nodeName != 'BR'
             
+
+            if !selection.isSegment(segment)
+                segment     = nextSegment
+                nextSegment = nextSegment.nextSibling
+                                
+
             # case of an empty segment (for instance after a suppr or backspace)
             # => remove segment
-            if segment.textContent == ''
+            else if segment.textContent == ''
                 segment     = @_removeSegment(segment, breakPoints)
                 selection.normalizeBPs(breakPoints)
                 nextSegment = segment.nextSibling
@@ -2522,10 +2567,14 @@ class exports.CNeditor
         startLine = currSel.startLine
         endLine   = currSel.endLine
 
+        # 0- check if the start break point is in a task
+        rg = currSel.range
+        isInTask = selection.getSegment(rg.startContainer).classList.contains('CNE_task')
+
         # 1- Delete the selections so that the selection is collapsed
         if currSel.range.collapsed
+        
         else if endLine == startLine
-            rg = currSel.range
             rg.deleteContents()
             bp1 = selection.normalizeBP(rg.startContainer, rg.startOffset)
             @_fusionSimilarSegments(startLine.line$[0],[bp1])
@@ -2547,6 +2596,8 @@ class exports.CNeditor
             )
             # Position caret
             @_setCaret(newLine.line$[0].firstChild.firstChild,0)
+            if isInTask
+                @_insertTask(force:true)
 
         # 3- Caret is at the beginning of the line
         else if currSel.rangeIsStartLine
@@ -2558,7 +2609,10 @@ class exports.CNeditor
                 targetLineDepthRel : startLine.lineDepthRel
             )
             # Position caret
-            @_setCaret(startLine.line$[0].firstChild.firstChild,0)
+            if isInTask
+                @_insertTask(force:true,lineDiv:newLine.line$[0])
+            else
+                @_setCaret(startLine.line$[0].firstChild.firstChild,0)
 
         # 4- Caret is in the middle of the line
         else
@@ -2577,6 +2631,8 @@ class exports.CNeditor
             @_fusionSimilarSegments(newLine.line$[0], [])
             # Position caret
             @_setCaret(newLine.line$[0].firstChild.firstChild,0)
+            if isInTask
+                @_turneLineIntoTask(newLine.line$[0])
 
         # adjuste scroll if the new line gets out of the editor
         l = newLine.line$[0]
@@ -2591,6 +2647,10 @@ class exports.CNeditor
     ###
     getFirstline : () ->
         return @_lines[ @linesDiv.childNodes[0].id ]
+
+    _getSelectedLineDiv : () ->
+        cont = this.document.getSelection().getRangeAt(0).startContainer
+        return selection.getLineDiv(cont)
 
     ### ------------------------------------------------------------------------
     #  _findParent1stSibling
