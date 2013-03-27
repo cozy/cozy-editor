@@ -206,11 +206,12 @@ class exports.CNeditor
         @_initUrlPopover()
 
         # set the properties of the editor
-        @_lines       = {}            # contains every line
-        @newPosition  = true          # true if cursor has moved 
-        @_highestId   = 0             # last inserted line identifier
-        @_deepest     = 1             # current maximum indentation
-        @_firstLine   = null          # pointer to the first line
+        @_lines      = {}            # contains every line
+        @newPosition = true          # true if cursor has moved 
+        @_highestId  = 0             # last inserted line identifier
+        @_deepest    = 1             # current maximum indentation
+        @_firstLine  = null          # pointer to the first line
+        @hotString   = ''            # the string to detect hotStrings
 
         # init history
         HISTORY_SIZE  = 100
@@ -243,6 +244,7 @@ class exports.CNeditor
 
     _mouseupCB : () =>
         @newPosition = true
+        @hotString = ''
 
     _keyupCast : (e) =>
         [metaKeyCode,keyCode] = @getShortCut(e)
@@ -268,8 +270,10 @@ class exports.CNeditor
                 e.stopPropagation()
                 e.preventDefault()
 
+
     _pasteCB : (event) =>
         @paste event
+
 
     _registerEventListeners : () ->
 
@@ -290,25 +294,9 @@ class exports.CNeditor
         @editorBody$.on('click', @_clickCB)
         @editorBody$.on 'paste', @_pasteCB
 
-        # isNormalChar = (keyCode) ->
-        #     return 96 < keyCode < 123  and \  # a .. z
-        #            64 < keyCode < 91   and \  # A .. Z
-        #            47 < keyCode < 58          # 0 .. 9
+        @editorBody$[0].addEventListener('keypress', @_hotStringDetectionKeypress)
+        @editorBody$[0].addEventListener('keydown' , @_hotStringDetectionKeydown)
 
-        # @editorBody$.on 'keypress', (e) =>
-        #     keyCode = e.keyCode
-
-        #     char = String.fromCharCode(e.keyCode)
-            
-        #     switch keyCode
-        #         when 32 # space
-        #             @autoCompleteString = ' '
-        #         when 64 # @
-        #             if @autoCompleteString == ' '
-        #                 @autoCompleteString = ' @'
-        #         else
-        #             if isNormalChar(keyCode)
-        #                 @showAutocomplete()
 
     _unRegisterEventListeners : () ->
         # listen keydown on capturing phase (before bubbling)
@@ -369,8 +357,103 @@ class exports.CNeditor
         if sel.rangeCount == 0
             return false
         return  @serializeRange(sel.getRangeAt(0))
-        
 
+        
+    isNormalChar : (e) ->
+        keyCode = e.which
+        res = !e.altKey && !e.ctrlKey && !e.shiftKey &&  \
+               96 < keyCode < 123  or   \  # a .. z
+               64 < keyCode < 91   or   \  # A .. Z
+               47 < keyCode < 58           # 0 .. 9
+        console.log 'isNormal = ', res, '(' + keyCode + ')'
+        return res
+
+    ###*
+     * Update the current "hotString" typed by the user. This function is called
+     * by keypress event, and detects keys such as '@'
+     * @param  {[type]} e [description]
+     * @return {[type]}   [description]
+    ###
+    _hotStringDetectionKeypress : (e) =>
+        # char = String.fromCharCode(e.which)
+        # console.log '.'
+        # console.log '=====  hotStringDetectionKeypress()', char, e.which, e.keyCode, e.altKey
+        initialHotString = @hotString
+
+        switch e.which
+            # @
+            when 64    
+                
+                if @hotString == ' ' or @_previousChar() == ' '
+                    @hotString = ' @'
+                else
+                    @hotString = ''
+            # not @
+            else
+                if @isNormalChar(e)
+                    if @hotString.length > 1
+                        @hotString += String.fromCharCode(e.which)
+                    else
+                        @hotString = ''
+        
+        if initialHotString != @hotString
+            console.log 'hotString changed to : ' + '"' + @hotString + '" which:' + e.which + ' keyCode:' + e.keyCode
+             
+        if @hotString == ' @todo'
+            if @_insertTask()
+                e.preventDefault()
+
+            # @isNormalChar(keyCode)
+            # @showAutocomplete()
+
+    _hotStringDetectionKeydown : (e) =>
+        initialHotString = @hotString
+        switch e.which || e.keyCode
+            when 32,  \ # space
+                 13     # return
+                @hotString = ' '
+            when 35,  \ # end
+                 36,  \ # home
+                 33,  \ # pgUp
+                 34,  \ # pgDwn
+                 37,  \ # left
+                 38,  \ # up
+                 39,  \ # right
+                 40,  \ # down
+                 9 ,  \ # tab
+                 27,  \ # esc
+                 46    # suppr
+                @hotString = ''
+            when 8     # backspace
+                @hotString = @hotString.slice(0, -1)
+            
+        if initialHotString != @hotString
+            console.log 'hotString changed to : ' + '"' + @hotString + '" which:' + e.which + ' keyCode:' + e.keyCode
+             
+    
+
+    _insertTask : () ->
+        currSel = @updateCurrentSel()
+        lineEl  = currSel.startLine.line$[0]
+        txt = lineEl.textContent.trim()
+        if txt == '@tod'
+            lineEl.innerHTML = "<div class='btn btn-info todo-button'></div><span class='CNE_task'></span></br>"
+            txt = this.document.createTextNode('A new task')
+            lineEl.firstChild.nextSibling.appendChild(txt)
+            @_setSelectionOnNode(txt)
+            return true
+        else
+            return false
+
+    _previousChar  : () ->
+        rg = this.document.getSelection().getRangeAt(0)
+        if rg.startOffset == 0
+            #just test if we are at the beginning of the line, 
+        else
+            car = rg.startContainer.textContent.substr(rg.startOffset-1, 1)
+            if car.charCodeAt(0) == 32 or car.charCodeAt(0) == 160
+                car = ' '
+            return car
 
     ### ------------------------------------------------------------------------
     # EXTENSION : _updateDeepest
@@ -382,7 +465,7 @@ class exports.CNeditor
     #       classes look like "Th-n depth3" for instance if max depth is 3
     # note: These todos arent our priority for now
     ###
-    _updateDeepest : ->
+    _updateDeepest : () ->
         max = 1
         lines = @_lines
         for c of lines
@@ -418,6 +501,7 @@ class exports.CNeditor
         @_readHtml()
         @_setCaret(@linesDiv.firstChild.firstChild, 0, true)
         @newPosition = true
+        @hotString = ''
         # @_initHistory()
 
     ### ------------------------------------------------------------------------
@@ -575,7 +659,8 @@ class exports.CNeditor
         # 1- Prepare the shortcut corresponding to pressed keys
         [metaKeyCode,keyCode] = @getShortCut(e)
         shortcut = metaKeyCode + '-' + keyCode
-        # console.log '_keyDownCallBack', shortcut
+        # console.log '_keyDownCallBack', shortcut, 'e.which'
+        #     , e.which, String.fromCharCode(e.which )
         switch e.keyCode
             when 16 #Shift
                 e.preventDefault()
@@ -634,6 +719,7 @@ class exports.CNeditor
            and shortcut not in ['CtrlShift-down', 'CtrlShift-up',
                             'CtrlShift-right', 'CtrlShift-left']
             @newPosition = true
+            @hotString = ''
         
                  
         # 5- launch the action corresponding to the pressed shortcut
@@ -705,7 +791,7 @@ class exports.CNeditor
                 return true
 
             when 'Ctrl-B'
-                # @strong()
+                @strong()
                 e.preventDefault()
                 @editorTarget$.trigger jQuery.Event('onChange')
 
@@ -2426,10 +2512,10 @@ class exports.CNeditor
                 break
 
 
-    ### ------------------------------------------------------------------------
-    #  _return
-    # return keypress
-    #   e = event
+
+    ###*
+     * Return on the carret position. Selection must be normalized but not 
+     * necessarily collapsed.
     ###
     _return : () ->
         currSel   = this.currentSel
@@ -2499,8 +2585,10 @@ class exports.CNeditor
         if  !( (l.offsetTop + 20 - dh) < p.scrollTop < l.offsetTop )
             l.scrollIntoView(false)
 
-
-
+    ###*
+     * Returns the first line of the editor.
+     * @return {Line} First line of the editor.
+    ###
     getFirstline : () ->
         return @_lines[ @linesDiv.childNodes[0].id ]
 
@@ -2897,6 +2985,25 @@ class exports.CNeditor
             @_setCaret(parent,index + 1)
         else
             @_setCaret(nextEl,0)
+
+    _setSelectionOnNode : (node) ->
+        range = this.document.createRange()
+        range.selectNodeContents(node)
+        selection.normalize(range)
+        sel = this.document.getSelection()
+        sel.removeAllRanges()
+        sel.addRange(range)
+        return true
+
+    _setSelection : (startContainer,startOffset,endContainer,endOffset) ->
+        range = this.document.createRange()
+        range.setStart(startContainer, startOffset )
+        range.setEnd(endContainer, endOffset)
+        selection.normalize(range)
+        sel = this.document.getSelection()
+        sel.removeAllRanges()
+        sel.addRange(range)
+        return true
 
 
 

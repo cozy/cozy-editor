@@ -8,6 +8,10 @@ middlegrey = #3A3A3A
 darkgrey = #525252
 blue = #329ef7
 
+basecolor = #34A6FF
+contrastcolor = #5C5
+actioncolor = #fe8800
+
 @font-face
     font-family: main
     src: url('../fonts/signika-regular.ttf');
@@ -144,6 +148,50 @@ lineMixin(rank)
     left   :0
     bottom :0
 
+
+.CNE_task
+    // border-left:1px
+    // border-left-style: solid
+    background-color:#F3F3F3
+    border-bottom-style: solid
+    border-bottom:1px
+    border-color:red
+/* buttons */
+
+.todo-button
+    width: 4px
+    display: inline-block
+    margin-right: 7px
+    position:relative
+    // top:-1px
+
+    border: 1px solid basecolor
+    // background: basecolor
+    color: white
+    box-shadow: none
+    text-shadow: none
+    border-radius: 0
+    font-family: main
+
+    margin-top: 2px
+    border: 1px solid basecolor
+    box-shadow: none
+    padding: 3px
+
+    color: white
+
+.todo-button:active
+    background: #23A5E3
+    shadow: 1px 3px 2px rgba(0, 0, 0, 0.2) inset, 0 1px 2px rgba(0, 0, 0, 0.0)
+    color: white
+    background: actioncolor -20%
+    border-color: actioncolor - 20%
+    font-weight: bold
+
+.todo-button:hover
+    background: actioncolor + 20%
+    border-color: actioncolor + 20%
+    font-weight: bold
 
 
 p
