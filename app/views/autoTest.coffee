@@ -239,11 +239,15 @@ class exports.AutoTest
                 child1 = child1.nextSibling
 
         # 5- Segments should not be empty (exept in case of an empty line)
-        if children.length > 2
+        if children.length > 1
             for i in [0..children.length-2]
                 if children[i].textContent == ''
-                    txt = "no empty segment in a non empty line"
-                    @logErr(line,txt)
+                    if children[i].dataset.type != ('taskBtn')
+                        txt = "no empty segment in a non empty line"
+                        @logErr(line,txt)
+
+        return true
+
 
 
     buildTree : () ->

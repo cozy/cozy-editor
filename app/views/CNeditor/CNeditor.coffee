@@ -365,7 +365,7 @@ class exports.CNeditor
                96 < keyCode < 123  or   \  # a .. z
                64 < keyCode < 91   or   \  # A .. Z
                47 < keyCode < 58           # 0 .. 9
-        console.log 'isNormal = ', res, '(' + keyCode + ')'
+        # console.log 'isNormal = ', res, '(' + keyCode + ')'
         return res
 
     ###*
@@ -384,7 +384,7 @@ class exports.CNeditor
             # @
             when 64    
                 
-                if @hotString == ' ' or @_previousChar() == ' '
+                if @hotString == ' ' or @_isStartingWord()
                     @hotString = ' @'
                 else
                     @hotString = ''
@@ -445,11 +445,10 @@ class exports.CNeditor
 
         txt = lineDiv.textContent.trim()
         if force or txt == '@tod'
-            lineDiv.innerHTML = "<todobtn class='CNE_task_btn'></todobtn><span class='CNE_task'></span></br>"
+            lineDiv.innerHTML = "<span class='CNE_task'></span></br>"
             txt = this.document.createTextNode('A new task')
-            btn = lineDiv.firstChild
-            btn.addEventListener 'click', @_toggleTask
-            btn.nextSibling.appendChild(txt)
+            lineDiv.firstChild.appendChild(txt)
+            @_turneLineIntoTask(lineDiv)
             @_setSelectionOnNode(txt)
             return true
         else
@@ -478,21 +477,40 @@ class exports.CNeditor
     _turneLineIntoTask : (lineDiv) ->
         btn = this.document.createElement('SPAN')
         btn.className = 'CNE_task_btn'
+        btn.dataset.type = 'taskBtn'
+        btn.addEventListener 'click', @_toggleTask
         first = lineDiv.firstChild
         lineDiv.insertBefore(btn, first)
         while first.nodeName != 'BR'
             first.classList.add('CNE_task')
             first = first.nextSibling
+        return true
 
-    _previousChar  : () ->
-        rg = this.document.getSelection().getRangeAt(0)
-        if rg.startOffset == 0
-            #just test if we are at the beginning of the line, 
-        else
-            car = rg.startContainer.textContent.substr(rg.startOffset-1, 1)
-            if car.charCodeAt(0) == 32 or car.charCodeAt(0) == 160
-                car = ' '
-            return car
+    _isStartingWord  : () ->
+        sel = @updateCurrentSelIsStartIsEnd()
+        # rg = this.document.getSelection().getRangeAt(0)
+        rg = sel.theoricalRange
+        if sel.rangeIsStartLine
+            return true
+        else 
+            if rg.startOffset == 0 # since normalized, range is in a text node
+                rg2 = rg.cloneRange()
+                txt = rg.toString()
+                if txt.length == 0
+                    # we are not at the beginning of the line but there is no 
+                    # text before : means there is a non textual segment embeded
+                    # in the line, for instance an image without space character 
+                    # after it : we consider that this is the start of a word,
+                    # but this is not obvious.
+                    return true
+                char = txt[txt.length]
+            else
+                char = rg.startContainer.textContent.substr(rg.startOffset-1, 1)
+
+            if char.charCodeAt(0) == 32 or char.charCodeAt(0) == 160
+                return true
+            else
+                return false
 
     ### ------------------------------------------------------------------------
     # EXTENSION : _updateDeepest
@@ -2618,7 +2636,7 @@ class exports.CNeditor
         else
             # Deletion of the end of the original line
             currSel.range.setEndBefore( startLine.line$[0].lastChild )
-            testFrag = currSel.range.cloneContents()
+            # testFrag = currSel.range.cloneContents()
             endOfLineFragment = currSel.range.extractContents()
             # insertion
             newLine = @_insertLineAfter (
