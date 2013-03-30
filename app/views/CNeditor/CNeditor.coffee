@@ -28,6 +28,8 @@ if require?
         md2cozy = require('./md2cozy').md2cozy
     if not selection?
         selection = require('./selection').selection
+    if not Task?
+        Task = require('../../models/task')
   
 ###*
  * line$        : 
@@ -156,6 +158,9 @@ class exports.CNeditor
     constructor : (@editorTarget, callBack) ->
         @editorTarget$ = $(@editorTarget)
         @callBack = callBack
+        Task.initialize () =>
+            console.log '== Task initialize', arguments
+            @taskCanBeUsed = true
         if @editorTarget.nodeName == "IFRAME"
             @isInIframe = true
             @editorTarget$.on 'load', @loadEditor
@@ -448,9 +453,9 @@ class exports.CNeditor
             lineDiv.innerHTML = "<span class='CNE_task'></span></br>"
             txt = this.document.createTextNode('A new task')
             lineDiv.firstChild.appendChild(txt)
-            @_turneLineIntoTask(lineDiv)
+            res = @_turneLineIntoTask(lineDiv)
             @_setSelectionOnNode(txt)
-            return true
+            return res
         else
             return false
 
@@ -475,15 +480,33 @@ class exports.CNeditor
             @_setCaret(btn.nextSibling,0)
 
     _turneLineIntoTask : (lineDiv) ->
+        if !@taskReady
+            return false
         btn = this.document.createElement('SPAN')
         btn.className = 'CNE_task_btn'
         btn.dataset.type = 'taskBtn'
+        lineDiv.dataset.type = 'task'
         btn.addEventListener 'click', @_toggleTask
         first = lineDiv.firstChild
         lineDiv.insertBefore(btn, first)
         while first.nodeName != 'BR'
             first.classList.add('CNE_task')
+            first.classList.remove('CNE_task_done')
             first = first.nextSibling
+
+        t = new Task(description:'buy bread')
+        cbFail = () ->
+            console.log "cbFail", arguments
+
+        cbDone = () ->
+            console.log "cbDone", arguments, t.id
+
+        t.save().done(cbDone).fail(cbFail)
+        
+        t.on 'change', ()->
+            console.log 'cbChange', arguments, t
+
+
         return true
 
     _isStartingWord  : () ->
@@ -884,6 +907,9 @@ class exports.CNeditor
             range            : sel.getRangeAt(0)
             startLine        : the 1st line of the current selection
             endLine          : the last line of the current selection
+            startLineDiv     : the element corresponding to startLine
+            endLineDiv       : the element corresponding to endLine
+            isStartInTask    : {Boolean} True if the startLine is a task
             rangeIsStartLine : {boolean} true if the selection ends at 
                                the end of its line : NOT UPDATE HERE - see
                                updateCurrentSelIsStartIsEnd
@@ -918,13 +944,19 @@ class exports.CNeditor
             theoricalRange = range
 
         # get the lines corresponding to the range :
-        startLine = @_lines[selection.getLineDiv(range.startContainer).id]
-        endLine   = @_lines[selection.getLineDiv(range.endContainer  ).id]
+        startLineDiv = selection.getLineDiv(range.startContainer)
+        endLineDiv   = selection.getLineDiv(range.endContainer  )
+        startLine = @_lines[startLineDiv.id]
+        endLine   = @_lines[endLineDiv.id]
+        isStartInTask = startLineDiv.dataset.type == 'task'
         
         # upadte
         @currentSel =
             sel              : sel
             range            : range
+            startLineDiv     : startLineDiv
+            endLineDiv       : endLineDiv
+            isStartInTask    : isStartInTask
             startLine        : startLine
             endLine          : endLine
             rangeIsStartLine : null
@@ -942,6 +974,9 @@ class exports.CNeditor
             range            : sel.getRangeAt(0)
             startLine        : the 1st line of the current selection
             endLine          : the last line of the current selection
+            startLineDiv     : the element corresponding to startLine
+            endLineDiv       : the element corresponding to endLine
+            isStartInTask    : {Boolean} True if the startLine is a task
             rangeIsStartLine : {boolean} true if the selection ends at 
                                the end of its line.
             rangeIsEndLine   : {boolean} true if the selection starts at 
@@ -979,14 +1014,17 @@ class exports.CNeditor
         # find startLine and the rangeIsStartLine
         {div,isStart,isEnd} = selection.getLineDivIsStartIsEnd(
                                             startContainer, initialStartOffset)
-        startLine        = @_lines[div.id]
+        startDiv         = div
+        startLine        = @_lines[startDiv.id]
         rangeIsStartLine = isStart
         firstLineIsEnd   = isEnd
+        isStartInTask    = startDiv.dataset.type == 'task'
 
         # find endLine and the rangeIsEndLine
         {div,isStart,isEnd,} = selection.getLineDivIsStartIsEnd(
                                             endContainer, initialEndOffset)
-        endLine         = @_lines[div.id]
+        endDiv          = div
+        endLine         = @_lines[endDiv.id]
         rangeIsEndLine  = isEnd
         lastLineIsStart = isStart
 
@@ -994,6 +1032,9 @@ class exports.CNeditor
         @currentSel =
             sel              : sel
             range            : range
+            startLineDiv     : startDiv
+            endLineDiv       : endDiv
+            isStartInTask    : isStartInTask
             startLine        : startLine
             endLine          : endLine
             rangeIsStartLine : rangeIsStartLine
@@ -1373,7 +1414,7 @@ class exports.CNeditor
     ###
     _initUrlPopover : () ->
         frag = document.createDocumentFragment()
-        pop = document.createElement('div')
+        pop  = document.createElement('div')
         pop.id = 'CNE_urlPopover'
         pop.className = 'CNE_urlpop'
         pop.setAttribute('contenteditable','false')
@@ -1386,9 +1427,9 @@ class exports.CNeditor
                 <a target="_blank">Open link <span class="CNE_urlpop_shortcuts">(Ctrl+click)</span></a></br>
                 <span>url</span><input type="text"></br>
                 <span>Text</span><input type="text"></br>
-                <button>ok</button>
-                <button>Cancel</button>
-                <button>Delete</button>
+                <button class="btn">ok</button>
+                <button class="btn">Cancel</button>
+                <button class="btn">Delete</button>
             </div>
             """
         pop.titleElt = pop.firstChild 
@@ -1897,7 +1938,8 @@ class exports.CNeditor
                 nextSegment = nextSegment.nextSibling
 
         # check if last segment is empty and is not the only segment
-        if segment.textContent == '' and segment.previousSibling != null
+        if     segment.textContent == ''                                       \
+           and selection.getSegmentIndex(segment)[0] != 0
             segment = @_removeSegment(segment, breakPoints)
             selection.normalizeBPs(breakPoints)
 
@@ -2079,6 +2121,8 @@ class exports.CNeditor
         if sel.range.collapsed
             # 1.1 caret is at the beginning of the line
             if sel.rangeIsStartLine
+                if sel.isStartInTask
+                    alert('Do you want to remove the task ?')
                 # if there is a previous line : modify the selection to make
                 # a multiline deletion
                 if startLine.linePrev != null
@@ -2587,7 +2631,10 @@ class exports.CNeditor
 
         # 0- check if the start break point is in a task
         rg = currSel.range
-        isInTask = selection.getSegment(rg.startContainer).classList.contains('CNE_task')
+        # isInTask = selection.getSegment(rg.startContainer).classList.contains('CNE_task')
+        # isInTask = selection.getLineDiv(rg.startContainer).dataset.type == 'task'
+        isInTask = currSel.isStartInTask
+
 
         # 1- Delete the selections so that the selection is collapsed
         if currSel.range.collapsed
