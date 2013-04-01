@@ -30,6 +30,8 @@ if require?
         selection = require('./selection').selection
     if not Task?
         Task = require('../../models/task')
+    if not AutoComplete?
+        AutoComplete = require('./autocomplete').AutoComplete
   
 ###*
  * line$        : 
@@ -158,9 +160,11 @@ class exports.CNeditor
     constructor : (@editorTarget, callBack) ->
         @editorTarget$ = $(@editorTarget)
         @callBack = callBack
-        Task.initialize () =>
-            console.log '== Task initialize', arguments
-            @taskCanBeUsed = true
+        # Task.initialize () =>
+        #     console.log '== Task initialize', arguments
+        #     @taskCanBeUsed = true
+        @taskCanBeUsed = true #  en attendant implem
+
         if @editorTarget.nodeName == "IFRAME"
             @isInIframe = true
             @editorTarget$.on 'load', @loadEditor
@@ -168,6 +172,7 @@ class exports.CNeditor
         else if @editorTarget.nodeName == "DIV"
             @isInIframe = false
             @loadEditor()
+
         # return a ref to the editor's controler
         return this
 
@@ -200,15 +205,19 @@ class exports.CNeditor
         @document = @editorBody$[0].ownerDocument
 
         # Create div that will contains line
-        @linesDiv = document.createElement 'div'
-        @linesDiv.setAttribute('id','editor-lines')
-        @linesDiv.setAttribute('class','editor-frame')
-        @linesDiv.setAttribute('contenteditable','true')
-        @editorBody$.append @linesDiv
+        linesDiv  = document.createElement('div')
+        @linesDiv = linesDiv
+        linesDiv.setAttribute('id','editor-lines')
+        linesDiv.setAttribute('class','editor-frame')
+        linesDiv.setAttribute('contenteditable','true')
+        @editorBody$.append(linesDiv)
     
         # init clipboard div and url popover
         @_initClipBoard()
         @_initUrlPopover()
+
+        # init autocomplete
+        @_auto = new AutoComplete(linesDiv)
 
         # set the properties of the editor
         @_lines      = {}            # contains every line
@@ -387,19 +396,23 @@ class exports.CNeditor
 
         switch e.which
             # @
-            when 64    
+            when 64
                 
                 if @hotString == ' ' or @_isStartingWord()
                     @hotString = ' @'
+                    targetRange = null # should be the range of the selection
+                    @_auto.show(targetRange, ' @')
                 else
-                    @hotString = ''
+                    @_auto.hide()
             # not @
             else
                 if @isNormalChar(e)
                     if @hotString.length > 1
                         @hotString += String.fromCharCode(e.which)
+                        @_auto.update(@hotString)
                     else
                         @hotString = ''
+                        @_auto.hide() if @hotString.length > 1
         
         # if initialHotString != @hotString
         #     console.log 'hotString changed to : ' + '"' + @hotString + '" which:' + e.which + ' keyCode:' + e.keyCode
@@ -416,6 +429,7 @@ class exports.CNeditor
         switch e.which || e.keyCode
             when 32,  \ # space
                  13     # return
+                @_auto.hide() if @hotString.length > 1
                 @hotString = ' '
             when 35,  \ # end
                  36,  \ # home
@@ -429,12 +443,69 @@ class exports.CNeditor
                  27,  \ # esc
                  46    # suppr
                 @hotString = ''
+                @_auto.update('')
             when 8     # backspace
                 @hotString = @hotString.slice(0, -1)
+                @_auto.update(@hotString)
             
         # if initialHotString != @hotString
         #     console.log 'hotString changed to : ' + '"' + @hotString + '" which:' + e.which + ' keyCode:' + e.keyCode
     
+
+    _autoComplete : () ->
+        hotString = @hotString
+        if !@isAutoCompleteOn
+            @_showAutoComplete()
+            @_auto.Update()
+        else
+            @_auto.Update()
+
+
+    _showAutoComplete : () ->
+
+
+    # ###*
+    #  * initialise the autocomplete during the editor initialization.
+    # ###
+    # _initAutoComplete : () ->
+    #     auto  = document.createElement('div')
+    #     auto.id = 'CNE_autocomplete'
+    #     auto.className = 'CNE_autocomplete'
+    #     auto.setAttribute('contenteditable','false')
+    #     frag.appendChild(auto)
+    #     auto.addEventListener 'keypress', (e) =>
+    #         if e.keyCode == 13 # return
+    #             @_validateUrlPopover()
+    #             e.stopPropagation()
+    #         else if e.keyCode == 27 # esc
+    #             @_cancelUrlPopover(false)
+    #         return false
+
+    #     update = () ->
+
+    #     addItem = (item) ->
+
+
+    #     up = () ->
+
+    #     down = () ->
+
+    #     val = () ->
+
+    #     show = (target) ->
+
+    #     hide = () ->
+
+    #     @autoComplete = 
+    #         el     : auto
+    #         up     : up 
+    #         down   : down
+    #         getVal : val
+    #         show   : show
+    #         hide   : hide
+    #         update : update
+
+    #     return true
 
     _insertTask : (param) ->
 
@@ -480,7 +551,7 @@ class exports.CNeditor
             @_setCaret(btn.nextSibling,0)
 
     _turneLineIntoTask : (lineDiv) ->
-        if !@taskReady
+        if !@taskCanBeUsed
             return false
         btn = this.document.createElement('SPAN')
         btn.className = 'CNE_task_btn'
@@ -494,17 +565,17 @@ class exports.CNeditor
             first.classList.remove('CNE_task_done')
             first = first.nextSibling
 
-        t = new Task(description:'buy bread')
-        cbFail = () ->
-            console.log "cbFail", arguments
+        # t = new Task(description:'buy bread')
+        # cbFail = () ->
+        #     console.log "cbFail", arguments
 
-        cbDone = () ->
-            console.log "cbDone", arguments, t.id
+        # cbDone = () ->
+        #     console.log "cbDone", arguments, t.id
 
-        t.save().done(cbDone).fail(cbFail)
+        # t.save().done(cbDone).fail(cbFail)
         
-        t.on 'change', ()->
-            console.log 'cbChange', arguments, t
+        # t.on 'change', ()->
+        #     console.log 'cbChange', arguments, t
 
 
         return true
@@ -1413,12 +1484,10 @@ class exports.CNeditor
      * initialise the popover during the editor initialization.
     ###
     _initUrlPopover : () ->
-        frag = document.createDocumentFragment()
         pop  = document.createElement('div')
         pop.id = 'CNE_urlPopover'
         pop.className = 'CNE_urlpop'
         pop.setAttribute('contenteditable','false')
-        frag.appendChild(pop)
         pop.innerHTML = 
             """
             <span class="CNE_urlpop_head">Link</span>
@@ -1435,7 +1504,7 @@ class exports.CNeditor
         pop.titleElt = pop.firstChild 
         pop.link = pop.getElementsByTagName('A')[0]
 
-        b = document.querySelector('body')
+        # b = document.querySelector('body')
         # b.insertBefore(frag,b.firstChild)
         [btnOK, btnCancel, btnDelete] = pop.querySelectorAll('button')
         btnOK.addEventListener('click',@_validateUrlPopover)
@@ -3543,7 +3612,7 @@ class exports.CNeditor
         # console.log '_addHistory' , @_history.historyPos.length, @_history.historyPos
         # do nothing if urlpopover is on, otherwise its html will also be 
         # serialized in the history.
-        if @isUrlPopoverOn
+        if @isUrlPopoverOn or @isAutoCompleteOn
             return
 
         # 1- If some undo has been done, delete the steps forward (redo will

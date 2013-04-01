@@ -17,7 +17,9 @@ app = express()
 app.use(express.bodyParser())
 app.use(express.methodOverride())
 app.use(app.router)
+app.use("/editor/", express.static(__dirname + '/../public'))
 app.use("/", express.static(__dirname + '/../public'))
+# app.use("/", express.static(__dirname + '/../public'))
 
 testDirPath  = '../test/test-cases/'
 pasteDirPath = '../test/paste-data-exemples/'
@@ -118,11 +120,11 @@ newFilledArray = (length, val) ->
         i++
     return array
 
-app.put  '/records/' , deleteRecord
-app.get  '/records/' , getAllRecords
-app.post '/records/' , saveToFile
-app.post '/pastes/' ,  savePastesToFile
-app.get  '/pastes/' ,  getPasteData
+app.put  '/editor/records/' , deleteRecord
+app.get  '/editor/records/' , getAllRecords
+app.post '/editor/records/' , saveToFile
+app.post '/editor/pastes/' ,  savePastesToFile
+app.get  '/editor/pastes/' ,  getPasteData
 port = 3000
 app.listen port
 console.log "app listing on port " + port

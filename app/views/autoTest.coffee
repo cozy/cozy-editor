@@ -331,7 +331,7 @@ class exports.AutoTest
         for div, i in objDiv
             myId = div.id
             # jump to nex div if div <=> urlPopover
-            if myId == 'CNE_urlPopover'
+            if myId == 'CNE_urlPopover' or myId == 'CNE_autocomplete'
                 continue
             if /CNID_[0-9]+/.test myId
                 if ! @editor._lines[myId]?

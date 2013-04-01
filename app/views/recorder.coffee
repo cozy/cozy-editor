@@ -37,7 +37,7 @@ class exports.Recorder
             finalState   : @.finalState
         $.ajax
             type: "POST"
-            url: "/records/"
+            url: "/editor/records/"
             data: JSON.stringify(record)
             dataType:'json'
             contentType : "application/json"
@@ -49,7 +49,7 @@ class exports.Recorder
 
 
     load : ->
-        $.get '/records/', (data) =>
+        $.get '/editor/records/', (data) =>
             data = JSON.parse(data)
             data.sort (a,b) ->
                 if Number(a.id) < Number(b.id)
@@ -59,7 +59,7 @@ class exports.Recorder
             for record in data
                 @._prependRecordElement record
             return true
-        $.get '/pastes/', (data) =>
+        $.get '/editor/pastes/', (data) =>
             data = JSON.parse(data)
             @pasteDataArray = []
             for record in data
@@ -85,7 +85,7 @@ class exports.Recorder
         @editor._processPaste = @originalProcessPaste
         $.ajax
             type: "POST"
-            url: "/pastes/"
+            url: "/editor/pastes/"
             data: JSON.stringify(@._recordingPasteSession)
             dataType:'json'
             contentType : "application/json"
@@ -378,7 +378,7 @@ class exports.Recorder
                 @._remove(record)
                 $.ajax
                     type: "PUT"
-                    url: "/records/"
+                    url: "/editor/records/"
                     data:
                         fileName: record.fileName
         
