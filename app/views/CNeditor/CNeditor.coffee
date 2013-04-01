@@ -259,6 +259,7 @@ class exports.CNeditor
     _mouseupCB : () =>
         @newPosition = true
         @hotString = ''
+        @_auto.hide()
 
     _keyupCast : (e) =>
         [metaKeyCode,keyCode] = @getShortCut(e)
@@ -389,9 +390,9 @@ class exports.CNeditor
      * @return {[type]}   [description]
     ###
     _hotStringDetectionKeypress : (e) =>
-        # char = String.fromCharCode(e.which)
+        char = String.fromCharCode(e.which)
         # console.log '.'
-        # console.log '=====  hotStringDetectionKeypress()', char, e.which, e.keyCode, e.altKey
+        console.log '=====  hotStringDetectionKeypress()', char, e.which, e.keyCode, e.altKey, '-' + @hotString + '-'
         # initialHotString = @hotString
 
         switch e.which
@@ -400,8 +401,8 @@ class exports.CNeditor
                 
                 if @hotString == ' ' or @_isStartingWord()
                     @hotString = ' @'
-                    targetRange = null # should be the range of the selection
-                    @_auto.show(targetRange, ' @')
+                    sel = @updateCurrentSel()
+                    @_auto.show(sel , ' @')
                 else
                     @_auto.hide()
             # not @
@@ -417,7 +418,7 @@ class exports.CNeditor
         # if initialHotString != @hotString
         #     console.log 'hotString changed to : ' + '"' + @hotString + '" which:' + e.which + ' keyCode:' + e.keyCode
              
-        if @hotString == ' @todo'
+        if @hotString.trim() == '@todo'
             if @_insertTask()
                 e.preventDefault()
 
@@ -426,27 +427,42 @@ class exports.CNeditor
 
     _hotStringDetectionKeydown : (e) =>
         # initialHotString = @hotString
-        switch e.which || e.keyCode
-            when 32,  \ # space
-                 13     # return
-                @_auto.hide() if @hotString.length > 1
-                @hotString = ' '
-            when 35,  \ # end
-                 36,  \ # home
-                 33,  \ # pgUp
-                 34,  \ # pgDwn
-                 37,  \ # left
-                 38,  \ # up
-                 39,  \ # right
-                 40,  \ # down
-                 9 ,  \ # tab
-                 27,  \ # esc
-                 46    # suppr
-                @hotString = ''
-                @_auto.update('')
-            when 8     # backspace
-                @hotString = @hotString.slice(0, -1)
-                @_auto.update(@hotString)
+        # switch e.which || e.keyCode
+        #     # when 32,  \ # space
+        #     #      13     # return
+        #     #     console.log '=== _hotStringDetectionKeydown', e.which 
+        #     #     if @_auto.isVisible
+        #     #         @hotString = @_auto.val()
+        #     #     @_auto.hide()
+        #         # @hotString = ' '
+        #     # when 35,  \ # end
+        #     #      36,  \ # home
+        #     #      33,  \ # pgUp
+        #     #      34,  \ # pgDwn
+        #     #      37,  \ # left
+        #     #      39,  \ # right
+        #     #      9 ,  \ # tab
+        #     #      27,  \ # esc
+        #     #      46    # suppr
+        #     #     @hotString = ''
+        #         # @_auto.update('')
+        #     # when 38    # up
+        #     #     if @_auto.isVisible
+        #     #         @_auto.up()
+        #     #     else
+        #     #         @hotString = ''
+        #     # when 40    # down
+        #     #     if @_auto.isVisible
+        #     #         @_auto.down()
+        #     #     else
+        #     #         @hotString = ''
+
+        #     when 8     # backspace
+        #         @hotString = @hotString.slice(0, -1)
+        #         if @hotString.length < 2
+        #             @_auto.hide()
+        #         else
+        #             @_auto.update(@hotString)
             
         # if initialHotString != @hotString
         #     console.log 'hotString changed to : ' + '"' + @hotString + '" which:' + e.which + ' keyCode:' + e.keyCode
@@ -864,26 +880,42 @@ class exports.CNeditor
         #    before to run the action corresponding to the shorcut.
 
         # Set a flag if the user moved the caret with keyboard
-        if keyCode in ['left','up','right','down',
-                              'pgUp','pgDwn','end', 'home',
-                              'return', 'suppr', 'backspace']      \
-           and shortcut not in ['CtrlShift-down', 'CtrlShift-up',
-                            'CtrlShift-right', 'CtrlShift-left']
-            @newPosition = true
-            @hotString = ''
+        
+        # if keyCode in ['left','up','right','down',
+        #                       'pgUp','pgDwn','end', 'home',
+        #                       'return', 'suppr', 'backspace']      \
+        #    and shortcut not in ['CtrlShift-down', 'CtrlShift-up',
+        #                     'CtrlShift-right', 'CtrlShift-left']
+        #     @newPosition = true
+
+
+            
         
                  
         # 5- launch the action corresponding to the pressed shortcut
         switch shortcut
 
             when '-return'
-                @updateCurrentSelIsStartIsEnd()
-                @_return()
-                @newPosition = false
-                e.preventDefault()
-                @editorTarget$.trigger jQuery.Event('onChange')
+                if @_auto.isVisible
+                    console.log '=====  _keyDownCallBack()', 'return' , e.which, e.keyCode, e.altKey
+                    @hotString = @_auto.val()
+                    @insertText() # but = insérer le texte validé ds l'auto suggestion
+                    @_auto.hide()
+                    e.preventDefault()
+                else
+                    @updateCurrentSelIsStartIsEnd()
+                    @_return()
+                    @newPosition = false
+                    e.preventDefault()
+                    @editorTarget$.trigger jQuery.Event('onChange')
 
             when '-backspace'
+                @hotString = @hotString.slice(0, -1)
+                if @hotString.length < 2
+                    @_auto.hide()
+                else
+                    @_auto.update(@hotString)
+
                 @updateCurrentSelIsStartIsEnd()
                 @_backspace()
                 # important, for instance in the case of a deletion of a range
@@ -907,14 +939,38 @@ class exports.CNeditor
                 @_suppr(e)
                 @newPosition = true
                 @editorTarget$.trigger jQuery.Event('onChange')
+                @hotString = ''
+                @_auto.hide() 
 
-            # when 'CtrlShift-down'
-            #     @_moveLinesDown()
-            #     e.preventDefault()
-            # when 'CtrlShift-up'
-            #     @_moveLinesUp()
-            #     e.preventDefault()
-            #     
+            when 'CtrlShift-down'
+                # @_moveLinesDown()
+                e.preventDefault()
+
+            when 'CtrlShift-up'
+                # @_moveLinesUp()
+                e.preventDefault()
+
+            when '-up'
+                if @_auto.isVisible
+                    @_auto.up()
+                    e.preventDefault()
+                else
+                    @newPosition = true
+                    @hotString = ''
+
+            when '-down'
+                if @_auto.isVisible
+                    @_auto.down()
+                    e.preventDefault()
+                else
+                    @newPosition = true
+                    @hotString = ''
+
+            when '-left', '-right', '-pgUp', '-pgDwn', '-end', '-home'
+                @newPosition = true
+                @hotString = ''
+                @_auto.hide()
+                
             when 'Ctrl-A'
                 selection.selectAll(this)
                 e.preventDefault()
@@ -936,6 +992,8 @@ class exports.CNeditor
                         @_backspace()
                     @newPosition = false
                 @editorTarget$.trigger jQuery.Event('onChange')
+                if shortcut == '-space'
+                    @hotString = ' '
 
             when 'Ctrl-V'
                 @editorTarget$.trigger jQuery.Event('onChange')
@@ -969,6 +1027,9 @@ class exports.CNeditor
                 @reDo()
                 e.preventDefault()
                 @editorTarget$.trigger jQuery.Event('onChange')
+
+            when '-esc'
+                @_auto.hide()
 
 
 
@@ -1730,7 +1791,7 @@ class exports.CNeditor
     ###*
      * Add or remove a meta data to the segments delimited by the range. The
      * range must be within a single line and normalized (its breakpoints must
-     * be in text nodes)
+     * be in text nodes). 
      * @param  {range} range    The range on which we want to apply the 
      *                          metadata. The range must be within a single line
      *                          and normalized (its breakpoints must be in text

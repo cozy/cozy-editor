@@ -1,4 +1,6 @@
 #CNE_autocomplete
+    display:block
+    position: absolute
     _moz_resizing:false
     font-size:14px
     background-color:whiteSmoke
@@ -7,19 +9,28 @@
     border-style:solid
     border-width:1px
     padding:5px
-    list-style-type: none
+    list-style-type:none
 
 .SUGG_line
     cursor:pointer
     display : block
 
-.SUGG_line > .stong
+.SUGG_selected
+    background-color : rgb(103, 210, 214)
+
+.SUGG_line > .tag
+    // color: #3E3E88
+    font-weight:bold
+
+.SUGG_line > .strong
     font-weight: bold
 
-.SUGG_line > .light
-    font-weight: bold
-
-
+.SUGG_line > .mention
+    font-weight: lighter
+    font-size: 11px
+    float: right
+    margin-left: 10px
+    color:#808080
 
 .SUGG_line:hover
     background-color : rgb(103, 210, 214)
