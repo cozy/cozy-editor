@@ -402,7 +402,7 @@ class exports.CNeditor
                 if @hotString == ' ' or @_isStartingWord()
                     @hotString = ' @'
                     sel = @updateCurrentSel()
-                    @_auto.show(sel , ' @')
+                    @_auto.show(sel , '')
                 else
                     @_auto.hide()
             # not @
@@ -410,7 +410,7 @@ class exports.CNeditor
                 if @isNormalChar(e)
                     if @hotString.length > 1
                         @hotString += String.fromCharCode(e.which)
-                        @_auto.update(@hotString)
+                        @_auto.update(@hotString.slice(2))
                     else
                         @hotString = ''
                         @_auto.hide() if @hotString.length > 1
@@ -425,7 +425,16 @@ class exports.CNeditor
             # @isNormalChar(keyCode)
             # @showAutocomplete()
 
-    _hotStringDetectionKeydown : (e) =>
+    _forceUserHotString : (newHotString) ->
+        rg = @updateCurrentSel().theoricalRange
+        textContent = rg.startContainer.textContent
+
+        txt =   textContent.slice(0,rg.startOffset - @hotString.length + 1 )   \
+              + newHotString 
+              + textContent.slice(rg.startOffset + newHotString.length)
+        textNode.textContent = txt
+
+    # _hotStringDetectionKeydown : (e) =>
         # initialHotString = @hotString
         # switch e.which || e.keyCode
         #     # when 32,  \ # space
@@ -468,16 +477,16 @@ class exports.CNeditor
         #     console.log 'hotString changed to : ' + '"' + @hotString + '" which:' + e.which + ' keyCode:' + e.keyCode
     
 
-    _autoComplete : () ->
-        hotString = @hotString
-        if !@isAutoCompleteOn
-            @_showAutoComplete()
-            @_auto.Update()
-        else
-            @_auto.Update()
+    # _autoComplete : () ->
+    #     hotString = @hotString
+    #     if !@isAutoCompleteOn
+    #         @_showAutoComplete()
+    #         @_auto.Update()
+    #     else
+    #         @_auto.Update()
 
 
-    _showAutoComplete : () ->
+    # _showAutoComplete : () ->
 
 
     # ###*
@@ -898,9 +907,9 @@ class exports.CNeditor
             when '-return'
                 if @_auto.isVisible
                     console.log '=====  _keyDownCallBack()', 'return' , e.which, e.keyCode, e.altKey
-                    @hotString = @_auto.val()
-                    @insertText() # but = insérer le texte validé ds l'auto suggestion
-                    @_auto.hide()
+                    item = @_auto.hide()
+                    @hotString = ' ' + item.text
+                    @_forceUserHotString(item.text) # but = insérer le texte validé ds l'auto suggestion
                     e.preventDefault()
                 else
                     @updateCurrentSelIsStartIsEnd()
@@ -914,7 +923,7 @@ class exports.CNeditor
                 if @hotString.length < 2
                     @_auto.hide()
                 else
-                    @_auto.update(@hotString)
+                    @_auto.update(@hotString.slice(2))
 
                 @updateCurrentSelIsStartIsEnd()
                 @_backspace()

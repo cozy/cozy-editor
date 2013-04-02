@@ -22,10 +22,16 @@ class AutoComplete
             return false
         @el = auto
         # console.log '== AutoComplete', this.items
+        @addItem(text:'@contact', type:'tag', mention:' (@)')
         @addItem(text:'@reminder', type:'tag', mention:' (@@)')
         @addItem(text:'@todo', type:'tag')
-        @addItem(text:'@contact', type:'tag', mention:' (@)')
         @addItem(text:'@tag', type:'tag', mention:' (#)')
+        @addItem(text:'Frank Rousseau', type:'contact')
+        @addItem(text:'Lucas Toulouse', type:'contact')
+        @addItem(text:'Maxence Cote', type:'contact')
+        @addItem(text:'Joseph Silvestre', type:'contact')
+        @addItem(text:'Romain Foucault', type:'contact')
+        @addItem(text:'Zoé Bellot', type:'contact')
         return this
 
     update : (typedTxt) ->
@@ -61,7 +67,7 @@ class AutoComplete
 
 
     val : () ->
-        return @_selectedLine.item.text
+        return @_selectedLine.item
 
 
     show : (currentSel,typedTxt) ->
@@ -114,18 +120,27 @@ class AutoComplete
         line.className = 'SUGG_line'
         @_updateLine(line,item)
 
-        line.addEventListener('mouseover',@_mouseoverCB)
-        line.addEventListener('mouseout', @_mouseoutCB)
+        # line.addEventListener('mouseover',@_mouseoverCB)
+        # line.addEventListener('mouseout', @_mouseoutCB)
         @el.appendChild(line)
         return line
 
     _updateLine : (line,item) ->
         line.style.display = 'block'
         line.innerHTML = ''
+        type = item.type
+
+        if type == 'contact'
+            span = document.createElement('SPAN')
+            span.textContent = '@'
+            span.className = 'prefix'
+            line.appendChild(span)                      
+
         span = document.createElement('SPAN')
         span.textContent = item.text
-        if item.type == 'tag'
-            span.className = 'tag'
+
+        span.className = type
+
         line.appendChild(span)
 
         if item.mention
@@ -147,19 +162,21 @@ class AutoComplete
         line.removeEventListener(@_mouseoutCB)
         @el.removeChild(line)
 
-    _mouseoverCB : (event) ->
-        # this.className = 'SUGG_line SUGG_selected'
+    # _mouseoverCB : (event) ->
+    #     # this.className = 'SUGG_line SUGG_selected'
 
-    _mouseoutCB : (event) ->
+    # _mouseoutCB : (event) ->
         # this.className = 'SUGG_line'
 
     hide : () ->
         if !@isVisible
-            return
+            return false
         @container.removeChild(@el)
         @_unSelectLine()
+        item = @_selectedLine.item
         @_selectedLine = null
         @isVisible = false
+        return item
 
     _shouldDisp : (item,typedTxt) ->
         if @regexStore[typedTxt]
