@@ -212,7 +212,7 @@ cb = () ->
         editorCtrler.setFocus()
 
     $("#labelBtn").on "click", () ->
-        editorCtrler.applyMetaDataOnSelection('CNE_label')
+        editorCtrler._applyMetaDataOnSelection('CNE_label')
         editorCtrler.setFocus()
 
     $("#linkBtn").on "click", () ->

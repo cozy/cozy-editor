@@ -152,10 +152,12 @@ class AutoComplete
         line.item = item
 
     _selectLine : () ->
-        @_selectedLine.classList.add('SUGG_selected')
+        if @_selectedLine
+            @_selectedLine.classList.add('SUGG_selected')
 
     _unSelectLine : () ->
-        @_selectedLine.classList.remove('SUGG_selected')
+        if @_selectedLine
+            @_selectedLine.classList.remove('SUGG_selected')
 
     _removeLine : (line)->
         line.removeEventListener(@_mouseoverCB)
@@ -172,8 +174,11 @@ class AutoComplete
         if !@isVisible
             return false
         @container.removeChild(@el)
-        @_unSelectLine()
-        item = @_selectedLine.item
+        if @_selectedLine
+            @_unSelectLine()
+            item = @_selectedLine.item
+        else
+            item = null
         @_selectedLine = null
         @isVisible = false
         return item

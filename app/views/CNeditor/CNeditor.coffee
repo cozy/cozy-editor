@@ -420,6 +420,8 @@ class exports.CNeditor
              
         if @hotString.trim() == '@todo'
             if @_insertTask()
+                @hotString = ''
+                @_auto.hide()        
                 e.preventDefault()
 
             # @isNormalChar(keyCode)
@@ -427,12 +429,14 @@ class exports.CNeditor
 
     _forceUserHotString : (newHotString) ->
         rg = @updateCurrentSel().theoricalRange
-        textContent = rg.startContainer.textContent
-
-        txt =   textContent.slice(0,rg.startOffset - @hotString.length + 1 )   \
-              + newHotString 
-              + textContent.slice(rg.startOffset + newHotString.length)
+        textNode = rg.startContainer
+        textContent = textNode.textContent
+        index = rg.startOffset - @hotString.length + 1
+        txt =   textContent.slice(0, index)                                 \
+              + newHotString                                                \
+              + textContent.slice(rg.startOffset)
         textNode.textContent = txt
+        @_setSelection(textNode,index,textNode,index + newHotString.length) 
 
     # _hotStringDetectionKeydown : (e) =>
         # initialHotString = @hotString
@@ -906,12 +910,15 @@ class exports.CNeditor
 
             when '-return'
                 if @_auto.isVisible
-                    console.log '=====  _keyDownCallBack()', 'return' , e.which, e.keyCode, e.altKey
+                    console.log '=====  _keyDownCall return _auto=visible' , e.which, e.keyCode, e.altKey
                     item = @_auto.hide()
-                    @hotString = ' ' + item.text
                     @_forceUserHotString(item.text) # but = insérer le texte validé ds l'auto suggestion
+                    if item.type == 'contact'
+                        @_applyMetaDataOnSelection('CNE_contact')                                    
+                    @hotString = ' ' + item.text
                     e.preventDefault()
                 else
+                    console.log '=====  _keyDownCall return _auto= NOT visible' , e.which, e.keyCode, e.altKey
                     @updateCurrentSelIsStartIsEnd()
                     @_return()
                     @newPosition = false
