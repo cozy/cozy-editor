@@ -23,8 +23,8 @@ trueRank(depth)
         limit - maxDepth + depth
 
 titleMixin(rank, type)
-    padding-left unit(max(5, 20 * (rank - 1)+5), px)
-    margin-left unit(0, px)
+    margin-left unit(max(5, 20 * (rank - 1)+5), px)
+    padding-left unit(0, px)
     if type == 1
         width 100%
         box-sizing border-box
@@ -90,10 +90,10 @@ ulMixin(rank)
         list-style-type square
 
 titleLineMixin(rank)
-    padding-left unit(max(5, 20 * (rank - 1)+5), px)
+    margin-left unit(max(5, 20 * (rank - 1)+5), px)
 
 lineMixin(rank)
-    padding-left unit(max(22, 20 * rank), px)
+    margin-left unit(max(22, 20 * rank), px)
 
 
 .Lh-1
@@ -148,50 +148,38 @@ lineMixin(rank)
     left   :0
     bottom :0
 
-
-.CNE_task
-    // border-left:1px
-    // border-left-style: solid
+// TASKS STYLES //
+// common to all tasks
+div[ data-type = "task" ]
     background-color:#F3F3F3
-    border-bottom-style: solid
-    border-bottom:1px
-    border-color:red
-
-.CNE_task_done
-    background-color:white
-    color:#9E9D9D
+// on done tasks, color for the line-through
+div[ data-state = "done" ]
+    text-decoration:line-through
+    color : rgba(55, 55, 55, .25)
+// force the color of text to be different of line-through
+div[ data-state = "done" ] > span
+    color:#777777
 
 .CNE_task_btn
-    width: 4px
+    width: 9px
+    line-height:18px
     display: inline-block
-    margin-right: 7px
     position:relative
-    // top:-1px
-
+    margin-right: 7px
+    margin-top: -1px
+    background-color:white
     border: 1px solid basecolor
-    // background: basecolor
     color: white
     box-shadow: none
     text-shadow: none
     border-radius: 0
     font-family: main
-
-    margin-top: 2px
-    border: 1px solid basecolor
-    box-shadow: none
-    padding: 3px
-    
+    padding: 0px
     cursor: pointer
-    color: white
 
-.CNE_task_btn_done
-    // background: actioncolor + 20%
-    // border-color: actioncolor + 20%
+div[ data-state = "done" ] > .CNE_task_btn
     background-color:#E6E6E6
     border-color:#B1B1B1
-    cursor: pointer
-
-
 
 .CNE_task_btn:active
     background: #23A5E3
@@ -206,7 +194,7 @@ lineMixin(rank)
     border-color: actioncolor + 20%
     font-weight: bold
 
-
+// 
 p
     margin-top    : 0px
     margin-bottom : 0px

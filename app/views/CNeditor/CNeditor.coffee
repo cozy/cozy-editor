@@ -157,14 +157,15 @@ class exports.CNeditor
     #       callBack     = launched when editor ready, the context 
     #                      is set to the editorCtrl (callBack.call(this))
     ###
-    constructor : (@editorTarget, callBack) ->
+    constructor : (editorTarget, callBack) ->
+        @editorTarget  = editorTarget
         @editorTarget$ = $(@editorTarget)
         @callBack = callBack
-        # Task.initialize () =>
-        #     console.log '== Task initialize', arguments
-        #     @taskCanBeUsed = true
-        @taskCanBeUsed = true #  en attendant implem
-
+        # Initialisation of the Tasks
+        Task.initialize () =>
+            @taskCanBeUsed = Task.canBeUsed
+        # launch loard editor in synchrone or async whether the editor is in a
+        # div or an iframe.
         if @editorTarget.nodeName == "IFRAME"
             @isInIframe = true
             @editorTarget$.on 'load', @loadEditor
@@ -191,18 +192,11 @@ class exports.CNeditor
         else
             @editorBody$ = @editorTarget$
 
-            # @getEditorSelection = () ->
-            #     return rangy.getSelection()
-            
-            # @saveEditorSelection = () ->
-            #     sel = this.document.getSelection()
-            #     if sel.rangeCount == 0
-            #         return false
-            #     return @serializeRange(sel.getRangeAt(0))
+        @editorBody = @editorBody$[0]
 
         # a ref to the document (different wether the editor is in an iframe or
         # in a div)
-        @document = @editorBody$[0].ownerDocument
+        @document = @editorBody.ownerDocument
 
         # Create div that will contains line
         linesDiv  = document.createElement('div')
@@ -217,7 +211,7 @@ class exports.CNeditor
         @_initUrlPopover()
 
         # init autocomplete
-        @_auto = new AutoComplete(linesDiv)
+        @_auto = new AutoComplete(linesDiv, this)
 
         # set the properties of the editor
         @_lines      = {}            # contains every line
@@ -256,10 +250,12 @@ class exports.CNeditor
         # callback
         @callBack.call(this)
 
+
     _mouseupCB : () =>
         @newPosition = true
-        @hotString = ''
-        @_auto.hide()
+        # @hotString = ''  # todo bja : supprimer ?
+        # @_auto.hide()
+
 
     _keyupCast : (e) =>
         [metaKeyCode,keyCode] = @getShortCut(e)
@@ -269,7 +265,9 @@ class exports.CNeditor
                 return
         @editorTarget$.trigger jQuery.Event("onKeyUp")
 
+
     _clickCB : (e) =>
+        # console.log "== click"
         @_lastKey = null
         # if the start of selection after a click is in a link, then show
         # url popover to edit the link.
@@ -296,8 +294,8 @@ class exports.CNeditor
         # main actions triger.
         @linesDiv.addEventListener('keydown', @_keyDownCallBackTry, true)
         
-        if @isChromeOrSafari
-           @linesDiv.addEventListener('keyup', @_keyUpCorrection, false)
+        # if @isChromeOrSafari
+        @linesDiv.addEventListener('keyup', @_keyUpCorrection, false)
 
         # Listen to mouse to detect when caret is moved
         @linesDiv.addEventListener('mouseup', @_mouseupCB, true)
@@ -309,8 +307,8 @@ class exports.CNeditor
         @editorBody$.on('click', @_clickCB)
         @editorBody$.on 'paste', @_pasteCB
 
-        @editorBody$[0].addEventListener('keypress', @_hotStringDetectionKeypress)
-        @editorBody$[0].addEventListener('keydown' , @_hotStringDetectionKeydown)
+        @editorBody.addEventListener('keypress', @_hotStringDetectionKeypress)
+        @editorBody.addEventListener('keydown' , @_hotStringDetectionKeydown)
 
 
     _unRegisterEventListeners : () ->
@@ -318,8 +316,8 @@ class exports.CNeditor
         # main actions triger.
         @linesDiv.removeEventListener('keydown', @_keyDownCallBackTry, true)
         
-        if @isChromeOrSafari
-           @linesDiv.removeEventListener('keyup', @_keyUpCorrection, false)
+        # if @isChromeOrSafari
+        @linesDiv.removeEventListener('keyup', @_keyUpCorrection, false)
 
         # Listen to mouse to detect when caret is moved
         @linesDiv.removeEventListener('mouseup', @_mouseupCB, true)
@@ -340,6 +338,7 @@ class exports.CNeditor
     enable : () ->
         @isEnabled = true
         @_registerEventListeners()
+
 
     ###*
      * Set focus on the editor
@@ -378,10 +377,11 @@ class exports.CNeditor
         keyCode = e.which
         res = !e.altKey && !e.ctrlKey && !e.shiftKey &&  \
                96 < keyCode < 123  or   \  # a .. z
-               64 < keyCode < 91   or   \  # A .. Z
+               63 < keyCode < 91   or   \  # @A .. Z
                47 < keyCode < 58           # 0 .. 9
         # console.log 'isNormal = ', res, '(' + keyCode + ')'
         return res
+
 
     ###*
      * Update the current "hotString" typed by the user. This function is called
@@ -392,40 +392,72 @@ class exports.CNeditor
     _hotStringDetectionKeypress : (e) =>
         char = String.fromCharCode(e.which)
         # console.log '.'
-        console.log '=====  hotStringDetectionKeypress()', char, e.which, e.keyCode, e.altKey, '-' + @hotString + '-'
+        # console.log '=====  hotStringDetectionKeypress()', char, e.which, e.keyCode, e.altKey, '-' + @hotString + '-'
         # initialHotString = @hotString
 
-        switch e.which
-            # @
-            when 64
-                
-                if @hotString == ' ' or @_isStartingWord()
-                    @hotString = ' @'
-                    sel = @updateCurrentSel()
-                    @_auto.show(sel , '')
-                else
-                    @_auto.hide()
-            # not @
-            else
-                if @isNormalChar(e)
-                    if @hotString.length > 1
-                        @hotString += String.fromCharCode(e.which)
-                        @_auto.update(@hotString.slice(2))
-                    else
-                        @hotString = ''
-                        @_auto.hide() if @hotString.length > 1
-        
-        # if initialHotString != @hotString
-        #     console.log 'hotString changed to : ' + '"' + @hotString + '" which:' + e.which + ' keyCode:' + e.keyCode
-             
-        if @hotString.trim() == '@todo'
-            if @_insertTask()
-                @hotString = ''
-                @_auto.hide()        
-                e.preventDefault()
+        if e.which == 64  # @
+            if @hotString == ' ' or @_isStartingWord()
+                @hotString = ' @'
+                sel = @updateCurrentSel()
+                @_auto.show(sel , '', sel.startLineDiv)
+                return
 
-            # @isNormalChar(keyCode)
-            # @showAutocomplete()
+        if @isNormalChar(e)
+            if @hotString.length > 1
+                @hotString += String.fromCharCode(e.which)
+                @_auto.update(@hotString.slice(2))
+                if @_doHotStringAction()
+                    e.preventDefault()
+            else
+                @hotString = ''
+                @_auto.hide()
+
+
+    _doHotStringAction : (autoItem, lineDiv) ->
+        if !autoItem
+            autoItem = @_auto.isInItems(@hotString.slice(2))
+            if !autoItem
+                return false
+
+        switch autoItem.type
+            when 'tag'
+                switch autoItem.text
+                    when 'todo'
+                        taskDiv = @_turnIntoTask()
+                        if taskDiv
+                            txt = taskDiv.textContent.trim()
+                            reg = new RegExp('^ *@?t?o?d?o? *$','i')
+                            if txt.match(reg)
+                                @_initTaskContent(taskDiv)
+                            else
+                                @_forceUserHotString('')
+                            @hotString = ''
+                            @_auto.hide() 
+                            return true
+
+            when 'contact'
+                @_forceUserHotString(item.text)
+                @_applyMetaDataOnSelection('CNE_contact')
+                @hotString = ''
+                @_auto.hide()
+                return true
+
+        @_auto.hide() 
+        return false
+
+
+    _initTaskContent : (taskDiv) ->
+        segment = taskDiv.firstChild.nextSibling
+        while segment.nodeName != 'BR'
+            segment = segment.nextSibling
+            taskDiv.removeChild(segment.previousSibling)
+        span = this.document.createElement('SPAN')
+        span.className = 'CNE_task'
+        txt = this.document.createTextNode('A new task')
+        span.appendChild(txt)
+        taskDiv.insertBefore(span,segment)
+        @_setSelectionOnNode(txt)
+
 
     _forceUserHotString : (newHotString) ->
         rg = @updateCurrentSel().theoricalRange
@@ -438,176 +470,96 @@ class exports.CNeditor
         textNode.textContent = txt
         @_setSelection(textNode,index,textNode,index + newHotString.length) 
 
-    # _hotStringDetectionKeydown : (e) =>
-        # initialHotString = @hotString
-        # switch e.which || e.keyCode
-        #     # when 32,  \ # space
-        #     #      13     # return
-        #     #     console.log '=== _hotStringDetectionKeydown', e.which 
-        #     #     if @_auto.isVisible
-        #     #         @hotString = @_auto.val()
-        #     #     @_auto.hide()
-        #         # @hotString = ' '
-        #     # when 35,  \ # end
-        #     #      36,  \ # home
-        #     #      33,  \ # pgUp
-        #     #      34,  \ # pgDwn
-        #     #      37,  \ # left
-        #     #      39,  \ # right
-        #     #      9 ,  \ # tab
-        #     #      27,  \ # esc
-        #     #      46    # suppr
-        #     #     @hotString = ''
-        #         # @_auto.update('')
-        #     # when 38    # up
-        #     #     if @_auto.isVisible
-        #     #         @_auto.up()
-        #     #     else
-        #     #         @hotString = ''
-        #     # when 40    # down
-        #     #     if @_auto.isVisible
-        #     #         @_auto.down()
-        #     #     else
-        #     #         @hotString = ''
 
-        #     when 8     # backspace
-        #         @hotString = @hotString.slice(0, -1)
-        #         if @hotString.length < 2
-        #             @_auto.hide()
-        #         else
-        #             @_auto.update(@hotString)
-            
-        # if initialHotString != @hotString
-        #     console.log 'hotString changed to : ' + '"' + @hotString + '" which:' + e.which + ' keyCode:' + e.keyCode
-    
-
-    # _autoComplete : () ->
-    #     hotString = @hotString
-    #     if !@isAutoCompleteOn
-    #         @_showAutoComplete()
-    #         @_auto.Update()
-    #     else
-    #         @_auto.Update()
-
-
-    # _showAutoComplete : () ->
-
-
-    # ###*
-    #  * initialise the autocomplete during the editor initialization.
-    # ###
-    # _initAutoComplete : () ->
-    #     auto  = document.createElement('div')
-    #     auto.id = 'CNE_autocomplete'
-    #     auto.className = 'CNE_autocomplete'
-    #     auto.setAttribute('contenteditable','false')
-    #     frag.appendChild(auto)
-    #     auto.addEventListener 'keypress', (e) =>
-    #         if e.keyCode == 13 # return
-    #             @_validateUrlPopover()
-    #             e.stopPropagation()
-    #         else if e.keyCode == 27 # esc
-    #             @_cancelUrlPopover(false)
-    #         return false
-
-    #     update = () ->
-
-    #     addItem = (item) ->
-
-
-    #     up = () ->
-
-    #     down = () ->
-
-    #     val = () ->
-
-    #     show = (target) ->
-
-    #     hide = () ->
-
-    #     @autoComplete = 
-    #         el     : auto
-    #         up     : up 
-    #         down   : down
-    #         getVal : val
-    #         show   : show
-    #         hide   : hide
-    #         update : update
-
-    #     return true
-
-    _insertTask : (param) ->
-
-        if !param
-            force = false
-        else
-            force = param.force
-            lineDiv = param.lineDiv
-
+    _turnIntoTask : (lineDiv) ->
         if !lineDiv
             currSel = @updateCurrentSel()
             lineDiv  = currSel.startLine.line$[0]
 
-        txt = lineDiv.textContent.trim()
-        if force or txt == '@tod'
-            lineDiv.innerHTML = "<span class='CNE_task'></span></br>"
-            txt = this.document.createTextNode('A new task')
-            lineDiv.firstChild.appendChild(txt)
-            res = @_turneLineIntoTask(lineDiv)
-            @_setSelectionOnNode(txt)
-            return res
-        else
-            return false
+        return @_turneLineIntoTask(lineDiv)
 
-    _toggleTask : () =>
-        lineDiv = @_getSelectedLineDiv()
-        btn = lineDiv.firstChild
-        if btn.classList.contains('CNE_task_btn_done')
-            btn.className = 'CNE_task_btn'
-            sibling = btn.nextSibling
-            while sibling.nodeName != 'BR'
-                sibling.classList.add('CNE_task')
-                sibling.classList.remove('CNE_task_done')
-                sibling = sibling.nextSibling
-            @_setCaret(btn.nextSibling,0)
-        else
-            btn.className = 'CNE_task_btn CNE_task_btn_done'
-            sibling = btn.nextSibling
-            while sibling.nodeName != 'BR'
-                sibling.classList.remove('CNE_task')
-                sibling.classList.add('CNE_task_done')
-                sibling = sibling.nextSibling
-            @_setCaret(btn.nextSibling,0)
 
     _turneLineIntoTask : (lineDiv) ->
         if !@taskCanBeUsed
             return false
+        
+        # add button
         btn = this.document.createElement('SPAN')
         btn.className = 'CNE_task_btn'
         btn.dataset.type = 'taskBtn'
-        lineDiv.dataset.type = 'task'
-        btn.addEventListener 'click', @_toggleTask
-        first = lineDiv.firstChild
-        lineDiv.insertBefore(btn, first)
-        while first.nodeName != 'BR'
-            first.classList.add('CNE_task')
-            first.classList.remove('CNE_task_done')
-            first = first.nextSibling
-
-        # t = new Task(description:'buy bread')
-        # cbFail = () ->
-        #     console.log "cbFail", arguments
-
-        # cbDone = () ->
-        #     console.log "cbDone", arguments, t.id
-
-        # t.save().done(cbDone).fail(cbFail)
+        text = this.document.createTextNode('\u00a0')
+        btn.appendChild(text) # insert for arrow keys navigation
+        btn.addEventListener 'click', @_toggleTaskCB
+        lineDiv.insertBefore(btn, lineDiv.firstChild)
         
-        # t.on 'change', ()->
-        #     console.log 'cbChange', arguments, t
+        # add lineDiv attibut
+        lineDiv.dataset.type  = 'task'
+        lineDiv.dataset.state = 'undone'
+        
+        # creation of the model of the task
+        t = new Task(description:lineDiv.textContent)
+        lineDiv.task = t
+        t.save()
+        .done () ->
+            console.log " t.save()",t.id
+            lineDiv.dataset.id = t.id
+
+        # will be called by modification on server side.
+        # Modifications initiated on this client will be saved with silent=true
+        # so that this call back is not fired whereas ui is uptodate
+        t.on 'change', () ->
+            console.log " t.change()", t.id
+
+        return lineDiv
 
 
+    _turneTaskIntoLine : (taskDiv) ->
+        
+        # remove button
+        btn = taskDiv.firstChild
+        btn.removeEventListener('click', @_toggleTaskCB)
+        taskDiv.removeChild(btn)
+
+        # remove model :
+        @_stackTaskChange(taskDiv.task,'removed')
+        
+        # taskDiv attibutes
+        taskDiv.task = null
+        taskDiv.dataset.type = ''
+        taskDiv.dataset.state = ''
+        taskDiv.dataset.id   = ''
+
+
+    _toggleTaskCB : (e) =>
+        lineDiv = @_getSelectedLineDiv()
+        btn = lineDiv.firstChild
+        if lineDiv.dataset.state == 'done'
+            lineDiv.dataset.state = 'undone'
+            @_setCaret(btn.nextSibling,0)
+            @_stackTaskChange(lineDiv.task,'undone')
+        else
+            lineDiv.dataset.state = 'done'
+            @_setCaret(btn.nextSibling,0)
+            @_stackTaskChange(lineDiv.task,'done')
+
+        return lineDiv
+
+
+    _detectTaskChange : () ->
+        lineDiv = @currentSel.startLineDiv
+        if lineDiv
+            isTask = @currentSel.isStartInTask
+        else
+            sel = @updateCurrentSel()
+            lineDiv = sel.startLineDiv
+            isTask = sel.isStartInTask
+        if isTask
+            @_stackTaskChange(lineDiv.task, 'modified')
         return true
+
+    _stackTaskChange : (task,action) ->
+        # action in : done, undone, modified, removed
+        console.log 'A task has been ' + action, task.id 
 
     _isStartingWord  : () ->
         sel = @updateCurrentSelIsStartIsEnd()
@@ -910,15 +862,10 @@ class exports.CNeditor
 
             when '-return'
                 if @_auto.isVisible
-                    console.log '=====  _keyDownCall return _auto=visible' , e.which, e.keyCode, e.altKey
                     item = @_auto.hide()
-                    @_forceUserHotString(item.text) # but = insérer le texte validé ds l'auto suggestion
-                    if item.type == 'contact'
-                        @_applyMetaDataOnSelection('CNE_contact')                                    
-                    @hotString = ' ' + item.text
+                    @_doHotStringAction(item)
                     e.preventDefault()
                 else
-                    console.log '=====  _keyDownCall return _auto= NOT visible' , e.which, e.keyCode, e.altKey
                     @updateCurrentSelIsStartIsEnd()
                     @_return()
                     @newPosition = false
@@ -953,6 +900,7 @@ class exports.CNeditor
             when '-suppr'
                 @updateCurrentSelIsStartIsEnd()
                 @_suppr(e)
+                e.preventDefault()
                 @newPosition = true
                 @editorTarget$.trigger jQuery.Event('onChange')
                 @hotString = ''
@@ -971,6 +919,7 @@ class exports.CNeditor
                     @_auto.up()
                     e.preventDefault()
                 else
+                    @_previousLineDiv = @updateCurrentSel().startLineDiv
                     @newPosition = true
                     @hotString = ''
 
@@ -1008,6 +957,7 @@ class exports.CNeditor
                         @_backspace()
                     @newPosition = false
                 @editorTarget$.trigger jQuery.Event('onChange')
+                @_detectTaskChange()
                 if shortcut == '-space'
                     @hotString = ' '
 
@@ -1209,52 +1159,58 @@ class exports.CNeditor
     ###
     _keyUpCorrection : (e) =>
         
+        container = this.document.getSelection().getRangeAt(0).startContainer
+        if container.nodeName != 'SPAN'
+            container = container.parentElement
+        if container.className == 'CNE_task_btn'
+            @_setCaret(container.nextSibling,0)
+        
+        if @isChromeOrSafari
         # loop on all elements of the div of the line. If there are textnodes,
         # insert them in the previous span, if none, to the next, if none create
         # one. Then delete the textnode.
-        
-        curSel = @updateCurrentSel()
-        line   = curSel.startLine.line$[0]
-        nodes  = line.childNodes
-        l = nodes.length
-        i = 0
-        while i < l
-            node = nodes[i]
-            if node.nodeName == '#text'
-                t = node.textContent
-                if node.previousSibling
-                    if node.previousSibling.nodeName in ['SPAN','A']
-                        node.previousSibling.textContent += t
+            curSel = @updateCurrentSel()
+            line   = curSel.startLine.line$[0]
+            nodes  = line.childNodes
+            l = nodes.length
+            i = 0
+            while i < l
+                node = nodes[i]
+                if node.nodeName == '#text'
+                    t = node.textContent
+                    if node.previousSibling
+                        if node.previousSibling.nodeName in ['SPAN','A']
+                            node.previousSibling.textContent += t
+                        else
+                            throw new Error('A line should be constituted of 
+                                only <span> and <a>')
+                    else if node.nextSibling
+                        if node.nextSibling.nodeName in ['SPAN','A']
+                            node.nextSibling.textContent = t + 
+                                node.nextSibling.textContent
+                            # TODO : position of carret should be at the end of 
+                            # string "t"
+                        else if node.nextSibling.nodeName in ['BR']
+                            newSpan = document.createElement('span')
+                            newSpan.textContent = t
+                            line.replaceChild(newSpan,node)
+                            l += 1
+                            i += 1
+                        else
+                            throw new Error('A line should be constituted of 
+                                only <span> and <a>')
                     else
-                        throw new Error('A line should be constituted of 
-                            only <span> and <a>')
-                else if node.nextSibling
-                    if node.nextSibling.nodeName in ['SPAN','A']
-                        node.nextSibling.textContent = t + 
-                            node.nextSibling.textContent
-                        # TODO : position of carret should be at the end of 
-                        # string "t"
-                    else if node.nextSibling.nodeName in ['BR']
-                        newSpan = document.createElement('span')
-                        newSpan.textContent = t
-                        line.replaceChild(newSpan,node)
-                        l += 1
-                        i += 1
-                    else
-                        throw new Error('A line should be constituted of 
-                            only <span> and <a>')
+                        throw new Error('A line should be constituted of a final
+                                <br/>')
+                    line.removeChild(node)
+                    l -= 1 
                 else
-                    throw new Error('A line should be constituted of a final
-                            <br/>')
-                line.removeChild(node)
-                l -= 1 
-            else
-                i += 1
+                    i += 1
 
-        # the final <br/> may be deleted by chrome : if so : add it.
-        if nodes[l-1].nodeName != 'BR'
-            brNode = document.createElement('br')
-            line.appendChild(brNode)
+            # the final <br/> may be deleted by chrome : if so : add it.
+            if nodes[l-1].nodeName != 'BR'
+                brNode = document.createElement('br')
+                line.appendChild(brNode)
 
         return true
 
@@ -1397,7 +1353,7 @@ class exports.CNeditor
         seg.parentElement.parentElement.appendChild(pop)
         
         # add event listener to detect a click outside of the popover
-        pop.evt = @editorBody$[0].addEventListener('mouseup',@_detectClickOutUrlPopover)
+        @editorBody.addEventListener('mouseup',@_detectClickOutUrlPopover)
         
         # select and put focus in the popover
         pop.urlInput.select()
@@ -1427,7 +1383,7 @@ class exports.CNeditor
         pop = @urlPopover
         segments = pop.segments
         # remove the click listener
-        @editorBody$[0].removeEventListener('mouseup', @_detectClickOutUrlPopover)
+        @editorBody.removeEventListener('mouseup', @_detectClickOutUrlPopover)
         # remove popover
         pop.parentElement.removeChild(pop)
         @.isUrlPopoverOn = false
@@ -1493,7 +1449,7 @@ class exports.CNeditor
 
         # 2- remove background of selection and hide popover
         # pop.style.display = 'none'
-        @editorBody$[0].removeEventListener('mouseup', @_detectClickOutUrlPopover)
+        @editorBody.removeEventListener('mouseup', @_detectClickOutUrlPopover)
         pop.parentElement.removeChild(pop)
         @.isUrlPopoverOn = false
         seg.style.removeProperty('background-color') for seg in segments
@@ -2187,7 +2143,7 @@ class exports.CNeditor
     # 
     # Manage deletions when suppr key is pressed
     ###
-    _suppr : (event) ->
+    _suppr : () ->
         sel = @currentSel
         startLine = sel.startLine
         # 1- Case of a caret "alone" (no selection)
@@ -2199,6 +2155,12 @@ class exports.CNeditor
                 # if there is a next line : modify the selection to make
                 # a multiline deletion
                 if startLine.lineNext != null
+                    if sel.startLineDiv.nextSibling.dataset.type == 'task'
+                        result = window.confirm('Do you want to remove the task ?')
+                        if result
+                            @_turneTaskIntoLine(sel.startLineDiv.nextSibling)
+                        else
+                            return
                     sel.range.setEndBefore(startLine.lineNext.line$[0].firstChild)
                     sel.theoricalRange = sel.range
                     sel.endLine = startLine.lineNext
@@ -2231,6 +2193,8 @@ class exports.CNeditor
                 if textNode.textContent.length == 0
                     @_fusionSimilarSegments(startLine.line$[0], [bp])
                 @_setCaret(bp.cont, bp.offset)
+                if sel.isStartInTask
+                    @_stackTaskChange(sel.startLineDiv.task,'modified') 
 
         # 2- Case of a selection contained in a line
         else if sel.endLine == startLine
@@ -2243,13 +2207,14 @@ class exports.CNeditor
                 offset : sel.range.startOffset
             @_fusionSimilarSegments(sel.startLine.line$[0], [bp])
             @_setCaret(bp.cont, bp.offset)
+            if sel.isStartInTask
+                @_stackTaskChange(sel.startLineDiv.task,'modified')
 
         # 3- Case of a multi lines selection
         else
             # console.log '_suppr 5 - test '
             @_deleteMultiLinesSelections()
 
-        event.preventDefault()
         return false
 
     ### ------------------------------------------------------------------------
@@ -2260,18 +2225,23 @@ class exports.CNeditor
     _backspace : () ->
 
         sel = @currentSel
-                    
+        
         startLine = sel.startLine
 
         # 1- Case of a caret "alone" (no selection)
         if sel.range.collapsed
             # 1.1 caret is at the beginning of the line
             if sel.rangeIsStartLine
-                if sel.isStartInTask
-                    alert('Do you want to remove the task ?')
                 # if there is a previous line : modify the selection to make
                 # a multiline deletion
                 if startLine.linePrev != null
+                    if sel.isStartInTask
+                        result = window.confirm('Do you want to remove the task ?')
+                        if result
+                            @_turneTaskIntoLine(sel.startLineDiv)
+                            @_setCaret(sel.startLineDiv,0)
+                        else
+                            return
                     # console.log '_backspace 3 - test ok'
                     cloneRg = sel.range.cloneRange()
                     cloneRg.setStartBefore(startLine.linePrev.line$[0].lastChild)
@@ -2279,11 +2249,6 @@ class exports.CNeditor
                     sel.theoricalRange = cloneRg
                     sel.startLine = startLine.linePrev
                     @_deleteMultiLinesSelections()
-
-                # if there is no previous line = backspace at the beginning of 
-                # first line : no effect, nothing to do.
-                # else
-                #     console.log '_backspace 4 - test ok'
 
             # 1.2 caret is in the middle of the line : delete one caracter
             else
@@ -2299,6 +2264,7 @@ class exports.CNeditor
                     startOffset = bp.offset
                 # delete one caracter in the textNode
                 txt = textNode.textContent
+                
                 textNode.textContent = txt.substr(0,startOffset-1) + txt.substr(startOffset)
                 bp = 
                     cont   : textNode
@@ -2308,6 +2274,8 @@ class exports.CNeditor
                 if textNode.textContent.length == 0
                     @_fusionSimilarSegments(sel.startLine.line$[0], [bp])
                 @_setCaret(bp.cont, bp.offset)
+                if sel.isStartInTask
+                    @_stackTaskChange(sel.startLineDiv.task,'modified')
 
         # 2- Case of a selection contained in a line
         else if sel.endLine == startLine
@@ -2320,7 +2288,8 @@ class exports.CNeditor
                 offset : sel.range.startOffset
             @_fusionSimilarSegments(sel.startLine.line$[0], [bp])
             @_setCaret(bp.cont, bp.offset)
-
+            if sel.isStartInTask
+                @_stackTaskChange(sel.startLineDiv.task,'modified')
 
         # 3- Case of a multi lines selection
         else
@@ -2808,7 +2777,7 @@ class exports.CNeditor
             # Position caret
             @_setCaret(newLine.line$[0].firstChild.firstChild,0)
             if isInTask
-                @_insertTask(force:true)
+                @_turneLineIntoTask(newLine.line$[0])
 
         # 3- Caret is at the beginning of the line
         else if currSel.rangeIsStartLine
@@ -2821,7 +2790,7 @@ class exports.CNeditor
             )
             # Position caret
             if isInTask
-                @_insertTask(force:true,lineDiv:newLine.line$[0])
+                @_turneLineIntoTask(newLine.line$[0])
             else
                 @_setCaret(startLine.line$[0].firstChild.firstChild,0)
 
@@ -2829,6 +2798,9 @@ class exports.CNeditor
         else
             # Deletion of the end of the original line
             currSel.range.setEndBefore( startLine.line$[0].lastChild )
+            # If the line is a task :
+            if currSel.isStartInTask
+                @_stackTaskChange(startLine.line$[0],'modified')
             # testFrag = currSel.range.cloneContents()
             endOfLineFragment = currSel.range.extractContents()
             # insertion
@@ -3016,6 +2988,17 @@ class exports.CNeditor
 
         # Adapt end line type if needed.
         # @_adaptEndLineType startLine, endLine, endLineDepth
+
+        # Detect the task that will be removed
+        if startLine.line$[0].dataset.type == 'task'
+            @_stackTaskChange(startLine.line$[0].task,'modified')
+        line = startLine.lineNext
+        while line != endLine
+            if line.line$[0].dataset.type == 'task'
+                @_stackTaskChange(line.line$[0].task,'removed')
+            line = line.lineNext
+        if line.line$[0].dataset.type == 'task'
+            @_stackTaskChange(line.line$[0].task,'removed')
 
         # Delete selection and adapt remaining parts consequently.
         range.deleteContents()

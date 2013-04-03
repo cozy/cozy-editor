@@ -127,4 +127,4 @@ app.post '/editor/pastes/' ,  savePastesToFile
 app.get  '/editor/pastes/' ,  getPasteData
 port = 3000
 app.listen port
-console.log "app listing on port " + port
+console.log "editor listing on port " + port

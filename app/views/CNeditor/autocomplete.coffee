@@ -2,9 +2,10 @@
 # Exports a single task
 class AutoComplete
     
-    constructor : (container) ->
+    constructor : (container, editor) ->
         
         @container = container
+        @editor = editor
         @items = []
         @regexStore = {}
         @isVisible = false
@@ -22,26 +23,29 @@ class AutoComplete
             return false
         @el = auto
         # console.log '== AutoComplete', this.items
-        @addItem(text:'@contact', type:'tag', mention:' (@)')
-        @addItem(text:'@reminder', type:'tag', mention:' (@@)')
-        @addItem(text:'@todo', type:'tag')
-        @addItem(text:'@tag', type:'tag', mention:' (#)')
-        @addItem(text:'Frank Rousseau', type:'contact')
-        @addItem(text:'Lucas Toulouse', type:'contact')
-        @addItem(text:'Maxence Cote', type:'contact')
-        @addItem(text:'Joseph Silvestre', type:'contact')
-        @addItem(text:'Romain Foucault', type:'contact')
-        @addItem(text:'Zoé Bellot', type:'contact')
+        @addItem (text:'contact' , type:'tag', mention:' (@)' )
+        @addItem (text:'reminder', type:'tag', mention:' (@@)')
+        @addItem (text:'todo'    , type:'tag'                 )
+        @addItem (text:'tag'     , type:'tag', mention:' (#)' )
+        @addItem (text:'Frank @Rousseau' , type:'contact')
+        @addItem (text:'Lucas Toulouse'  , type:'contact')
+        @addItem (text:'Maxence Cote'    , type:'contact')
+        @addItem (text:'Joseph Silvestre', type:'contact')
+        @addItem (text:'Romain Foucault' , type:'contact')
+        @addItem (text:'Zoé Bellot'      , type:'contact')
         return this
+
 
     update : (typedTxt) ->
         if !@isVisible
             return
         @_updateDisp(typedTxt)
 
+
     addItem : (item) ->
         # console.log ' addItem', @items
         @items.push(item)
+
 
     up : () ->
         if !@_selectedLine
@@ -53,6 +57,7 @@ class AutoComplete
             if !@_selectedLine
                 @_selectedLine = @el.lastChild
             @_selectLine()
+
 
     down : () ->
         if !@_selectedLine
@@ -69,12 +74,48 @@ class AutoComplete
     val : () ->
         return @_selectedLine.item
 
+    isInItems : (text) ->
+        for item in @items
+            if text == item.text
+                return item
+        return false
 
-    show : (currentSel,typedTxt) ->
+
+    show : (currentSel,typedTxt,edLineDiv) ->
+        @_currentEdLineDiv = edLineDiv
         @_updateDisp(typedTxt)
         @_position(currentSel)
         @container.appendChild(@el)
         @isVisible = true
+
+        # add event listener to detect a click outside of the popover
+        @container.addEventListener('mousedown',@_detectMousedownAuto)
+        @container.addEventListener('mouseup',@_detectMouseupAuto)
+
+
+    _detectMousedownAuto : (e) =>
+        console.log '== mousedown'
+        e.preventDefault()
+
+
+    _detectMouseupAuto : (e) =>
+        console.log '== mouseup'
+        # detect if click is in the list or out
+        isOut =     e.target != @el                                    \
+                and $(e.target).parents('#CNE_autocomplete').length == 0
+        if isOut
+            @hide()
+        else
+            # _selectedLine = $(e.target).parents('#SUGG_line')[0]
+            selectedLine = e.target
+            while selectedLine && !selectedLine.classList.contains('SUGG_line')
+                selectedLine = selectedLine.parentElement
+            if selectedLine
+                @editor._doHotStringAction(selectedLine.item,@_currentEdLineDiv)
+                @hide()
+            else
+                @hide()
+                
 
     _updateDisp : (typedTxt) ->
 
@@ -100,6 +141,7 @@ class AutoComplete
 
         return true
 
+
     _position : (currentSel) ->
         span = document.createElement('SPAN')
         targetRange = currentSel.theoricalRange
@@ -112,6 +154,7 @@ class AutoComplete
         currentSel.range.collapse(true)
         return true
 
+
     _sortItems : () ->
 
 
@@ -119,28 +162,19 @@ class AutoComplete
         line = document.createElement('LI')
         line.className = 'SUGG_line'
         @_updateLine(line,item)
-
-        # line.addEventListener('mouseover',@_mouseoverCB)
-        # line.addEventListener('mouseout', @_mouseoutCB)
+        # line.addEventListener('click',@_clickCB)
         @el.appendChild(line)
         return line
+
 
     _updateLine : (line,item) ->
         line.style.display = 'block'
         line.innerHTML = ''
         type = item.type
 
-        if type == 'contact'
-            span = document.createElement('SPAN')
-            span.textContent = '@'
-            span.className = 'prefix'
-            line.appendChild(span)                      
-
         span = document.createElement('SPAN')
         span.textContent = item.text
-
         span.className = type
-
         line.appendChild(span)
 
         if item.mention
@@ -151,29 +185,36 @@ class AutoComplete
 
         line.item = item
 
+
     _selectLine : () ->
         if @_selectedLine
             @_selectedLine.classList.add('SUGG_selected')
+
 
     _unSelectLine : () ->
         if @_selectedLine
             @_selectedLine.classList.remove('SUGG_selected')
 
+
     _removeLine : (line)->
-        line.removeEventListener(@_mouseoverCB)
-        line.removeEventListener(@_mouseoutCB)
+        # line.removeEventListener(@_mouseoverCB)
+        # line.removeEventListener(@_mouseoutCB)
         @el.removeChild(line)
 
-    # _mouseoverCB : (event) ->
-    #     # this.className = 'SUGG_line SUGG_selected'
+    # _clickCB : (event) ->
+    #     this.className = 'SUGG_line SUGG_selected'
 
     # _mouseoutCB : (event) ->
         # this.className = 'SUGG_line'
+
 
     hide : () ->
         if !@isVisible
             return false
         @container.removeChild(@el)
+        @_currentEdLineDiv = null
+        @container.removeEventListener('mousedown',@_detectMousedownAuto)
+        @container.removeEventListener('mouseup',@_detectMouseupAuto)
         if @_selectedLine
             @_unSelectLine()
             item = @_selectedLine.item
@@ -183,11 +224,12 @@ class AutoComplete
         @isVisible = false
         return item
 
+
     _shouldDisp : (item,typedTxt) ->
         if @regexStore[typedTxt]
             reg = @regexStore[typedTxt]
         else
-            reg = new RegExp(typedTxt.split('').join('\\w*').replace(/\W/, ""), 'i')
+            reg = new RegExp(typedTxt.split('').join('[\\w ]*'), 'i')
             @regexStore[typedTxt] = reg
         if item.text.match(reg)
             return true
