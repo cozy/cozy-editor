@@ -154,7 +154,7 @@ Line.clone = (line) ->
 
 
 
-class exports.CNeditor
+module.exports = class CNeditor
 
     ###
     #   Constructor : newEditor = new CNEditor( iframeTarget,callBack )

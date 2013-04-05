@@ -20,7 +20,7 @@ exports.config =
         javascripts:
             joinTo:
                 'javascripts/app.js'     : /^app/
-                'javascripts/vendor.js'  : /^vendor/
+                'javascripts/vendor.js'  : /^(vendor)|(CNeditor)/
                 'javascripts/tests.js'   : /^test/
             order:
                 before: [
@@ -32,8 +32,8 @@ exports.config =
 
         stylesheets:
             joinTo:
-                'stylesheets/app.css': /(^app\/views\/CNeditor\/)|(^vendor\/styles)|(^app\/views\/styles)/
-                'stylesheets/CNeditor.css': /(^app\/views\/CNeditor\/)/
+                'stylesheets/app.css': /(^app\/CNeditor)|(^vendor\/styles)|(^app\/views\/styles)/
+                'stylesheets/CNeditor.css': /(^app\/CNeditor\/)/
             order:
                 before: ['vendor/styles/normalize.css']
                 after: ['vendor/styles/helpers.css']

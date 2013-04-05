@@ -1,10 +1,9 @@
 
 # Load librairies used in the app
 require '../lib/app_helpers'
-{beautify} = require('views/beautify')
-{CNeditor} = require('views/CNeditor/CNeditor')
-{AutoTest} = require('views/autoTest')
-{md2cozy} = require 'views/CNeditor/md2cozy'
+CNeditor   = require('CNeditor/editor')
+{beautify} = require('views/beautify' )
+{AutoTest} = require('views/autoTest' )
 
 
 
