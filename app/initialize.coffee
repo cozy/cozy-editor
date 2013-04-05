@@ -20,6 +20,12 @@ drag = $("#drag")
 
 initialSize = Math.round(window.innerWidth/1.66)
 
+resizeWellEditor = () ->
+    console.log 'toto2'
+    edContent = document.getElementById('editorContent')
+    editorBtnBar = document.getElementById('editorBtnBar')
+    edContent.style.top = editorBtnBar.offsetHeight + 'px'
+
 $("#col-wrap").layout
     east__size: initialSize
     spacing_open: 8
@@ -29,6 +35,8 @@ $("#col-wrap").layout
     togglerLength_closed: "100%"
     onresize_end: ->
         drag.css("z-index","-1")
+        console.log 'toto'
+        resizeWellEditor()
 
 # we detect the start of resize with the on mousedown instead of 
 # the onresize_start because this one happens a bit latter what may be a pb.
@@ -36,6 +44,7 @@ $(".ui-layout-resizer").bind 'mousedown', (e)->
     drag.css("z-index","1")
 
 initialSize2 = Math.round(window.innerWidth/3)
+
 
 $("#well-result").layout
     west__size: initialSize2
@@ -230,6 +239,9 @@ cb = () ->
     $("#redoBtn").on "click", () ->
         editorCtrler.reDo()
         editorCtrler.setFocus()
+
+    $('#saveBtn').on 'click', () ->
+        editorCtrler.saveTasks()        
         
     #### -------------------------------------------------------------------
     # CHECK SYNTAX
@@ -484,6 +496,7 @@ cb = () ->
     recorder.load()
 
 
+
 ###****************************************************
  * 2 - CHECK EDITOR STRUCTURE
 ###
@@ -542,6 +555,17 @@ editor2 = 0
 editor3 = 0
 
 $ ->
+    resizeWellEditor()
+
+    $('#ed1').button('toggle')
+    
+    $('#ed1').on 'click', ()->
+        console.log 'click ed1'
+    $('#ed2').on 'click', ()->
+        console.log 'click ed2'
+    $('#ed3').on 'click', ()->
+        console.log 'click ed3'
+
     editor2 = new CNeditor( document.querySelector('#editorIframe2'), () ->
         
         @registerKeyDownCbForTest()

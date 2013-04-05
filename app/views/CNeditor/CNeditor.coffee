@@ -23,15 +23,20 @@
 
 # Require is use only in development mode. During production build, files are
 # concatenated.
-if require?
-    if not md2cozy?
-        md2cozy = require('./md2cozy').md2cozy
-    if not selection?
-        selection = require('./selection').selection
-    if not Task?
-        Task = require('../../models/task')
-    if not AutoComplete?
-        AutoComplete = require('./autocomplete').AutoComplete
+# if require?
+#     if not md2cozy?
+#         md2cozy = require('./md2cozy').md2cozy
+#     if not selection?
+#         selection = require('./selection').selection
+#     if not Task?
+#         Task = require('./task')
+#     if not AutoComplete?
+#         AutoComplete = require('./autocomplete').AutoComplete
+
+md2cozy      = require('./md2cozy').md2cozy
+selection    = require('./selection').selection
+Task         = require('./task')
+AutoComplete = require('./autocomplete').AutoComplete
   
 ###*
  * line$        : 
@@ -162,6 +167,9 @@ class exports.CNeditor
         @editorTarget$ = $(@editorTarget)
         @callBack = callBack
         # Initialisation of the Tasks
+        @_internalTaskCounter = 0
+        @_taskList = []     # all tasks created or loaded since the load of page
+        @_tasksModifStacks = {} # a list of tasks waiting to be sent to server.
         Task.initialize () =>
             @taskCanBeUsed = Task.canBeUsed
         # launch loard editor in synchrone or async whether the editor is in a
@@ -497,18 +505,7 @@ class exports.CNeditor
         lineDiv.dataset.state = 'undone'
         
         # creation of the model of the task
-        t = new Task(description:lineDiv.textContent)
-        lineDiv.task = t
-        t.save()
-        .done () ->
-            console.log " t.save()",t.id
-            lineDiv.dataset.id = t.id
-
-        # will be called by modification on server side.
-        # Modifications initiated on this client will be saved with silent=true
-        # so that this call back is not fired whereas ui is uptodate
-        t.on 'change', () ->
-            console.log " t.change()", t.id
+        @_createTaskForLine(lineDiv)
 
         return lineDiv
 
@@ -557,9 +554,78 @@ class exports.CNeditor
             @_stackTaskChange(lineDiv.task, 'modified')
         return true
 
+
+    ###*
+     * When a line is a task (its div has dataset.type = task) and we don't have
+     * the corresponding model of task, we then create this Task.
+     * It for instance happens when we create a task within the editor.
+     * @param  {Element} lineDiv The line div we will attach the task to.
+    ###
+    _createTaskForLine : (lineDiv) ->
+        t = new Task(description:lineDiv.textContent)
+        lineDiv.task = t
+        t.save()
+        .done () ->
+            console.log " t.save.done()",t.id
+            lineDiv.dataset.id = t.id
+        @_internalTaskCounter += 1
+        t.internalId = 'CNE_task_id_' + @_internalTaskCounter
+        lineDiv.dataset.id = t.internalId # set a temporary id
+        t.lineDiv = lineDiv
+        @_taskList.push(t)
+
+        # will be called by modification on server side.
+        # Modifications initiated on this client will be saved with silent=true
+        # so that this call back is not fired whereas ui is uptodate
+        t.on 'change', () ->
+            console.log " t.change()", t.id
+
+        return true
+
+
+    _setTaskToLine : (lineDiv) ->
+        # console.log '=== _setTaskToLine'
+        id = lineDiv.dataset.id
+        for t in @_taskList
+            if t.id == id or t.internalId == id
+                lineDiv.task = t
+                t.lineDiv = lineDiv
+                return true
+
+        # if the id stored in the hmtml line is a temporary id and that there is
+        # task localy with this temporary id, then it's a strange case (can 
+        # happen if the html of the editor is saved and closed before the task 
+        # has its final id). We choose in this case to create the task.
+        if id.slice(0,12) == 'CNE_task_id_'
+            @_createTaskForLine(lineDiv)
+        else
+            # console.log 'fetch requested with id', id
+            t = new Task(id:id)
+            lineDiv.task = t
+            t.lineDiv = lineDiv
+            t.fetch()
+            .done () ->
+                console.log " t.fetch.done()",t.id
+                # lineDiv.dataset.id = t.id
+            @_taskList.push(t)
+        
+        return null
+
+
     _stackTaskChange : (task,action) ->
         # action in : done, undone, modified, removed
         console.log 'A task has been ' + action, task.id 
+        switch action
+            when 'done'
+                task.set(done:true,silent:true)
+            when 'undone'
+                task.set(done:false,silent:true)
+            when 'modified'
+                task.set(description:task.lineDiv.textContent,silent:true)
+            else
+                return
+
+        @_tasksModifStacks[task.internalId] = t:task, a:action
 
     _isStartingWord  : () ->
         sel = @updateCurrentSelIsStartIsEnd()
@@ -586,6 +652,14 @@ class exports.CNeditor
                 return true
             else
                 return false
+
+
+    saveTasks : () ->
+        for id,t of @_tasksModifStacks
+            console.log 'save :', id,t
+            t.t.save()
+        @_tasksModifStacks = {}
+
 
     ### ------------------------------------------------------------------------
     # EXTENSION : _updateDeepest
@@ -968,7 +1042,6 @@ class exports.CNeditor
             when 'Ctrl-B'
                 @strong()
                 e.preventDefault()
-                @editorTarget$.trigger jQuery.Event('onChange')
 
             # when 'Ctrl-U'
             #     @underline()
@@ -1146,8 +1219,12 @@ class exports.CNeditor
 
 
     ###*
-     * This function is called only if in Chrome, because the insertion of a 
-     * caracter by the browser may be out of a span. 
+     * This function is called two correct 2 problems :
+     * A/ in order to keep the navigation with arrows working, we have to insert
+     * a text in the buttons of tasks. That's why we have to remove the carret 
+     * from the button when the browser put it in a button.
+     * B/ in Chrome, the insertion of a caracter by the browser may be out of a 
+     * span. 
      * This is du to a bug in Chrome : you can create a range with its start 
      * break point in an empty span. But if you add this range to the selection,
      * then this latter will not respect your range and its start break point 
@@ -1159,12 +1236,24 @@ class exports.CNeditor
     ###
     _keyUpCorrection : (e) =>
         
+        # A- remove carret from tasks buttons.
         container = this.document.getSelection().getRangeAt(0).startContainer
         if container.nodeName != 'SPAN'
             container = container.parentElement
         if container.className == 'CNE_task_btn'
-            @_setCaret(container.nextSibling,0)
+            # if left : go to the end of previous line.
+            if e.keyCode == 37 
+                line = selection.getLineDiv(container,0).previousSibling
+                if line
+                    newCont = line.lastChild.previousSibling
+                    @_setCaret(newCont,newCont.childNodes.length)
+                else
+                    @_setCaret(container.nextSibling,0)
+            # put it at the beginning of the text of the task
+            else 
+                @_setCaret(container.nextSibling,0)
         
+        # B- if chrome, place last caracter in the correct segment.
         if @isChromeOrSafari
         # loop on all elements of the div of the line. If there are textnodes,
         # insert them in the previous span, if none, to the next, if none create
@@ -1261,6 +1350,8 @@ class exports.CNeditor
         rg = @._applyMetaDataOnSelection('CNE_strong')
         if !rg
             @._removeLastHistoryStep()
+        else
+            @editorTarget$.trigger jQuery.Event('onChange')
 
 
 
@@ -1268,7 +1359,11 @@ class exports.CNeditor
         if ! @isEnabled or @hasNoSelection(true)
             return true
         @._addHistory()
-        @._applyMetaDataOnSelection('CNE_underline')
+        rg = @._applyMetaDataOnSelection('CNE_underline')
+        if !rg
+            @._removeLastHistoryStep()
+        else
+            @editorTarget$.trigger jQuery.Event('onChange')
 
 
 
@@ -1293,10 +1388,18 @@ class exports.CNeditor
             # case when the start break point is not in a link
             else
                 @_addHistory()
+                # We apply a temporary link metadata in order to make the 
+                # modification zone visible to the user.
+                # We set isUrlPopoverOn so that when we apply this temporary
+                # style there is no detection of modification (neither task nor
+                # editor content nor anything)
+                @isUrlPopoverOn = true 
                 rg = @_applyMetaDataOnSelection('A','http://')
                 if rg
                     segments = @_getLinkSegments(rg)
                     @_showUrlPopover(segments,true)
+                else 
+                    @isUrlPopoverOn = true
         
         return true
             
@@ -1454,17 +1557,19 @@ class exports.CNeditor
         @.isUrlPopoverOn = false
         seg.style.removeProperty('background-color') for seg in segments
 
-        # 3- in case of a link creation, addhistory has already be done, it must 
-        # then be done if non a link creation.
+        # 3- in case of a link creation, addhistory has already be done, but it 
+        # must be done if it is not a link creation.
         if !pop.isLinkCreation
             sel = this.document.getSelection()
             sel.removeAllRanges()
             sel.addRange(pop.initialSelRg) # otherwise addhistory will not work
             @_addHistory()
 
-        # 4- case of a deletion of the urlInput value => 'remove the link'
+        # 4- keep a ref to the modified line
+        lineDiv  = segments[0].parentElement
+
+        # 5- case of a deletion of the urlInput value => 'remove the link'
         if pop.urlInput.value == ''
-            # bps = @_applyMetaData(pop.initialSelRg, false, 'A', [])
             l = segments.length
             bp1 = 
                 cont : segments[0].firstChild
@@ -1474,6 +1579,8 @@ class exports.CNeditor
                 offset : segments[l-1].firstChild.length
             bps = [bp1,bp2]
             @_applyAhrefToSegments(segments[0], segments[l-1], bps, false, '')
+            # fusion similar segments if any
+            @_fusionSimilarSegments(lineDiv, bps)
             # Position selection
             rg = document.createRange()
             bp1 = bps[0]
@@ -1484,14 +1591,21 @@ class exports.CNeditor
             sel.removeAllRanges()
             sel.addRange(rg)
             @setFocus()
+            # restore editor enabled
+            @enable()
+            # warn that a change occured
+            @editorTarget$.trigger jQuery.Event('onChange')
+            # stack Task modifications :
+            if lineDiv.dataset.type == 'task'
+                @_stackTaskChange(lineDiv.task,'modified')
             return true
 
-        # 5- case if only href is changed but not the text
+        # 6- case if only href is changed but not the text
         else if pop.initialTxt == pop.textInput.value
             seg.href = pop.urlInput.value for seg in segments
             lastSeg = seg
 
-        # 6- case if the text of the link is modified : we concatenate 
+        # 7- case if the text of the link is modified : we concatenate 
         # all segments
         else
             seg = segments[0]
@@ -1502,16 +1616,26 @@ class exports.CNeditor
                 seg = segments[i]
                 parent.removeChild(seg)
             lastSeg = segments[0]
-        
-        # 7- manage selection
-        @_setCaretAfter(lastSeg)
+
+        # 8- fusion similar segments if any
+        i = selection.getSegmentIndex(lastSeg)
+        i = i[1]
+        bp = selection.normalizeBP(lineDiv, i+1)
+        @_fusionSimilarSegments(lineDiv, [bp])
+
+        # 9- manage selection
+        @_setCaret(bp.cont,bp.offset)
         @setFocus()
 
-        # 8- restore editor enabled
+        # 10- restore editor enabled
         @enable()
 
-        # 9- warn that a change occured
+        # 11- warn that a change occured
         @editorTarget$.trigger jQuery.Event('onChange')
+
+        # 12- stack Task modifications :
+        if lineDiv.dataset.type == 'task'
+            @_stackTaskChange(lineDiv.task,'modified')
 
     ###*
      * initialise the popover during the editor initialization.
@@ -1899,6 +2023,11 @@ class exports.CNeditor
         # 5- collapse segments with same class
         @_fusionSimilarSegments(lineDiv, breakPoints)
 
+        # 6- stack Task modifications :
+        if lineDiv.dataset.type == 'task'
+            if !@isUrlPopoverOn
+                @_stackTaskChange(lineDiv.task,'modified')
+
         return [bp1,bp2]
 
 
@@ -1921,6 +2050,8 @@ class exports.CNeditor
     ###*
      * Applies or remove a meta data of type "A" (link) on a succession of 
      * segments (from startSegment to endSegment which must be on the same line)
+     * This fuction may let similar segments contiguous, the decision to fusion
+     * is to be taken by the caller.
      * @param  {element} startSegment The first segment to modify
      * @param  {element} endSegment   The last segment to modify (must be in the
      *                                same line as startSegment)
@@ -1994,7 +2125,7 @@ class exports.CNeditor
      *     class and if required href.
      *   * Remove empty segments.
      * @param  {element} lineDiv     the DIV containing the line
-     * @param  {Object} breakPoints [{con,offset}...] array of respectively the 
+     * @param  {Array} breakPoints [{con,offset}...] array of respectively the 
      *                              container and offset of the breakpoint to 
      *                              update if cont is in a segment modified by 
      *                              the fusion. 
@@ -2004,7 +2135,7 @@ class exports.CNeditor
      *                              is put before the deleted segment. At the
      *                              bp might be between segments, ie NOT 
      *                              normalized since not in a textNode.
-     * @return {Object}             A reference to the updated breakpoint.
+     * @return {Array}             A reference to the updated breakpoint.
     ###
     _fusionSimilarSegments : (lineDiv, breakPoints) -> 
         segment     = lineDiv.firstChild
@@ -2800,7 +2931,7 @@ class exports.CNeditor
             currSel.range.setEndBefore( startLine.line$[0].lastChild )
             # If the line is a task :
             if currSel.isStartInTask
-                @_stackTaskChange(startLine.line$[0],'modified')
+                @_stackTaskChange(startLine.line$[0].task,'modified')
             # testFrag = currSel.range.cloneContents()
             endOfLineFragment = currSel.range.extractContents()
             # insertion
@@ -3373,6 +3504,10 @@ class exports.CNeditor
                     if htmlLine.firstChild.childNodes.length == 0
                         txt = document.createTextNode('')
                         htmlLine.firstChild.appendChild(txt)
+            
+            if htmlLine.dataset.type == 'task'
+                @_setTaskToLine(htmlLine)
+
         @_highestId = lineID
 
 

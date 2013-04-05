@@ -247,6 +247,11 @@
             newOffset = newCont.childNodes.length
             res       = µ.normalizeBP(newCont, newOffset)
 
+    else if cont.nodeName ==  'BR'
+            newCont   = cont.previousSibling
+            newOffset = newCont.childNodes.length
+            res       = µ.normalizeBP(newCont, newOffset)
+
     if !res
         res = {cont:newCont,offset:newOffset}
 
@@ -490,7 +495,11 @@
     # by default normalizeBP will return a bp at the end of previous segment
     return bp = µ.normalizeBP(seg.parentNode, index, true)
 
-
+###*
+ * Returns [segmentIndex,nodeIndex]
+ * @param  {Element} segment The segment to find it's indexes
+ * @return {Array}         [segmentIndex,nodeIndex]
+###
 µ.getSegmentIndex = (segment)->
     segmentI = 0
     for sibling, i in segment.parentNode.childNodes
@@ -508,5 +517,5 @@
             break
     return index
 
-
+selection = µ
 exports.selection = µ
