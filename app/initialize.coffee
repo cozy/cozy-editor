@@ -23,7 +23,11 @@ resizeWellEditor = () ->
     console.log 'toto2'
     edContent = document.getElementById('editorContent')
     editorBtnBar = document.getElementById('editorBtnBar')
-    edContent.style.top = editorBtnBar.offsetHeight + 'px'
+    edContent.style.top = editorBtnBar.offsetHeight + 3 + 'px'
+    wellEditor = document.getElementById('well-editor')
+    if editor1
+        editor1.setHeight(wellEditor.offsetHeight-editorBtnBar.offsetHeight-15)
+        console.log (wellEditor.offsetHeight-editorBtnBar.offsetHeight-15 +'px')
 
 $("#col-wrap").layout
     east__size: initialSize

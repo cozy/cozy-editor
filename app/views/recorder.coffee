@@ -1,5 +1,5 @@
 {AutoTest} = require('views/autoTest')
-selection = require('views/CNeditor/selection').selection
+selection  = require('CNeditor/selection').selection
 
 class exports.Recorder
 

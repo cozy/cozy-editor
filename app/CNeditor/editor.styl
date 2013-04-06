@@ -1,16 +1,109 @@
-Debug = 0
-maxDepth=4
-limit = 4
+Debug    = 0
+maxDepth = 4
+limit    = 4
 
-lightgrey = #FDFDFD
-softgrey = #DADADA
+lightgrey  = #FDFDFD
+softgrey   = #DADADA
 middlegrey = #3A3A3A
-darkgrey = #525252
-blue = #329ef7
+darkgrey   = #525252
+blue       = #329ef7
 
-basecolor = #34A6FF
-contrastcolor = #5C5
+basecolor   = #34A6FF
 actioncolor = #fe8800
+
+
+
+/////////////////////////
+//   EDITOR STYLES    //
+///////////////////////
+
+#editor-frame
+    font-family      : main
+    position         : absolute
+    margin           : 0
+    top              : 0
+    right            : 0
+    left             : 0
+    bottom           : 0
+    color            : darkgrey
+    background-color : lightgrey
+    font             : normal 13px/19px main, "Helvetica Neue", Arial, Helvetica, sans-serif
+    font-family      : main
+    -moz-box-sizing  : border-box
+    box-sizing       : border-box
+
+#editor-lines
+    -moz-box-sizing : border-box
+    box-sizing      : border-box
+    font            : normal 13px/18px main, "Helvetica Neue", Arial, Helvetica, sans-serif
+    font-family     : main
+    color           : darkgrey
+    padding-top     : 4px
+    padding-bottom  : 8px
+    padding-left    : 8px
+    padding-right   : 8px
+
+#editor-lines:focus
+    outline: 0px
+    // outline: 1px solid red
+    box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.07),0 0 8px rgba(82, 168, 236, 0.60)
+
+
+/////////////////////////
+//    TASKS STYLES    //
+///////////////////////
+
+task-btn-bgcolor = white
+// common to all tasks
+div[ data-type = "task" ]
+    background-color:#F3F3F3
+// on done tasks, color for the line-through
+div[ data-state = "done" ]
+    text-decoration:line-through
+    color : rgba(55, 55, 55, .25)
+// force the color of text to be different of line-through
+div[ data-state = "done" ] > span
+    color:#777777
+
+.CNE_task_btn
+    width: 9px
+    line-height:18px
+    display: inline-block
+    position:relative
+    margin-right: 7px
+    margin-top: -1px
+    background-color:task-btn-bgcolor
+    border: 1px solid basecolor
+    color: task-btn-bgcolor
+    box-shadow: none
+    text-shadow: none
+    border-radius: 0
+    font-family: main
+    padding: 0px
+    cursor: pointer
+
+div[ data-state = "done" ] > .CNE_task_btn
+    background-color:#E6E6E6
+    border-color:#B1B1B1
+
+.CNE_task_btn:hover
+    background: actioncolor + 20%
+    border-color: actioncolor + 20%
+    font-weight: bold
+
+.CNE_task_btn::-moz-selection
+    color: task-btn-bgcolor
+    background: task-btn-bgcolor
+
+.CNE_task_btn::selection
+    color: task-btn-bgcolor
+    background: task-btn-bgcolor
+
+
+
+/////////////////////////
+//    LINES STYLES    //
+///////////////////////
 
 @font-face
     font-family: main
@@ -95,213 +188,8 @@ titleLineMixin(rank)
 lineMixin(rank)
     margin-left unit(max(22, 20 * rank), px)
 
-
 .Lh-1
     margin-top: 2px
-
-// #__ed-iframe-html
-//     background-color: lightgrey
-
-// #editor-frame {
-//   font-family: main;
-//   overflow: auto;
-//   box-sizing: border-box;
-//   -moz-box-sizing: border-box;
-//   position: relative;
-//   left: 0px;
-//   top: 0px;
-//   color: #525252;
-//   background-color: #fdfdfd;
-//   line-height: 18px;
-//   font: normal 13px/18px main, "Helvetica Neue", Arial, Helvetica, sans-serif;
-//   font-family: main;
-
-#editor-frame
-    font-family : main
-    position    : absolute
-    margin      :0
-    top    :0
-    right  :0
-    left   :0
-    bottom :0
-    color: darkgrey
-    background-color: lightgrey
-    // line-height: 18px
-    font: normal 13px/19px main, "Helvetica Neue", Arial, Helvetica, sans-serif
-    font-family: main
-    -moz-box-sizing : border-box
-    box-sizing: border-box
-
-#editor-lines
-    -moz-box-sizing : border-box
-    box-sizing: border-box
-    font: normal 13px/18px main, "Helvetica Neue", Arial, Helvetica, sans-serif
-    font-family: main
-    color: darkgrey
-    overflow-y: auto
-    padding-left  :8px
-    padding-right :8px
-    position: absolute
-    margin :0
-    top    :0
-    right  :0
-    left   :0
-    bottom :0
-
-// TASKS STYLES //
-task-btn-bgcolor = white
-// common to all tasks
-div[ data-type = "task" ]
-    background-color:#F3F3F3
-// on done tasks, color for the line-through
-div[ data-state = "done" ]
-    text-decoration:line-through
-    color : rgba(55, 55, 55, .25)
-// force the color of text to be different of line-through
-div[ data-state = "done" ] > span
-    color:#777777
-
-.CNE_task_btn
-    width: 9px
-    line-height:18px
-    display: inline-block
-    position:relative
-    margin-right: 7px
-    margin-top: -1px
-    background-color:task-btn-bgcolor
-    border: 1px solid basecolor
-    color: task-btn-bgcolor
-    box-shadow: none
-    text-shadow: none
-    border-radius: 0
-    font-family: main
-    padding: 0px
-    cursor: pointer
-
-div[ data-state = "done" ] > .CNE_task_btn
-    background-color:#E6E6E6
-    border-color:#B1B1B1
-
-.CNE_task_btn:hover
-    background: actioncolor + 20%
-    border-color: actioncolor + 20%
-    font-weight: bold
-
-.CNE_task_btn::-moz-selection
-    color: task-btn-bgcolor
-    background: task-btn-bgcolor
-
-.CNE_task_btn::selection
-    color: task-btn-bgcolor
-    background: task-btn-bgcolor
-
-// 
-p
-    margin-top    : 0px
-    margin-bottom : 0px
-    margin-left   : 0px
-    margin-right  : 0px
-    color         : #333055
-
-dl
-    margin  : 0
-    padding : 0
-
-dt
-    margin  : 0
-    padding : 0
-
-ul, ol
-    margin: 3px 0 0 0
-    padding: 0
-    list-style-type: none
-
-li
-    margin          : 0
-    padding         : 0
-    list-style-type : circle
-    
-dd
-    margin-left: 32px
-
-a
-    color: #0014FF
-    cursor:pointer
-
-.CNE_strong
-    font-weight : bold
-
-.CNE_underline
-    text-decoration : underline
-
-
-.CNE_label
-    border-bottom-left-radius: 3px
-    border-bottom-right-radius: 3px
-    border-top-left-radius: 3px
-    border-top-right-radius: 3px
-    background-color: #3A87AD
-    font-weight: bold
-    text-shadow: 0 -1px 0 rgba(0, 0, 0, 0.25)
-    color: #FFFFFF
-    white-space: nowrap
-    padding-left: 4px
-    padding-right: 4px
-
-
-.CNE_contact
-    border-bottom-left-radius: 3px
-    border-bottom-right-radius: 3px
-    border-top-left-radius: 3px
-    border-top-right-radius: 3px
-    background-color: #3A87AD
-    font-weight: bold
-    text-shadow: 0 -1px 0 rgba(0, 0, 0, 0.25)
-    color: #FFFFFF
-    white-space: nowrap
-    padding-left: 4px
-    padding-right: 4px
-
-.CNE_contact:before
-    content:'@ '
-
-.CNE_urlpop
-    // z-index:2500
-    display:block
-    position: absolute
-    _moz_resizing:false
-    font-size:14px
-    background-color:whiteSmoke
-    border-radius:5px
-    border-color:#CDCDD6
-    border-style:solid
-    border-width:1px
-    padding:5px
-
-
-.CNE_urlpop_head
-    font-weight:bold
-
-.CNE_urlpop a
-    display: inline-block
-    margin-top:9px
-    margin-bottom:9px
-    margin-left:40px
-
-.CNE_urlpop_shortcuts
-    font-size:10px
-    opacity:0.5
-
-.CNE_urlpop-content > span
-    display: inline-block
-    width:33px
-    text-align: right
-
-.CNE_urlpop input
-    margin-left:7px
-    font-size:13px
-    width:250px
-
 
 num = (1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20)
 
@@ -347,3 +235,88 @@ else
     .Th-4:before
         content: counter(section1) "." counter(section2) "." counter(section3) "." counter(section4) " "
 */
+
+
+////////////////////////////
+//   META-DATA STYLES    //
+//////////////////////////
+
+a
+    color: #0014FF
+    cursor:pointer
+
+.CNE_strong
+    font-weight : bold
+    color: #303030
+
+.CNE_underline
+    text-decoration : underline
+
+.CNE_label
+    border-bottom-left-radius: 3px
+    border-bottom-right-radius: 3px
+    border-top-left-radius: 3px
+    border-top-right-radius: 3px
+    background-color: #3A87AD
+    font-weight: bold
+    text-shadow: 0 -1px 0 rgba(0, 0, 0, 0.25)
+    color: #FFFFFF
+    white-space: nowrap
+    padding-left: 4px
+    padding-right: 4px
+
+.CNE_contact
+    border-bottom-left-radius: 3px
+    border-bottom-right-radius: 3px
+    border-top-left-radius: 3px
+    border-top-right-radius: 3px
+    background-color: #3A87AD
+    font-weight: bold
+    text-shadow: 0 -1px 0 rgba(0, 0, 0, 0.25)
+    color: #FFFFFF
+    white-space: nowrap
+    padding-left: 4px
+    padding-right: 4px
+
+.CNE_contact:before
+    content:'@ '
+
+
+//////////////////////////////
+//   URL POPOVER STYLES    //
+////////////////////////////
+
+.CNE_urlpop
+    display:block
+    position: absolute
+    _moz_resizing:false
+    font-size:14px
+    background-color:whiteSmoke
+    border-radius:5px
+    border-color:#CDCDD6
+    border-style:solid
+    border-width:1px
+    padding:5px
+
+.CNE_urlpop_head
+    font-weight:bold
+
+.CNE_urlpop a
+    display: inline-block
+    margin-top:9px
+    margin-bottom:9px
+    margin-left:40px
+
+.CNE_urlpop_shortcuts
+    font-size:10px
+    opacity:0.5
+
+.CNE_urlpop-content > span
+    display: inline-block
+    width:33px
+    text-align: right
+
+.CNE_urlpop input
+    margin-left:7px
+    font-size:13px
+    width:250px

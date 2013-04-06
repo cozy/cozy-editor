@@ -20,23 +20,17 @@
 #   _firstLine        : points the first line : TODO : not taken into account 
 ###
 
-
-# Require is use only in development mode. During production build, files are
-# concatenated.
-# if require?
-#     if not md2cozy?
-#         md2cozy = require('./md2cozy').md2cozy
-#     if not selection?
-#         selection = require('./selection').selection
-#     if not Task?
-#         Task = require('./task')
-#     if not AutoComplete?
-#         AutoComplete = require('./autocomplete').AutoComplete
-
 md2cozy      = require('./md2cozy').md2cozy
 selection    = require('./selection').selection
 Task         = require('./task')
 AutoComplete = require('./autocomplete').AutoComplete
+# realtimer    = require('./realtimer')
+try
+    realtimer= require('./realtimer')
+catch e
+    realtimer = watch : () ->
+
+
   
 ###*
  * line$        : 
@@ -195,6 +189,7 @@ module.exports = class CNeditor
             cssLink = '<link id="editorCSS" '
             cssLink += 'href="stylesheets/CNeditor.css" rel="stylesheet">'
             editor_head$.html(cssLink)
+
         
         # preparation of the div
         else
@@ -213,6 +208,14 @@ module.exports = class CNeditor
         linesDiv.setAttribute('class','editor-frame')
         linesDiv.setAttribute('contenteditable','true')
         @editorBody$.append(linesDiv)
+        if @isInIframe
+            linesDiv.style.overflowY = 'auto'
+            linesDiv.style.position  = 'absolute'
+            linesDiv.style.top       = 0
+            linesDiv.style.bottom    = 0
+            linesDiv.style.right     = 0
+            linesDiv.style.left      = 0
+
     
         # init clipboard div and url popover
         @_initClipBoard()
@@ -261,8 +264,6 @@ module.exports = class CNeditor
 
     _mouseupCB : () =>
         @newPosition = true
-        # @hotString = ''  # todo bja : supprimer ?
-        # @_auto.hide()
 
 
     _keyupCast : (e) =>
@@ -567,7 +568,10 @@ module.exports = class CNeditor
         t.save()
         .done () ->
             console.log " t.save.done()",t.id
+            realtimer.watch(t)
             lineDiv.dataset.id = t.id
+        t.on 'change', (t)->
+            console.log 'change detected !', t.id
         @_internalTaskCounter += 1
         t.internalId = 'CNE_task_id_' + @_internalTaskCounter
         lineDiv.dataset.id = t.internalId # set a temporary id
@@ -606,7 +610,12 @@ module.exports = class CNeditor
             t.fetch()
             .done () ->
                 console.log " t.fetch.done()",t.id
+                realtimer.watch(t)
                 # lineDiv.dataset.id = t.id
+            
+            t.on 'change', (t)->
+                console.log 'change detected !', t.id
+
             @_taskList.push(t)
         
         return null
@@ -617,11 +626,11 @@ module.exports = class CNeditor
         console.log 'A task has been ' + action, task.id 
         switch action
             when 'done'
-                task.set(done:true,silent:true)
+                task.set({done:true},{silent:true})
             when 'undone'
-                task.set(done:false,silent:true)
+                task.set({done:false},{silent:true})
             when 'modified'
-                task.set(description:task.lineDiv.textContent,silent:true)
+                task.set({description:task.lineDiv.textContent},{silent:true})
             else
                 return
 
