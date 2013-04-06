@@ -1,3 +1,5 @@
+lineSelectedColor = #D6FF00
+
 #CNE_autocomplete
     display:block
     position: absolute
@@ -5,44 +7,53 @@
     font-size:14px
     background-color:whiteSmoke
     border-radius:5px
-    border-color:#CDCDD6
+    border-color:#E6E6E6
     border-style:solid
     border-width:1px
-    padding:5px
+    padding:0px
     list-style-type:none
 
-.SUGG_line
+.SUGG_line_ttag
     cursor:pointer
     display : block
+    background-color:#313131
+    padding-left:5px
+    padding-right:5px
+    color:#EBEBEC
 
-.SUGG_selected
-    background-color:#F5F8B3
-
-.SUGG_line > .tag
-    color: #2571E2
-    font-weight:bold
-
-.SUGG_line > .tag:before
-    content:'@'
-    color:#2571E2
-
-.SUGG_line > .contact:before
-    content:'@'
-    color:#979797
-
-.SUGG_line > .strong
-    font-weight:bold
-
-.SUGG_line > .mention
+.SUGG_line_ttag > .mention
     font-weight: lighter
     font-size: 11px
     float: right
     margin-left: 10px
     color:#808080
 
-.SUGG_line:hover
-    background-color : rgb(103, 210, 214)
-    
+.SUGG_line_ttag:hover
+    background-color : lineSelectedColor
+    color:#888888
+
+.SUGG_line_contact
+    cursor:pointer
+    display : block
+    padding-left:5px
+    padding-right:5px
+
+.SUGG_line_contact:before
+    content:'@'
+    color:#979797
+
+.SUGG_line_contact:hover
+    background-color : lineSelectedColor
+
+span.b
+    font-weight:bold
+    color:tomato
+
+.SUGG_selected
+    background-color:lineSelectedColor
+
+.SUGG_selected > span
+    color: #464646
 
 
 

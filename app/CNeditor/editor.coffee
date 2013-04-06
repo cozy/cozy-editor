@@ -32,7 +32,7 @@ catch e
 
 
   
-###*
+###* -----------------------------------------------------------------------
  * line$        : 
  * lineID       : 
  * lineType     : 
@@ -42,7 +42,7 @@ catch e
  * linePrev     : 
 ###
 class Line
-    ###*
+    ###
      * If no arguments, returns an empty object (only methods), otherwise
      * constructs a full line. The dom element of the line is inserted according
      * to the previous or next line given in the arguments.
@@ -349,14 +349,14 @@ module.exports = class CNeditor
         @_registerEventListeners()
 
 
-    ###*
+    ###* -----------------------------------------------------------------------
      * Set focus on the editor
     ###
     setFocus : () ->
         @linesDiv.focus()
 
 
-    ###*
+    ###* -----------------------------------------------------------------------
      * Methods to deal selection on an iframe
      * This method is modified during construction if the editor target is not
      * an iframe
@@ -367,7 +367,7 @@ module.exports = class CNeditor
         # return rangy.getIframeSelection @editorTarget
 
 
-    ###*
+    ###* -----------------------------------------------------------------------
      * this method is modified during construction if the editor target is not
      * an iframe
      * @return {String} Returns the serialized current selection within the 
@@ -392,7 +392,7 @@ module.exports = class CNeditor
         return res
 
 
-    ###*
+    ###* -----------------------------------------------------------------------
      * Update the current "hotString" typed by the user. This function is called
      * by keypress event, and detects keys such as '@'
      * @param  {[type]} e [description]
@@ -408,7 +408,7 @@ module.exports = class CNeditor
             if @hotString == ' ' or @_isStartingWord()
                 @hotString = ' @'
                 sel = @updateCurrentSel()
-                @_auto.show(sel , '', sel.startLineDiv)
+                @_auto.show(sel , '', sel.startLineDiv,['contact','todo','event','reminder','tag'])
                 return
 
         if @isNormalChar(e)
@@ -445,7 +445,7 @@ module.exports = class CNeditor
                             return true
 
             when 'contact'
-                @_forceUserHotString(item.text)
+                @_forceUserHotString(autoItem.text)
                 @_applyMetaDataOnSelection('CNE_contact')
                 @hotString = ''
                 @_auto.hide()
@@ -556,7 +556,7 @@ module.exports = class CNeditor
         return true
 
 
-    ###*
+    ###* -----------------------------------------------------------------------
      * When a line is a task (its div has dataset.type = task) and we don't have
      * the corresponding model of task, we then create this Task.
      * It for instance happens when we create a task within the editor.
@@ -730,16 +730,35 @@ module.exports = class CNeditor
     # Returns a markdown string representing the editor content
     ###
     getEditorContent : () ->
-        md2cozy.cozy2md $(@linesDiv)
+        # md2cozy.cozy2md $(@linesDiv)
+        if @_auto.isVisible
+            @linesDiv.removeChild(@_auto.el)
+        txt = @linesDiv.innerHTML
+        if @_auto.isVisible
+            @linesDiv.appendChild(@_auto.el)
+        if @.isUrlPopoverOn
+            txt = txt.replace('<div[=":;\w ]*CNE_urlPopover[\w\W]*','')
+
+        # else
+        #     @linesDiv.appendChild(@_auto.el)
+        #     txt = @linesDiv.innerHTML
+        return txt
 
     ### ------------------------------------------------------------------------
     # Sets the editor content from a markdown string
     ###
-    setEditorContent : (mdContent) ->
+    setEditorContent : (htmlContent) ->
+        @replaceContent(htmlContent)
+
+    ### ------------------------------------------------------------------------
+    # DEPRECATED - USED ONLY FOR REVERSE COMPATIBILITY
+    # Sets the editor content from a markdown string
+    ###
+    setEditorContentFromMD : (mdContent) ->
         cozyContent = md2cozy.md2cozy mdContent
         @replaceContent(cozyContent)
                   
-    ###
+    ### ------------------------------------------------------------------------
     # Change the path of the css applied to the editor iframe
     ###
     replaceCSS : (path) ->
@@ -748,7 +767,7 @@ module.exports = class CNeditor
         linkElm.setAttribute('href' , path)
         document.head.appendChild(linkElm)
 
-    ###*
+    ###* -----------------------------------------------------------------------
      * Return [metaKeyCode,keyCode] corresponding to the key strike combinaison. 
      * the string structure = [meta key]-[key]
      *   * [metaKeyCode] : (Alt)*(Ctrl)*(Shift)*
@@ -805,7 +824,7 @@ module.exports = class CNeditor
         return [metaKeyCode,keyCode]
 
 
-    ###*
+    ###* -----------------------------------------------------------------------
      * Callback to be used in production.
      * In case of error thrown by the editor, we catch it and undo the content
      * to avoid to loose data.
@@ -821,7 +840,7 @@ module.exports = class CNeditor
             @unDo()
     
 
-    ###*
+    ###* -----------------------------------------------------------------------
      * Change the callback called by keydown event for the "test" callback.
      * The aim is that during test we don't want to intercept errors so that 
      * the test can detect the error.
@@ -1081,7 +1100,7 @@ module.exports = class CNeditor
 
 
 
-    ###*
+    ###* -----------------------------------------------------------------------
      * updates @currentSel =
             sel              : {Selection} of the editor's document
             range            : sel.getRangeAt(0)
@@ -1146,7 +1165,7 @@ module.exports = class CNeditor
         return @currentSel
 
 
-    ###*
+    ###* -----------------------------------------------------------------------
      * updates @currentSel and check if range is at the start of begin of the
      * corresponding line. 
      * @currentSel =
@@ -1227,7 +1246,7 @@ module.exports = class CNeditor
 
 
 
-    ###*
+    ###* -----------------------------------------------------------------------
      * This function is called two correct 2 problems :
      * A/ in order to keep the navigation with arrows working, we have to insert
      * a text in the buttons of tasks. That's why we have to remove the carret 
@@ -1313,7 +1332,7 @@ module.exports = class CNeditor
         return true
 
 
-    ###*
+    ###* -----------------------------------------------------------------------
      * Check if the first range of the selection is NOT in the editor
      * @param  {Boolean}  expectWide [optional] If true, tests if the first
      *                               range of the selection is collapsed. If it
@@ -1347,7 +1366,7 @@ module.exports = class CNeditor
             return true
             
 
-    ###*
+    ###* -----------------------------------------------------------------------
      * Put a strong (bold) css class on the selection of the editor.
      * History is incremented before action and focus is set on the editor.
      * @return {[type]} [description]
@@ -1413,7 +1432,7 @@ module.exports = class CNeditor
         return true
             
 
-    ###*
+    ###* -----------------------------------------------------------------------
      * Show, positionate and initialise the popover for link edition.
      * @param  {array} segments  An array with the segments of 
      *                           the link [<a>,...<a>]. Must be created even if
@@ -1475,7 +1494,7 @@ module.exports = class CNeditor
         seg.style.backgroundColor = '#dddddd' for seg in segments
         return true
 
-    ###*
+    ###* -----------------------------------------------------------------------
      * The callback for a click outside the popover
     ###
     _detectClickOutUrlPopover : (e) =>
@@ -1484,7 +1503,7 @@ module.exports = class CNeditor
         if isOut
             @_cancelUrlPopover(true)
 
-    ###*
+    ###* -----------------------------------------------------------------------
      * Close the popover and revert modifications if isLinkCreation == true
      * @param  {boolean} doNotRestoreOginalSel If true, lets the caret at its
      *                                         position (used when you click
@@ -1535,14 +1554,14 @@ module.exports = class CNeditor
         return true
 
 
-    ###*
+    ###* -----------------------------------------------------------------------
      * Same as _cancelUrlPopover but used in events call backs
     ###
     _cancelUrlPopoverCB : (e) =>
         e.stopPropagation()
         @_cancelUrlPopover(false)
 
-    ###*
+    ###* -----------------------------------------------------------------------
      * Close the popover and applies modifications to the link.
     ###
     _validateUrlPopover : (event) =>
@@ -1646,7 +1665,7 @@ module.exports = class CNeditor
         if lineDiv.dataset.type == 'task'
             @_stackTaskChange(lineDiv.task,'modified')
 
-    ###*
+    ###* -----------------------------------------------------------------------
      * initialise the popover during the editor initialization.
     ###
     _initUrlPopover : () ->
@@ -1696,7 +1715,7 @@ module.exports = class CNeditor
         return true
 
 
-    ###*
+    ###* -----------------------------------------------------------------------
      * Tests if a the start break point of the selection or of a range is in a 
      * segment being a link. If yes returns the array of the segments 
      * corresponding to the link starting in this bp, false otherwise.
@@ -1731,7 +1750,7 @@ module.exports = class CNeditor
         else
             return false
 
-    ###*
+    ###* -----------------------------------------------------------------------
      * Applies a metadata such as STRONG, UNDERLINED, A/href etc... on the
      * selected text. The selection must not be collapsed.
      * @param  {string} metaData  The css class of the meta data or 'A' if link
@@ -1843,7 +1862,7 @@ module.exports = class CNeditor
         return rg
 
 
-    ###*
+    ###* -----------------------------------------------------------------------
      * Walk though the segments delimited by the range (which must be in a 
      * single line) to check if the meta si on all of them.
      * @param  {range} range a range contained within a line. The range must be
@@ -1893,7 +1912,7 @@ module.exports = class CNeditor
                 stopNext = (segment == endSegment)
 
 
-    ###*
+    ###* -----------------------------------------------------------------------
      * Add or remove a meta data to the segments delimited by the range. The
      * range must be within a single line and normalized (its breakpoints must
      * be in text nodes). 
@@ -2040,7 +2059,7 @@ module.exports = class CNeditor
         return [bp1,bp2]
 
 
-    ###*
+    ###* -----------------------------------------------------------------------
      * Test if a segment already has the meta : same type, same class and other 
      * for complex meta (for instance href for <a>)
      * @param  {element}  segment  The segment to test
@@ -2056,7 +2075,7 @@ module.exports = class CNeditor
         else
             return segment.classList.contains(metaData)
 
-    ###*
+    ###* -----------------------------------------------------------------------
      * Applies or remove a meta data of type "A" (link) on a succession of 
      * segments (from startSegment to endSegment which must be on the same line)
      * This fuction may let similar segments contiguous, the decision to fusion
@@ -2104,7 +2123,7 @@ module.exports = class CNeditor
         return null
 
 
-    ###*
+    ###* -----------------------------------------------------------------------
      * Applies or remove a CSS class to a succession of segments (from 
      * startsegment to endSegment which must be on the same line)
      * @param  {element} startSegment The first segment to modify
@@ -2128,7 +2147,7 @@ module.exports = class CNeditor
         return null
 
 
-    ###*
+    ###* -----------------------------------------------------------------------
      * Walk through a line div in order to :
      *   * Concatenate successive similar segments. Similar == same nodeName, 
      *     class and if required href.
@@ -2187,7 +2206,7 @@ module.exports = class CNeditor
 
         return breakPoints
 
-    ###*
+    ###* -----------------------------------------------------------------------
      * Removes a segment and returns a reference to previous sibling or, 
      * if doesn't exist, to the next sibling.
      * @param  {element} segment     The segment to remove. Must be in a line.
@@ -2220,7 +2239,7 @@ module.exports = class CNeditor
         return newRef
 
 
-    ###*
+    ###* -----------------------------------------------------------------------
      * Imports the content of segment2 in segment1 and updates the breakpoint if
      * this on is  inside segment2
      * @param  {element} segment1    the segment in which the fusion operates
@@ -2439,7 +2458,7 @@ module.exports = class CNeditor
 
 
 
-    ###*
+    ###* -----------------------------------------------------------------------
      * Turn selected lines in a title List (Th). History is incremented.
      * @param  {Line} l [optionnal] The line to convert in Th
     ###
@@ -2486,7 +2505,7 @@ module.exports = class CNeditor
 
 
 
-    ###*
+    ###* -----------------------------------------------------------------------
      * Turn selected lines or the one given in parameter in a 
      * Marker List line (Tu)
      * @param  {Line} l [optional] The line to turn in to a Tu
@@ -2557,7 +2576,7 @@ module.exports = class CNeditor
                 return 0
 
 
-    ###*
+    ###* -----------------------------------------------------------------------
      * Toggle the type of the selected lines.
      * Lx => Tx and Tu <=> Th
      * Increments history.
@@ -2675,7 +2694,7 @@ module.exports = class CNeditor
 
 
 
-    ###*
+    ###* -----------------------------------------------------------------------
      * Indent selection. History is incremented. 
      * @param  {[type]} l [description]
      * @return {[type]}   [description]
@@ -2778,7 +2797,7 @@ module.exports = class CNeditor
 
 
 
-    ###*
+    ###* -----------------------------------------------------------------------
      * Un-indent the selection. History is incremented.
      * @param  {Range} range [optional] A range containing the lines to un-indent
     ###
@@ -2812,7 +2831,7 @@ module.exports = class CNeditor
 
 
 
-    ###*
+    ###* -----------------------------------------------------------------------
      * un-tab a single line
      * @param  {line} line the line to un-tab
     ###
@@ -2875,7 +2894,7 @@ module.exports = class CNeditor
 
 
 
-    ###*
+    ###* -----------------------------------------------------------------------
      * Return on the carret position. Selection must be normalized but not 
      * necessarily collapsed.
     ###
@@ -2964,7 +2983,7 @@ module.exports = class CNeditor
         if  !( (l.offsetTop + 20 - dh) < p.scrollTop < l.offsetTop )
             l.scrollIntoView(false)
 
-    ###*
+    ###* -----------------------------------------------------------------------
      * Returns the first line of the editor.
      * @return {Line} First line of the editor.
     ###
@@ -3078,7 +3097,7 @@ module.exports = class CNeditor
         return prevSib
 
 
-    ###*
+    ###* -----------------------------------------------------------------------
     # Delete the user multi line selection :
     #    * The 2 lines (selected or given in param) must be distinct
     #    * If no params :
@@ -3186,7 +3205,7 @@ module.exports = class CNeditor
     #  Then adapt the type of the first line after the children and siblings of
     #    end line. Its previous sibling or parent might have been deleted, 
     #    we then must find its new one in order to adapt its type.
-    ###*
+    ###* -----------------------------------------------------------------------
      * After an insertion or deletion of a bloc of lines, the lines following
      * the bloc might be incoherent (depth and type of the lines)
      * This function goes throught these lines to correct their depth.
@@ -3346,7 +3365,7 @@ module.exports = class CNeditor
         #     @markerList endLine
 
  
-    ###*
+    ###* -----------------------------------------------------------------------
      * Put caret at given position. The break point will be normalized (ie put 
      * in the closest text node).
      * @param {element} startContainer Container of the break point
@@ -3808,7 +3827,7 @@ module.exports = class CNeditor
     #  - the boolean newPosition
     ###
 
-    ###*
+    ###* -----------------------------------------------------------------------
      * Add html, selection markers and scrollbar positions to the history.
      * No effect if the url popover is displayed
     ###
@@ -3982,7 +4001,7 @@ module.exports = class CNeditor
             # @__printHistory('reDo')
 
 
-    ###*
+    ###* -----------------------------------------------------------------------
      * A utility fuction for debugging
      * @param  {string} txt A text to print in front of the log
     ###
@@ -4001,7 +4020,7 @@ module.exports = class CNeditor
         return true
 
 
-    ###*
+    ###* -----------------------------------------------------------------------
      * Deserialize a range and return it.
      * @param  {String} serial   A string corresponding to a serialized range.
      * @param  {element} rootNode The root node used for the serialization
@@ -4045,7 +4064,7 @@ module.exports = class CNeditor
 
         return range
 
-    ###*
+    ###* -----------------------------------------------------------------------
      * Serialize a range. 
      * The breakpoint are 2 strings separated by a comma.
      * Structure of a serialized bp : {offset}{/index}*
@@ -4187,7 +4206,7 @@ module.exports = class CNeditor
 
 
 
-    ###*
+    ###* -----------------------------------------------------------------------
     # * init the div where the browser will actualy paste.
     # * this method is called after each refresh of the content of the editor (
     # * replaceContent, deleteContent, setEditorContent)
@@ -4213,7 +4232,7 @@ module.exports = class CNeditor
 
 
 
-    ###*
+    ###* -----------------------------------------------------------------------
      * Function that will call itself until the browser has pasted data in the
      * clipboar div
      * @param  {element} sandbox      the div where the browser will paste data
@@ -4229,7 +4248,7 @@ module.exports = class CNeditor
             setTimeout @_waitForPasteData, 100
 
 
-    ###*
+    ###* -----------------------------------------------------------------------
      * Called when the browser has pasted data in the clipboard div. 
      * Its role is to insert the content of the clipboard into the editor.
     ###
@@ -4392,7 +4411,7 @@ module.exports = class CNeditor
             parendDiv = targetNode
             while parendDiv.tagName != 'DIV'
                 parendDiv = parendDiv.parentElement
-        ###*
+        ###
          * remove the firstAddedLine from the fragment
         ###
         firstAddedLine = dummyLine.lineNext
@@ -4402,7 +4421,7 @@ module.exports = class CNeditor
         if firstAddedLine?
             delete this._lines[firstAddedLine.lineID]
 
-        ###*
+        ###
          * 7- updates nextLine and prevLines, insert frag in the editor
         ###
         if secondAddedLine?
@@ -4415,7 +4434,7 @@ module.exports = class CNeditor
                 domWalkContext.lastAddedLine.lineNext = lineNextStartLine
                 lineNextStartLine.linePrev = domWalkContext.lastAddedLine
                 @linesDiv.insertBefore(frag, lineNextStartLine.line$[0])
-        ###*
+        ###
          * 8- Adapt lines depth and type.
         ###
         # @_adaptDepth(domWalkContext.lastAddedLine, domWalkContext.lastAddedLine.lineDepthAbs)
@@ -4432,13 +4451,13 @@ module.exports = class CNeditor
                 lastAddedDepth  )              # minDepth
             @_adaptType(currSel.startLine)
 
-        ###*
+        ###
          * 9- position caret
         ###
         bp = @_setCaret(bp.cont,bp.offset)
 
 
-    ###*
+    ###* -----------------------------------------------------------------------
      * Insert segment at the position of the breakpoint. 
      * /!\ The bp is updated but not normalized. The break point will between 2
      * segments if the insertion splits a segment in two. This is normal. If you
@@ -4552,7 +4571,7 @@ module.exports = class CNeditor
         # bp.offset = startOffset
 
 
-    ###*
+    ###* -----------------------------------------------------------------------
      * Walks thoug an html tree in order to convert it in a strutured content
      * that fit to a note structure.
      * @param  {html element} elemt   Reference to an html element to be parsed
@@ -4573,7 +4592,7 @@ module.exports = class CNeditor
             context.lastAddedLine = @_insertLineAfter(p)
 
 
-    ###*
+    ###* -----------------------------------------------------------------------
      * Walks thoug an html tree in order to convert it in a strutured content
      * that fit to a note structure.
      * @param  {html element} nodeToParse   Reference to an html element to 
@@ -4755,7 +4774,7 @@ module.exports = class CNeditor
 
 
 
-    ###*
+    ###* -----------------------------------------------------------------------
      * Append to frag the currentLineFrag and prepare a new empty one.
      * @param  {Object} context  [description]
      * @param  {Number} absDepth absolute depth of the line to insert
@@ -4782,7 +4801,7 @@ module.exports = class CNeditor
 
 
 
-    ###*
+    ###* -----------------------------------------------------------------------
      * Insert in the editor a line that was copied in a cozy note editor
      * @param  {html element} elemt a div ex : <div id="CNID_7" class="Lu-3"> ... </div>
      * @return {line}        a ref to the line object
