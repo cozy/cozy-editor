@@ -27,7 +27,7 @@ exports.config =
                 '../build/CNeditor.js': /^app\/CNeditor\/.*\.coffee$/
 
                 # for deployement directly in cozy-notes
-                '../../cozy-notes/client/vendor/scripts/CNeditor.js': /^app\/CNeditor\/.*\.coffee$/
+                '../../cozy-notes/client/vendor/scripts/CNeditor.js': /^app\/CNeditor\/.*(\.coffee)|(\.js)$/
 
                 'javascripts/tests.js': /^test/
 
@@ -37,11 +37,15 @@ exports.config =
                     'app/CNeditor/md2cozy.coffee'
                     'app/CNeditor/task.coffee'
                     'app/CNeditor/realtimer.coffee'                ]
-
         stylesheets:
             joinTo:
                 '../build/CNeditor.css': /^app\/CNeditor/
                 '../../cozy-notes/client/vendor/styles/CNeditor.css': /^app\/CNeditor/
+            order:
+                before:[
+                    'app/CNeditor/datepicker.css'
+                ]
+
 
     modules:
         wrapper: 'commonjs'

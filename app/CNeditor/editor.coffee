@@ -394,7 +394,8 @@ module.exports = class CNeditor
 
     ###* -----------------------------------------------------------------------
      * Update the current "hotString" typed by the user. This function is called
-     * by keypress event, and detects keys such as '@'
+     * by keypress event, and detects keys such as '@' and "normal caracters". 
+     * Arrows, return, baskspace etc are manage in _keyDownCallBack()
      * @param  {[type]} e [description]
      * @return {[type]}   [description]
     ###
@@ -404,11 +405,24 @@ module.exports = class CNeditor
         # console.log '=====  hotStringDetectionKeypress()', char, e.which, e.keyCode, e.altKey, '-' + @hotString + '-'
         # initialHotString = @hotString
 
-        if e.which == 64  # @
+        if e.which == 64  # '@'
             if @hotString == ' ' or @_isStartingWord()
                 @hotString = ' @'
                 sel = @updateCurrentSel()
-                @_auto.show(sel , '', sel.startLineDiv,['contact','todo','event','reminder','tag'])
+                if sel.startLineDiv.dataset.type == 'task'
+                    @_auto.setModes(['contact','event','reminder','tag'])
+                else
+                    @_auto.setModes(['contact','todo','event','reminder','tag'])
+                    # modes = ['reminder']
+                @_auto.show(sel , '', sel.startLineDiv)
+                return
+
+        if e.which == 35  # '#'
+            if @hotString == ' ' or @_isStartingWord()
+                @hotString = ' #'
+                sel = @updateCurrentSel()
+                @_auto.setModes(['tag'])
+                @_auto.show(sel , '', sel.startLineDiv)
                 return
 
         if @isNormalChar(e)
@@ -422,14 +436,22 @@ module.exports = class CNeditor
                 @_auto.hide()
 
 
+    _isAHotString : (txt) ->
+        switch txt.slice(2)
+            when 'reminder', '@'
+                return text:'reminder', type:'ttag'
+            when 'todo'
+                return text:'todo', type:'ttag'
+            
+
     _doHotStringAction : (autoItem, lineDiv) ->
         if !autoItem
-            autoItem = @_auto.isInItems(@hotString.slice(2))
+            autoItem = @_isAHotString(@hotString)
             if !autoItem
                 return false
 
         switch autoItem.type
-            when 'tag'
+            when 'ttag'
                 switch autoItem.text
                     when 'todo'
                         taskDiv = @_turnIntoTask()
@@ -441,12 +463,61 @@ module.exports = class CNeditor
                             else
                                 @_forceUserHotString('')
                             @hotString = ''
-                            @_auto.hide() 
+                            @_auto.hide()
                             return true
+                    when 'reminder'
+                        @_auto.hide()
+                        @_forceUserHotString(' @@',true)
+                        @hotString = ' @@'
+                        @_auto.setModes(['reminder'])
+                        @_auto.show(null , @hotString.slice(2), null)
+                        return true
+                    when 'tag'
+                        @_auto.hide()
+                        @_forceUserHotString(' #',true)
+                        @hotString = ' #'
+                        @_auto.setModes(['tag'])
+                        @_auto.show(null , @hotString.slice(2), null)
+                        return true
 
             when 'contact'
                 @_forceUserHotString(autoItem.text)
-                @_applyMetaDataOnSelection('CNE_contact')
+                rg = @_applyMetaDataOnSelection('CNE_contact')
+                lastSeg = selection.getSegment(rg.endContainer,0)
+                newSeg = @_insertSegmentAfterSeg(lastSeg)
+                @_setCaret(newSeg,1)
+                @hotString = ''
+                @_auto.hide()
+                return true
+
+            when 'htag'
+                @_forceUserHotString(autoItem.text)
+                rg = @_applyMetaDataOnSelection('CNE_htag')
+                lastSeg = selection.getSegment(rg.endContainer,0)
+                newSeg = @_insertSegmentAfterSeg(lastSeg)
+                @_setCaret(newSeg,1)
+                @hotString = ''
+                @_auto.hide()
+                return true
+
+            when 'reminder'
+                format = (n)->
+                    if n.toString().length == 1
+                        return '0' + n
+                    else
+                        return n
+                date = autoItem.text
+                d  = format(date.getDate()     )
+                m  = format(date.getMonth()    )
+                y  = format(date.getFullYear() )
+                h  = format(date.getHours()    )
+                mn = format(date.getMinutes()  )
+                txt = d + '/' + m + '/' + y + '  ' + h + ':' + mn
+                @_forceUserHotString(txt)
+                rg = @_applyMetaDataOnSelection('CNE_reminder')
+                lastSeg = selection.getSegment(rg.endContainer,0)
+                newSeg = @_insertSegmentAfterSeg(lastSeg)
+                @_setCaret(newSeg,1)
                 @hotString = ''
                 @_auto.hide()
                 return true
@@ -468,7 +539,7 @@ module.exports = class CNeditor
         @_setSelectionOnNode(txt)
 
 
-    _forceUserHotString : (newHotString) ->
+    _forceUserHotString : (newHotString, setEnd) ->
         rg = @updateCurrentSel().theoricalRange
         textNode = rg.startContainer
         textContent = textNode.textContent
@@ -477,7 +548,10 @@ module.exports = class CNeditor
               + newHotString                                                \
               + textContent.slice(rg.startOffset)
         textNode.textContent = txt
-        @_setSelection(textNode,index,textNode,index + newHotString.length) 
+        if setEnd
+            @_setCaret(textNode,index + newHotString.length) 
+        else
+            @_setSelection(textNode,index,textNode,index + newHotString.length) 
 
 
     _turnIntoTask : (lineDiv) ->
@@ -565,24 +639,18 @@ module.exports = class CNeditor
     _createTaskForLine : (lineDiv) ->
         t = new Task(description:lineDiv.textContent)
         lineDiv.task = t
-        t.save()
-        .done () ->
-            console.log " t.save.done()",t.id
-            realtimer.watch(t)
-            lineDiv.dataset.id = t.id
-        t.on 'change', (t)->
-            console.log 'change detected !', t.id
+        console.log 'create task  ' , t
+        @_stackTaskChange(t,'create') 
+        # t.save({},silent:true)
+        # .done () ->
+        #     console.log " t.save.done()",t.id
+        #     realtimer.watch(t)
+        #     lineDiv.dataset.id = t.id
         @_internalTaskCounter += 1
         t.internalId = 'CNE_task_id_' + @_internalTaskCounter
         lineDiv.dataset.id = t.internalId # set a temporary id
         t.lineDiv = lineDiv
         @_taskList.push(t)
-
-        # will be called by modification on server side.
-        # Modifications initiated on this client will be saved with silent=true
-        # so that this call back is not fired whereas ui is uptodate
-        t.on 'change', () ->
-            console.log " t.change()", t.id
 
         return true
 
@@ -607,34 +675,98 @@ module.exports = class CNeditor
             t = new Task(id:id)
             lineDiv.task = t
             t.lineDiv = lineDiv
-            t.fetch()
-            .done () ->
-                console.log " t.fetch.done()",t.id
+            t.fetch(silent:true)
+            .done () =>
+                console.log "editor : t.fetch.done()",t.id
                 realtimer.watch(t)
-                # lineDiv.dataset.id = t.id
+                @_updateTaskLine(t) #task may have change when note was not open
             
-            t.on 'change', (t)->
-                console.log 'change detected !', t.id
+            t.on 'change', (t)=>
+                console.log ' editor : change from fetch detected !', t.id
+                console.log t.changedAttributes()
+                t.previous('description')
+                @_updateTaskLine(t)
 
             @_taskList.push(t)
         
         return null
 
 
+    _updateTaskLine : (t) ->
+            if @_isTaskUnchanged(t)
+                return
+            t.lineDiv.firstChild.nextSibling.textContent = t.get('description')
+            currentTaskState = t.lineDiv.dataset.state == 'done'
+            if t.get('done')
+                newState = 'done'
+            else
+                newState = 'undone'
+            if currentTaskState != newState
+                t.lineDiv.dataset.state = newState
+
+
     _stackTaskChange : (task,action) ->
         # action in : done, undone, modified, removed
-        console.log 'A task has been ' + action, task.id 
+        console.log 'editor : A task has been ' + action, task.id 
         switch action
             when 'done'
-                task.set({done:true},{silent:true})
+                # task.set({done:true},{silent:true})
+                @_tasksModifStacks[task.internalId] = t:task, a:action
             when 'undone'
-                task.set({done:false},{silent:true})
+                # task.set({done:false},{silent:true})
+                @_tasksModifStacks[task.internalId] = t:task, a:action
             when 'modified'
-                task.set({description:task.lineDiv.textContent},{silent:true})
+                # task.set({description:task.lineDiv.textContent},{silent:true})
+                if !@_tasksModifStacks[task.internalId]?
+                    @_tasksModifStacks[task.internalId]= t:task, a:action
+            when 'create'
+                @_tasksModifStacks[task.internalId] = t:task, a:action
             else
                 return
 
-        @_tasksModifStacks[task.internalId] = t:task, a:action
+
+    saveTasks : () ->
+        for id,t of @_tasksModifStacks
+            console.log 'save :', id,t
+            if t.a == 'create'
+                t = t.t
+                l = t.lineDiv
+                t.save({
+                        done        : (l.dataset.state == 'done')
+                        description :  l.textContent.slice(1)
+                    },{silent:true}
+                )
+                .done () =>
+                    console.log "editor t.save.done()",t.id
+                    realtimer.watch(t)
+                    l.dataset.id = t.id
+
+                    # will be called by modification on server side.
+                    # Modifications initiated on this client will be saved with silent=true
+                    # so that this call back is not fired whereas ui is uptodate
+                    t.on 'change', () =>
+                        console.log "onchange from save", t.id
+                        console.log t.changedAttributes()
+                        @_updateTaskLine(t)
+            else
+                t = t.t
+                l = t.lineDiv
+                t.save({
+                        done        : (l.dataset.state == 'done')
+                        description :  l.textContent.slice(1)
+                    },{silent:true}
+                )
+
+        @_tasksModifStacks = {}
+
+
+    _isTaskUnchanged : (task) ->
+        res = true
+        line = task.lineDiv
+        res = res && task.get('done') == (line.dataset.state == 'done')
+        res = res && task.get('description') == line.textContent.slice(1)
+        return res
+
 
     _isStartingWord  : () ->
         sel = @updateCurrentSelIsStartIsEnd()
@@ -662,12 +794,6 @@ module.exports = class CNeditor
             else
                 return false
 
-
-    saveTasks : () ->
-        for id,t of @_tasksModifStacks
-            console.log 'save :', id,t
-            t.t.save()
-        @_tasksModifStacks = {}
 
 
     ### ------------------------------------------------------------------------
@@ -1433,6 +1559,56 @@ module.exports = class CNeditor
             
 
     ###* -----------------------------------------------------------------------
+     * initialise the popover during the editor initialization.
+    ###
+    _initUrlPopover : () ->
+        pop  = document.createElement('div')
+        pop.id = 'CNE_urlPopover'
+        pop.className = 'CNE_urlpop'
+        pop.setAttribute('contenteditable','false')
+        pop.innerHTML = 
+            """
+            <span class="CNE_urlpop_head">Link</span>
+            <span  class="CNE_urlpop_shortcuts">(Ctrl+K)</span>
+            <div class="CNE_urlpop-content">
+                <a target="_blank">Open link <span class="CNE_urlpop_shortcuts">(Ctrl+click)</span></a></br>
+                <span>url</span><input type="text"></br>
+                <span>Text</span><input type="text"></br>
+                <button class="btn">ok</button>
+                <button class="btn">Cancel</button>
+                <button class="btn">Delete</button>
+            </div>
+            """
+        pop.titleElt = pop.firstChild 
+        pop.link = pop.getElementsByTagName('A')[0]
+
+        # b = document.querySelector('body')
+        # b.insertBefore(frag,b.firstChild)
+        [btnOK, btnCancel, btnDelete] = pop.querySelectorAll('button')
+        btnOK.addEventListener('click',@_validateUrlPopover)
+        btnCancel.addEventListener('click',@_cancelUrlPopoverCB)
+        btnDelete.addEventListener 'click', () =>
+            pop.urlInput.value = ''
+            @_validateUrlPopover()
+
+        [urlInput,textInput] = pop.querySelectorAll('input')
+        pop.urlInput = urlInput
+        pop.textInput = textInput
+        pop.addEventListener 'keypress', (e) =>
+            if e.keyCode == 13
+                @_validateUrlPopover()
+                e.stopPropagation()
+            else if e.keyCode == 27
+                @_cancelUrlPopover(false)
+
+            return false
+        
+        @urlPopover = pop
+
+        return true
+
+
+    ###* -----------------------------------------------------------------------
      * Show, positionate and initialise the popover for link edition.
      * @param  {array} segments  An array with the segments of 
      *                           the link [<a>,...<a>]. Must be created even if
@@ -1494,6 +1670,7 @@ module.exports = class CNeditor
         seg.style.backgroundColor = '#dddddd' for seg in segments
         return true
 
+
     ###* -----------------------------------------------------------------------
      * The callback for a click outside the popover
     ###
@@ -1502,6 +1679,7 @@ module.exports = class CNeditor
                 and $(e.target).parents('#CNE_urlPopover').length == 0
         if isOut
             @_cancelUrlPopover(true)
+
 
     ###* -----------------------------------------------------------------------
      * Close the popover and revert modifications if isLinkCreation == true
@@ -1560,6 +1738,7 @@ module.exports = class CNeditor
     _cancelUrlPopoverCB : (e) =>
         e.stopPropagation()
         @_cancelUrlPopover(false)
+
 
     ###* -----------------------------------------------------------------------
      * Close the popover and applies modifications to the link.
@@ -1665,55 +1844,6 @@ module.exports = class CNeditor
         if lineDiv.dataset.type == 'task'
             @_stackTaskChange(lineDiv.task,'modified')
 
-    ###* -----------------------------------------------------------------------
-     * initialise the popover during the editor initialization.
-    ###
-    _initUrlPopover : () ->
-        pop  = document.createElement('div')
-        pop.id = 'CNE_urlPopover'
-        pop.className = 'CNE_urlpop'
-        pop.setAttribute('contenteditable','false')
-        pop.innerHTML = 
-            """
-            <span class="CNE_urlpop_head">Link</span>
-            <span  class="CNE_urlpop_shortcuts">(Ctrl+K)</span>
-            <div class="CNE_urlpop-content">
-                <a target="_blank">Open link <span class="CNE_urlpop_shortcuts">(Ctrl+click)</span></a></br>
-                <span>url</span><input type="text"></br>
-                <span>Text</span><input type="text"></br>
-                <button class="btn">ok</button>
-                <button class="btn">Cancel</button>
-                <button class="btn">Delete</button>
-            </div>
-            """
-        pop.titleElt = pop.firstChild 
-        pop.link = pop.getElementsByTagName('A')[0]
-
-        # b = document.querySelector('body')
-        # b.insertBefore(frag,b.firstChild)
-        [btnOK, btnCancel, btnDelete] = pop.querySelectorAll('button')
-        btnOK.addEventListener('click',@_validateUrlPopover)
-        btnCancel.addEventListener('click',@_cancelUrlPopoverCB)
-        btnDelete.addEventListener 'click', () =>
-            pop.urlInput.value = ''
-            @_validateUrlPopover()
-
-        [urlInput,textInput] = pop.querySelectorAll('input')
-        pop.urlInput = urlInput
-        pop.textInput = textInput
-        pop.addEventListener 'keypress', (e) =>
-            if e.keyCode == 13
-                @_validateUrlPopover()
-                e.stopPropagation()
-            else if e.keyCode == 27
-                @_cancelUrlPopover(false)
-
-            return false
-        
-        @urlPopover = pop
-
-        return true
-
 
     ###* -----------------------------------------------------------------------
      * Tests if a the start break point of the selection or of a range is in a 
@@ -1749,6 +1879,7 @@ module.exports = class CNeditor
             return segments
         else
             return false
+
 
     ###* -----------------------------------------------------------------------
      * Applies a metadata such as STRONG, UNDERLINED, A/href etc... on the
@@ -4529,46 +4660,17 @@ module.exports = class CNeditor
             i++
         bp.offset = i + 2
 
-
-        # if @_haveSameMeta(targetNode,segment)
-        #     fusion
-        # # If targetNode & segment don't have the same meta data => 
-        # # split targetSeg and insert segToInset
-        # else
-        #     insertion
-
-        # startOffset = bp.offset
-        # if (segment.tagName=='SPAN')
-        #     if (targetNode.tagName=='SPAN' or targetNode.nodeType==Node.TEXT_NODE )
-        #         targetText   = targetNode.textContent
-        #         newText      = targetText.substr(0,startOffset)
-        #         newText     += segment.textContent
-        #         newText     += targetText.substr(startOffset)
-        #         targetNode.textContent = newText
-        #         startOffset += segment.textContent.length
-        #     else if targetNode.tagName=='A'
-        #         targetNode.parentElement.insertBefore(segment,targetNode.nextSibling)
-        #         targetNode = targetNode.parentElement
-        #         startOffset = $(targetNode).children().index(segment) + 1
-        #     else if targetNode.tagName=='DIV'
-        #         targetNode.insertBefore(segment,targetNode[startOffset])
-        #         startOffset += 1
-
-        # else if (segment.tagName=='A')
-        #     if targetNode.nodeName=='#text'
-        #         parent = targetNode.parentElement
-        #         parent.parentElement.insertBefore(segment,parent.nextSibling)
-        #         targetNode = parent.parentElement
-        #         startOffset = $(targetNode).children().index(segment) + 1
-        #     else if targetNode.tagName in ['SPAN' ,'A']
-        #         targetNode.parentElement.insertBefore(segment,targetNode.nextSibling)
-        #         targetNode = targetNode.parentElement
-        #         startOffset = $(targetNode).children().index(segment) + 1
-        #     else if targetNode.tagName == 'DIV'
-        #         targetNode.insertBefore(segment,targetNode[startOffset])
-        #         startOffset += 1
-        # bp.cont = targetNode
-        # bp.offset = startOffset
+    ###*
+     * insert an segment with one space caractère after a given segment.
+     * @param  {Element} seg The segment after whiche we will insert
+     * @return {Element}     The created segment
+    ###
+    _insertSegmentAfterSeg : (seg) ->
+        span = document.createElement('SPAN')
+        txt = document.createTextNode('\u00a0')
+        span.appendChild(txt)
+        seg.parentElement.insertBefore(span,seg.nextSibling)
+        return span
 
 
     ###* -----------------------------------------------------------------------

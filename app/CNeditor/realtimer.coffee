@@ -21,7 +21,7 @@ class RealTimer
         @callback(doctype, operation, id)
 
     callback: (doctype, operation, id) ->
-        console.log doctype, operation, id
+        console.log 'RealTimer', doctype, operation, id
         if doctype is 'note'
             # should update tree
         else if doctype is 'task' and @watched[id]?

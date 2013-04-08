@@ -12,6 +12,11 @@ Task = class Task extends Backbone.Model
         nextTask:null       #needed ?
         previousTask:null   #needed ?
 
+    parse : (data) ->
+        if data.rows?
+            return data.rows[0]
+        else
+            return data
 
     # Private static methods
     doNothing = ->
@@ -41,7 +46,6 @@ Task = class Task extends Backbone.Model
                 callback(null)
             else
                 callback(inboxList)
-
 
     # Static methods
     @initialize = (callback=doNothing) ->

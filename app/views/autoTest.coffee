@@ -326,7 +326,7 @@ class exports.AutoTest
 
     checkEachDivRefersALine : () ->
 
-        objDiv = this.linesDiv.getElementsByTagName('DIV')
+        objDiv = this.linesDiv.childNodes
         
         for div, i in objDiv
             myId = div.id

@@ -1,4 +1,5 @@
-
+require('./bootstrap-datepicker')
+require('./bootstrap-timepicker')
 
 # Exports a single task
 class AutoComplete
@@ -12,6 +13,46 @@ class AutoComplete
         @tTagsDiv    = document.createElement('DIV')
         @contacts    = [] # items of contact
         @contactsDiv = document.createElement('DIV')
+        @reminderDiv = document.createElement('DIV')
+        @htagDiv     = document.createElement('DIV')
+        reminderHTML = 
+        """
+            <div class="reminder-title">Add a reminder</div>
+            <div class="date" data-date="12-02-2012" data-date-format="dd-mm-yyyy">
+                <div class="reminder-input">
+                    <input class="datepicker-input" size="16" type="text" value="12-02-2012"/>
+                    <input id="timepicker" data-template="modal" data-minute-step="1" data-modal-backdrop="true" type="text"/>
+                </div>
+            </div>
+        """
+        @reminderDiv.innerHTML = reminderHTML
+        @datePick = $(@reminderDiv.lastChild).datepicker()
+        @datePick.show()
+        @datePick.on('changeDate', (ev) =>
+            nd = ev.date
+            date = @_currentDate
+            date.setDate(nd.getDate())
+            date.setMonth(nd.getMonth())
+            date.setFullYear(nd.getFullYear())
+        )
+
+
+        @timePick = $(@reminderDiv.childNodes[2].firstElementChild.lastElementChild)
+        @timePick.timepicker(
+            minuteStep   : 1
+            template     : 'modal'
+            showSeconds  : true
+            showMeridian : false
+        )
+        # .timepicker().on('changeTime.timepicker', (e) ->
+        #     console.log e.time
+        #     t = e.time
+        #     date = @_currentDate
+        #     date.setHours(t.getDate())
+        #     date.setMinutes(t.getMonth())
+        #     date.setSeconds(t.getFullYear())
+        # )
+
         @regexStore = {}
         @isVisible  = false
 
@@ -49,6 +90,15 @@ class AutoComplete
             {text:'Zoé Bellot'      , type:'contact'             }
             ])
 
+        @setItems( 'htag', [
+            {text:'Carte'              , type:'htag'}
+            {text:'Factures'           , type:'htag'}
+            {text:'Javascript'         , type:'htag'}
+            {text:'Pérou 2012'         , type:'htag'}
+            {text:'Présentation LyonJS', type:'htag'}
+            {text:'Recettes cuisine'   , type:'htag'}
+            ])
+
         return this
 
 
@@ -61,6 +111,9 @@ class AutoComplete
             when 'contact'
                 @contacts = items
                 lines = @contactsDiv
+            when 'htag'
+                @htags = items
+                lines = @htagDiv
         for it in items
             lines.appendChild(@_createLine(it))
 
@@ -68,7 +121,7 @@ class AutoComplete
 
 
     _createLine : (item) ->
-        console.log '_createLine', item
+        # console.log '_createLine', item
 
         line = document.createElement('LI')
 
@@ -78,6 +131,8 @@ class AutoComplete
                 line.className = 'SUGG_line_ttag'
             when 'contact'
                 line.className = 'SUGG_line_contact'
+            when 'htag'
+                line.className = 'SUGG_line_htag'
         # if line.childNodes.length != 0
         #     line.innerHTML = ''
 
@@ -90,7 +145,7 @@ class AutoComplete
         if item.mention
             span = document.createElement('SPAN')
             span.textContent = item.mention
-            span.className = 'mention'
+            span.className = 'SUGG_mention'
             line.appendChild(span)
 
         line.item = item
@@ -105,12 +160,12 @@ class AutoComplete
      * @param  {String} typedTxt   The string typed by the user (hotstring)
      * @param  {[type]} edLineDiv  The editor line div where the user is typing
     ###
-    show : (currentSel,typedTxt,edLineDiv,modes) ->
+    show : (currentSel,typedTxt,edLineDiv) ->
         # modes = ['todo','contact','event','reminder','tag']
-        @_currentEdLineDiv = edLineDiv
-        @_setModes(modes)
+        @_currentEdLineDiv = edLineDiv if edLineDiv
+        # @_setModes(modes)
         @_updateDisp(typedTxt)
-        @_position(currentSel)
+        @_position(currentSel) if currentSel
         @container.appendChild(@el)
         @isVisible = true
 
@@ -119,20 +174,35 @@ class AutoComplete
         @container.addEventListener('mouseup',@_detectMouseupAuto)
 
                 
-    _setModes : (modes) ->
+    setModes : (modes) ->
         @_modes = modes
         for ttag in @tTags
+            ttag.isInMode = false
             for m in modes
                 if ttag.text == m
                     ttag.isInMode = true
                     break
+            
         if modes[0] == @_currentMode
             return
+
         switch modes[0]
             when 'contact'
                 @el.removeChild(@el.lastChild)
                 @el.appendChild(@contactsDiv)
                 @_currentMode = 'contact'
+            when 'tag'
+                @el.removeChild(@el.lastChild)
+                @el.appendChild(@htagDiv)
+                @_currentMode = 'htag'
+            when 'reminder'
+                @el.removeChild(@el.lastChild)
+                now = new Date()
+                @_currentDate = now
+                @datePick.datepicker('setValue', now)
+                @timePick.timepicker('setTime', now.getHours()+':'+now.getMinutes()+':'+now.getSeconds())
+                @el.appendChild(@reminderDiv)
+                @_currentMode = 'reminder'
         
 
     _updateDisp : (typedTxt) ->
@@ -144,16 +214,14 @@ class AutoComplete
             else 
                 ttag.line.style.display = 'none'
 
-        # line = @el.firstChild
-        # for ttag in @tTags
-        #     if ttag.isToDisp
-        #         if line == null
-        #             line = @_addLine(ttag)
-        #         else
-        #             @_updateLine(line,ttag, typedTxt)
-        #         line = line.nextSibling
+        switch @_currentMode
+            when 'contact'
+                items = @contacts
+            when 'htag'
+                items = @htags
+            when 'reminder'
+                return
 
-        items = @contacts
 
         # check the items to show
         for it in items
@@ -162,22 +230,8 @@ class AutoComplete
             else 
                 it.line.style.display = 'none'
 
-
         # sort items to show
         @_sortItems()
-        
-        # go throught items and update the display
-        # for it in items
-        #     if it.isToDisp
-        #         if line == null
-        #             line = @_addLine(it)
-        #         else
-        #             @_updateLine(line,it, typedTxt)
-        #         line = line.nextSibling
-
-        # while line
-        #     line.style.display = 'none'
-        #     line = line.nextSibling
 
         return true
 
@@ -245,15 +299,7 @@ class AutoComplete
 
 
     _removeLine : (line)->
-        # line.removeEventListener(@_mouseoverCB)
-        # line.removeEventListener(@_mouseoutCB)
         @el.removeChild(line)
-
-    # _clickCB : (event) ->
-    #     this.className = 'SUGG_line SUGG_selected'
-
-    # _mouseoutCB : (event) ->
-        # this.className = 'SUGG_line'
 
 
     hide : () ->
@@ -263,12 +309,27 @@ class AutoComplete
         @_currentEdLineDiv = null
         @container.removeEventListener('mousedown',@_detectMousedownAuto)
         @container.removeEventListener('mouseup',@_detectMouseupAuto)
-        if @_selectedLine
-            @_unSelectLine()
-            item = @_selectedLine.item
-        else
-            item = null
-        @_selectedLine = null
+        switch @_currentMode
+            when 'contact'
+                if @_selectedLine
+                    @_unSelectLine()
+                    item = @_selectedLine.item
+                else
+                    item = null
+                    @_selectedLine = null
+            when 'htag'
+                if @_selectedLine && @_selectedLine.item.type == 'htag'
+                    @_unSelectLine()
+                    item = @_selectedLine.item
+                else
+                    item = null
+                    @_selectedLine = null
+            when 'reminder'
+                date = @_currentDate
+                item = text:date, type:'reminder'
+                
+            
+        
         @isVisible = false
         return item
 
@@ -280,18 +341,25 @@ class AutoComplete
             reg = new RegExp(typedTxt.split('').join('[\\w ]*'), 'i')
             @regexStore[typedTxt] = reg
         if item.text.match(reg)
-            cs = typedTxt.toLowerCase().split('')
-            c = cs.shift()
-            for s in item.line.childNodes
+            typedCar = typedTxt.toLowerCase().split('')
+            c = typedCar.shift()
+            spans = item.line.childNodes
+            i = 0
+            l = spans.length 
+            if item.line.lastChild.className == 'SUGG_mention'
+                l -= 1
+            while i < l
+                s = spans[i]
                 if s.textContent.toLowerCase() == c
                     s.className = 'b'
-                    c = cs.shift()
+                    c = typedCar.shift()
                     if c
-                        continue
+                        i += 1
                     else
                         break
                 else
                     s.className = ''
+                    i += 1
             return true
         else
             return false
@@ -351,10 +419,10 @@ class AutoComplete
         return @_selectedLine.item
 
 
-    isInItems : (text) ->
-        for item in @_items
-            if text == item.text
-                return item
+    isInTTags : (text) ->
+        for tag in @tTags
+            if text == tag.text
+                return tag
         return false
 
 
@@ -371,9 +439,10 @@ class AutoComplete
         if isOut
             @hide()
         else
-            # _selectedLine = $(e.target).parents('#SUGG_line')[0]
+            if @_currentMode == 'reminder'
+                return
             selectedLine = e.target
-            while selectedLine && !selectedLine.classList.contains('SUGG_line')
+            while selectedLine && selectedLine.tagName != ('LI')
                 selectedLine = selectedLine.parentElement
             if selectedLine
                 @editor._doHotStringAction(selectedLine.item,@_currentEdLineDiv)

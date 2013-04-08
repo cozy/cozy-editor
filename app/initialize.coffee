@@ -20,14 +20,10 @@ drag = $("#drag")
 initialSize = Math.round(window.innerWidth/1.66)
 
 resizeWellEditor = () ->
-    console.log 'toto2'
     edContent = document.getElementById('editorContent')
     editorBtnBar = document.getElementById('editorBtnBar')
     edContent.style.top = editorBtnBar.offsetHeight + 3 + 'px'
     wellEditor = document.getElementById('well-editor')
-    if editor1
-        editor1.setHeight(wellEditor.offsetHeight-editorBtnBar.offsetHeight-15)
-        console.log (wellEditor.offsetHeight-editorBtnBar.offsetHeight-15 +'px')
 
 $("#col-wrap").layout
     east__size: initialSize
@@ -38,7 +34,6 @@ $("#col-wrap").layout
     togglerLength_closed: "100%"
     onresize_end: ->
         drag.css("z-index","-1")
-        console.log 'toto'
         resizeWellEditor()
 
 # we detect the start of resize with the on mousedown instead of 
@@ -244,7 +239,8 @@ cb = () ->
         editorCtrler.setFocus()
 
     $('#saveBtn').on 'click', () ->
-        editorCtrler.saveTasks()        
+        # editorCtrler.saveTasks()        
+        editor3.saveTasks()        
         
     #### -------------------------------------------------------------------
     # CHECK SYNTAX
