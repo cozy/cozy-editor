@@ -387,7 +387,9 @@ module.exports = class CNeditor
         res = !e.altKey && !e.ctrlKey && !e.shiftKey &&  \
                96 < keyCode < 123  or   \  # a .. z
                63 < keyCode < 91   or   \  # @A .. Z
-               47 < keyCode < 58           # 0 .. 9
+               47 < keyCode < 58   or   \  # 0 .. 9
+               keyCode in [43]             # +
+
         # console.log 'isNormal = ', res, '(' + keyCode + ')'
         return res
 

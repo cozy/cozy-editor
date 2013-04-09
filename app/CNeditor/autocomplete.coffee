@@ -199,11 +199,18 @@ class AutoComplete
                 @el.removeChild(@el.lastChild)
                 now = new Date()
                 @_currentDate = now
+                @_initialDate = new Date()
                 @datePick.datepicker('setValue', now)
                 @timePick.timepicker('setTime', now.getHours()+':'+now.getMinutes()+':'+now.getSeconds())
                 @el.appendChild(@reminderDiv)
                 @_currentMode = 'reminder'
         
+
+    update : (typedTxt) ->
+        if !@isVisible
+            return
+        @_updateDisp(typedTxt)
+
 
     _updateDisp : (typedTxt) ->
 
@@ -220,8 +227,26 @@ class AutoComplete
             when 'htag'
                 items = @htags
             when 'reminder'
-                return
+                reg1 = /(\d*)h(\d*)mn/i
+                reg2 = /(\d*)h/i
+                txt = typedTxt.slice(2)
+                resReg1 = reg1.exec(txt)
+                resReg2 = reg2.exec(txt)
 
+                console.log txt
+                console.log resReg1
+                if resReg1
+                    dh  = parseInt(resReg1[1]) * 3600000
+                    dmn = parseInt(resReg1[2]) * 60000
+                else if resReg2
+                    dh = parseInt(resReg2[1])  * 3600000
+                    dmn  = 0
+                if resReg1 or resReg2
+                    @_currentDate.setTime(@_initialDate.getTime() + dh + dmn)
+                    now = @_currentDate
+                    @datePick.datepicker('setValue', now)
+                    @timePick.timepicker('setTime', now.getHours()+':'+now.getMinutes()+':'+now.getSeconds())
+                return
 
         # check the items to show
         for it in items
@@ -338,7 +363,7 @@ class AutoComplete
         if @regexStore[typedTxt]
             reg = @regexStore[typedTxt]
         else
-            reg = new RegExp(typedTxt.split('').join('[\\w ]*'), 'i')
+            reg = new RegExp(typedTxt.split('').join('[\\w ]*').replace('\W','').replace('\+','\\+'), 'i')
             @regexStore[typedTxt] = reg
         if item.text.match(reg)
             typedCar = typedTxt.toLowerCase().split('')
@@ -363,11 +388,6 @@ class AutoComplete
             return true
         else
             return false
-
-    update : (typedTxt) ->
-        if !@isVisible
-            return
-        @_updateDisp(typedTxt)
 
 
     up : () ->
