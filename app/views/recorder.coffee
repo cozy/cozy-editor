@@ -560,7 +560,7 @@ class exports.Recorder
 
         # play random actions
         start = new Date().getTime()
-        for i in [1..10000] by 1
+        for i in [1..100] by 1
 
             # if the number of line is too small, open a new content
             if @editor.linesDiv.children.length < 5

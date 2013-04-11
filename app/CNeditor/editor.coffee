@@ -261,7 +261,10 @@ module.exports = class CNeditor
         # callback
         @callBack.call(this)
 
-
+    ###*
+     * Whe the user click in the editor, moueup event will set @newPosition to
+     * true.
+    ###
     _mouseupCB : () =>
         @newPosition = true
 
@@ -381,151 +384,6 @@ module.exports = class CNeditor
             return false
         return  @serializeRange(sel.getRangeAt(0))
 
-        
-    isNormalChar : (e) ->
-        keyCode = e.which
-        res = !e.altKey && !e.ctrlKey && !e.shiftKey &&  \
-               96 < keyCode < 123  or   \  # a .. z
-               63 < keyCode < 91   or   \  # @A .. Z
-               47 < keyCode < 58   or   \  # 0 .. 9
-               keyCode in [43]             # +
-
-        # console.log 'isNormal = ', res, '(' + keyCode + ')'
-        return res
-
-
-    ###* -----------------------------------------------------------------------
-     * Update the current "hotString" typed by the user. This function is called
-     * by keypress event, and detects keys such as '@' and "normal caracters". 
-     * Arrows, return, baskspace etc are manage in _keyDownCallBack()
-     * @param  {[type]} e [description]
-     * @return {[type]}   [description]
-    ###
-    _hotStringDetectionKeypress : (e) =>
-        char = String.fromCharCode(e.which)
-        # console.log '.'
-        # console.log '=====  hotStringDetectionKeypress()', char, e.which, e.keyCode, e.altKey, '-' + @hotString + '-'
-        # initialHotString = @hotString
-
-        if e.which == 64  # '@'
-            if @hotString == ' ' or @_isStartingWord()
-                @hotString = ' @'
-                sel = @updateCurrentSel()
-                if sel.startLineDiv.dataset.type == 'task'
-                    @_auto.setModes(['contact','event','reminder','tag'])
-                else
-                    @_auto.setModes(['contact','todo','event','reminder','tag'])
-                    # modes = ['reminder']
-                @_auto.show(sel , '', sel.startLineDiv)
-                return
-
-        if e.which == 35  # '#'
-            if @hotString == ' ' or @_isStartingWord()
-                @hotString = ' #'
-                sel = @updateCurrentSel()
-                @_auto.setModes(['tag'])
-                @_auto.show(sel , '', sel.startLineDiv)
-                return
-
-        if @isNormalChar(e)
-            if @hotString.length > 1
-                @hotString += String.fromCharCode(e.which)
-                @_auto.update(@hotString.slice(2))
-                if @_doHotStringAction()
-                    e.preventDefault()
-            else
-                @hotString = ''
-                @_auto.hide()
-
-
-    _isAHotString : (txt) ->
-        switch txt.slice(2)
-            when 'reminder', '@'
-                return text:'reminder', type:'ttag'
-            when 'todo'
-                return text:'todo', type:'ttag'
-            
-
-    _doHotStringAction : (autoItem, lineDiv) ->
-        if !autoItem
-            autoItem = @_isAHotString(@hotString)
-            if !autoItem
-                return false
-
-        switch autoItem.type
-            when 'ttag'
-                switch autoItem.text
-                    when 'todo'
-                        taskDiv = @_turnIntoTask()
-                        if taskDiv
-                            txt = taskDiv.textContent.trim()
-                            reg = new RegExp('^ *@?t?o?d?o? *$','i')
-                            if txt.match(reg)
-                                @_initTaskContent(taskDiv)
-                            else
-                                @_forceUserHotString('')
-                            @hotString = ''
-                            @_auto.hide()
-                            return true
-                    when 'reminder'
-                        @_auto.hide()
-                        @_forceUserHotString(' @@',true)
-                        @hotString = ' @@'
-                        @_auto.setModes(['reminder'])
-                        @_auto.show(null , @hotString.slice(2), null)
-                        return true
-                    when 'tag'
-                        @_auto.hide()
-                        @_forceUserHotString(' #',true)
-                        @hotString = ' #'
-                        @_auto.setModes(['tag'])
-                        @_auto.show(null , @hotString.slice(2), null)
-                        return true
-
-            when 'contact'
-                @_forceUserHotString(autoItem.text)
-                rg = @_applyMetaDataOnSelection('CNE_contact')
-                lastSeg = selection.getSegment(rg.endContainer,0)
-                newSeg = @_insertSegmentAfterSeg(lastSeg)
-                @_setCaret(newSeg,1)
-                @hotString = ''
-                @_auto.hide()
-                return true
-
-            when 'htag'
-                @_forceUserHotString(autoItem.text)
-                rg = @_applyMetaDataOnSelection('CNE_htag')
-                lastSeg = selection.getSegment(rg.endContainer,0)
-                newSeg = @_insertSegmentAfterSeg(lastSeg)
-                @_setCaret(newSeg,1)
-                @hotString = ''
-                @_auto.hide()
-                return true
-
-            when 'reminder'
-                format = (n)->
-                    if n.toString().length == 1
-                        return '0' + n
-                    else
-                        return n
-                date = autoItem.text
-                d  = format(date.getDate()     )
-                m  = format(date.getMonth()    )
-                y  = format(date.getFullYear() )
-                h  = format(date.getHours()    )
-                mn = format(date.getMinutes()  )
-                txt = d + '/' + m + '/' + y + '  ' + h + ':' + mn
-                @_forceUserHotString(txt)
-                rg = @_applyMetaDataOnSelection('CNE_reminder')
-                lastSeg = selection.getSegment(rg.endContainer,0)
-                newSeg = @_insertSegmentAfterSeg(lastSeg)
-                @_setCaret(newSeg,1)
-                @hotString = ''
-                @_auto.hide()
-                return true
-
-        @_auto.hide() 
-        return false
 
 
     _initTaskContent : (taskDiv) ->
@@ -980,39 +838,32 @@ module.exports = class CNeditor
         @linesDiv.addEventListener('keydown', @_keyDownCallBackTry, true)
 
 
-    ### ------------------------------------------------------------------------
-    #   _keyDownCallBack
-    # 
-    # The listener of keyPress event on the editor's iframe... the king !
+    ###*------------------------------------------------------------------------
+     *
+     * The listener of keyPress event on the editor's iframe... the king !
+     * 
+     * Params :
+     * e : the event object. Interesting attributes : 
+     *   .which
+     *   .altKey
+     *   .ctrlKey
+     *   .metaKey
+     *   .shiftKey
+     *   .keyCode
+     *   
+     * SHORTCUT
+     *
+     * Definition of a shortcut : 
+     *   a combination alt,ctrl,shift,meta
+     *   + one caracter(.which) 
+     *   or 
+     *     arrow (.keyCode=dghb:) or 
+     *     return(keyCode:13) or 
+     *     bckspace (which:8) or 
+     *     tab(keyCode:9)
+     *   ex : shortcut = 'CtrlShift-up', 'Ctrl-115' (ctrl+s), '-115' (s),
+     *                   'Ctrl-'
     ###
-    # 
-    # Params :
-    # e : the event object. Interesting attributes : 
-    #   .which : added by jquery : code of the caracter (not of the key)
-    #   .altKey
-    #   .ctrlKey
-    #   .metaKey
-    #   .shiftKey
-    #   .keyCode
-    ###
-    # SHORTCUT
-    #
-    # Definition of a shortcut : 
-    #   a combination alt,ctrl,shift,meta
-    #   + one caracter(.which) 
-    #   or 
-    #     arrow (.keyCode=dghb:) or 
-    #     return(keyCode:13) or 
-    #     bckspace (which:8) or 
-    #     tab(keyCode:9)
-    #   ex : shortcut = 'CtrlShift-up', 'Ctrl-115' (ctrl+s), '-115' (s),
-    #                   'Ctrl-'
-    ###
-    # Variables :
-    #   metaKeyStrokesCode : ex : ="Alt" or "CtrlAlt" or "CtrlShift" ...
-    #   keyStrokesCode     : ex : ="return" or "_102" (when the caracter 
-    #                               N°102 f is stroke) or "space" ...
-    #
     _keyDownCallBack : (e) =>
         
         if ! @isEnabled
@@ -1023,18 +874,18 @@ module.exports = class CNeditor
         shortcut = metaKeyCode + '-' + keyCode
         # console.log '_keyDownCallBack', shortcut, 'e.which'
         #     , e.which, String.fromCharCode(e.which )
-        switch e.keyCode
-            when 16 #Shift
-                e.preventDefault()
-                return
-            when 17 #Ctrl
-                e.preventDefault()
-                return
-            when 18 #Alt
-                e.preventDefault()
-                return
+        # switch e.keyCode
+        #     when 16 #Shift
+        #         e.preventDefault()
+        #         return
+        #     when 17 #Ctrl
+        #         e.preventDefault()
+        #         return
+        #     when 18 #Alt
+        #         e.preventDefault()
+        #         return
 
-        # Add a new history step if the short cut is different from previous
+        # 26 Add a new history step if the short cut is different from previous
         # shortcut and only in case a a return, a backspace, a space...
         # This means that in case of multiple return, only the first one is in
         # history. A letter such as 'a' doesn't increase the history.
@@ -1044,12 +895,6 @@ module.exports = class CNeditor
                             'CtrlShift-down', 'CtrlShift-up',
                             'CtrlShift-left', 'CtrlShift-right', 
                             'Ctrl-V', '-space', '-other']
-
-        # if  \
-        #        shortcut in ['-return', '-backspace', '-suppr',
-        #                     'CtrlShift-down', 'CtrlShift-up',
-        #                     'CtrlShift-left', 'CtrlShift-right', 
-        #                     'Ctrl-V', '-space', '-other']
             @_addHistory()
            
         @_lastKey = shortcut
@@ -1065,7 +910,7 @@ module.exports = class CNeditor
             endBP            : null
 
 
-        # 2- manage the newPosition flag
+        # 3- Manage the newPosition flag
         #    newPosition == true if the position of caret or selection has been
         #    modified with keyboard or mouse.
         #    If newPosition == true and a character is typed or a suppression
@@ -1073,21 +918,18 @@ module.exports = class CNeditor
         #    break points are in text nodes. Normalization is done by 
         #    updateCurrentSel or updateCurrentSelIsStartIsEnd that is chosen 
         #    before to run the action corresponding to the shorcut.
-
-        # Set a flag if the user moved the caret with keyboard
+        #    The update of @newPosition is done :
+        #       - bellow depending on the key stroke
+        #       - in _mouseupCB
+        #       
         
-        # if keyCode in ['left','up','right','down',
-        #                       'pgUp','pgDwn','end', 'home',
-        #                       'return', 'suppr', 'backspace']      \
-        #    and shortcut not in ['CtrlShift-down', 'CtrlShift-up',
-        #                     'CtrlShift-right', 'CtrlShift-left']
-        #     @newPosition = true
+        # 4- Give hand to the popover if this one is visible
+        if @_auto.isVisible
+            @_auto
 
-
-            
-        
                  
-        # 5- launch the action corresponding to the pressed shortcut
+        # 3- launch the action corresponding to the pressed shortcut
+        # If a popover is visible, the actions are sent to it
         switch shortcut
 
             when '-return'
