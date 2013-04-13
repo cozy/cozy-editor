@@ -67,6 +67,12 @@ task-btn-bgcolor = white
 // common to all tasks
 div[ data-type = "task" ]
     background-color:#FDEFEF
+    border-radius: 6px
+    border-color : rgba(255, 0, 0, 0.06)
+    border-width:1px
+    border-style: solid
+    // border-bottom-left-radius: 6px
+    // border-top-left-radius: 6px
 // on done tasks, color for the line-through
 div[ data-state = "done" ]
     background-color:#F3F3F3
@@ -271,6 +277,11 @@ else
 
 .CNE_reminder:hover
     text-decoration : underline
+
+.CNE_hot_string
+    box-shadow    : 1px 1px 9px red
+    // border-color  : #61C5FA
+    border-radius : 3px
 
 a
     color: #0014FF

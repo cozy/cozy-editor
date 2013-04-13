@@ -23,129 +23,14 @@
 md2cozy      = require('./md2cozy').md2cozy
 selection    = require('./selection').selection
 Task         = require('./task')
-AutoComplete = require('./autocomplete').AutoComplete
+# AutoComplete = require('./autocomplete').AutoComplete
+HotString    = require('./hot-string')
+Line         = require('./line')
 # realtimer    = require('./realtimer')
 try
     realtimer= require('./realtimer')
 catch e
     realtimer = watch : () ->
-
-
-  
-###* -----------------------------------------------------------------------
- * line$        : 
- * lineID       : 
- * lineType     : 
- * lineDepthAbs : 
- * lineDepthRel : 
- * lineNext     : 
- * linePrev     : 
-###
-class Line
-    ###
-     * If no arguments, returns an empty object (only methods), otherwise
-     * constructs a full line. The dom element of the line is inserted according
-     * to the previous or next line given in the arguments.
-     * @param  {Array}  Array of parameters :
-     *   [ 
-            editor        , # 
-            type          , # 
-            depthAbs      , # 
-            depthRelative , # 
-            prevLine      , # The prev line, null if nextLine is given
-            nextLine      , # The next line, null if prevLine is given
-            fragment        # [optional] a fragment to insert in the line, will
-                              add a br at the end if none in the fragment.
-          ]
-    ###
-    constructor : ( ) ->
-        if arguments.length == 0
-            return
-        else
-            [ 
-              editor        , # 
-              type          , # 
-              depthAbs      , # 
-              depthRelative , # 
-              prevLine      , # The prev line, null if nextLine is given
-              nextLine      , # The next line, null if prevLine is given
-              fragment        # [optional] a fragment to insert in the line
-            ] = arguments
-        # Increment the counter for lines id
-        editor._highestId += 1
-        # Initialise with an empty line or the fragment given in arguments
-        lineID = 'CNID_' + editor._highestId
-        newLineEl = document.createElement('div')
-        
-        newLineEl.setAttribute('class', type + '-' + depthAbs)
-        if fragment?
-            newLineEl.appendChild(fragment)
-            if newLineEl.lastChild.nodeName != 'BR'
-                newLineEl.appendChild(document.createElement('br'))
-        else
-            node = document.createElement('span')
-            node.appendChild(document.createTextNode(''))
-            newLineEl.appendChild(node)
-            newLineEl.appendChild(document.createElement('br'))
-        @line$ = $(newLineEl)
-        
-        if prevLine?
-            @.linePrev = prevLine
-            linesDiv = prevLine.line$[0].parentNode
-            if prevLine.lineNext?
-                nextL = prevLine.lineNext
-                linesDiv.insertBefore(newLineEl,nextL.line$[0])
-                @.lineNext     = nextL
-                nextL.linePrev = @
-            else
-                linesDiv.appendChild(newLineEl)
-                @.lineNext = null
-            prevLine.lineNext = @
-            
-        else if nextLine?
-            linesDiv = nextLine.line$[0].parentNode
-            @.lineNext = nextLine
-            linesDiv.insertBefore(newLineEl,nextLine.line$[0])
-            if nextLine.linePrev? 
-                @.linePrev = nextLine.linePrev
-                nextLine.linePrev.lineNext = @
-            else
-                @.linePrev = null
-            nextLine.linePrev = @
-        
-        newLineEl.id   = lineID
-        @.lineID       = lineID
-        @.lineType     = type
-        @.lineDepthAbs = depthAbs
-        @.lineDepthRel = depthRelative
-        editor._lines[lineID] = @
-        
-
-    setType : (type) ->
-        @lineType = type
-        @line$.prop('class',"#{type}-#{@lineDepthAbs}")
-
-    setDepthAbs : (absDepth) ->
-        @lineDepthAbs = absDepth
-        @line$.prop('class',"#{@lineType}-#{absDepth}")
-
-    setTypeDepth : (type, absDepth) ->
-        @lineType = type
-        @lineDepthAbs = absDepth
-        @line$.prop('class',"#{type}-#{absDepth}")
-
-Line.clone = (line) ->
-    clone = new Line()
-    clone.line$        = line.line$.clone()
-    clone.lineID       = line.lineID
-    clone.lineType     = line.lineType
-    clone.lineDepthAbs = line.lineDepthAbs
-    clone.lineDepthRel = line.lineDepthRel
-    clone.linePrev     = line.linePrev
-    clone.lineNext     = line.lineNext
-    return clone
-
-
 
 
 module.exports = class CNeditor
@@ -160,12 +45,14 @@ module.exports = class CNeditor
         @editorTarget  = editorTarget
         @editorTarget$ = $(@editorTarget)
         @callBack = callBack
+
         # Initialisation of the Tasks
         @_internalTaskCounter = 0
         @_taskList = []     # all tasks created or loaded since the load of page
         @_tasksModifStacks = {} # a list of tasks waiting to be sent to server.
         Task.initialize () =>
             @taskCanBeUsed = Task.canBeUsed
+        
         # launch loard editor in synchrone or async whether the editor is in a
         # div or an iframe.
         if @editorTarget.nodeName == "IFRAME"
@@ -222,7 +109,10 @@ module.exports = class CNeditor
         @_initUrlPopover()
 
         # init autocomplete
-        @_auto = new AutoComplete(linesDiv, this)
+        # @_auto = new AutoComplete(linesDiv, this)
+
+        # initialisation of the hot sting manager
+        @_hotString = new HotString(this)
 
         # set the properties of the editor
         @_lines      = {}            # contains every line
@@ -230,7 +120,7 @@ module.exports = class CNeditor
         @_highestId  = 0             # last inserted line identifier
         @_deepest    = 1             # current maximum indentation
         @_firstLine  = null          # pointer to the first line
-        @hotString   = ''            # the string to detect hotStrings
+        # @hotString   = ''            # the string to detect hotStrings
 
         # init history
         HISTORY_SIZE  = 100
@@ -295,6 +185,11 @@ module.exports = class CNeditor
                 e.stopPropagation()
                 e.preventDefault()
 
+        # if a hot string is under preparation, re init the process.
+        if @hotString.isPreparing
+            @hotString.reInit()
+
+        return true
 
     _pasteCB : (event) =>
         @paste event
@@ -319,8 +214,8 @@ module.exports = class CNeditor
         @editorBody$.on('click', @_clickCB)
         @editorBody$.on 'paste', @_pasteCB
 
-        @editorBody.addEventListener('keypress', @_hotStringDetectionKeypress)
-        @editorBody.addEventListener('keydown' , @_hotStringDetectionKeydown)
+        # @editorBody.addEventListener('keypress', @_hotStringDetectionKeypress)
+        @editorBody.addEventListener('keypress', @_hotString.newtypedChar)
 
 
     _unRegisterEventListeners : () ->
@@ -340,6 +235,8 @@ module.exports = class CNeditor
         # Click and paste call backs
         @editorBody$.off('click', @_clickCB)
         @editorBody$.off('paste', @_pasteCB)
+
+        @editorBody.removeEventListener('keypress', @_hotString.newtypedChar)
 
 
     disable : () ->
@@ -399,20 +296,6 @@ module.exports = class CNeditor
         @_setSelectionOnNode(txt)
 
 
-    _forceUserHotString : (newHotString, setEnd) ->
-        rg = @updateCurrentSel().theoricalRange
-        textNode = rg.startContainer
-        textContent = textNode.textContent
-        index = rg.startOffset - @hotString.length + 1
-        txt =   textContent.slice(0, index)                                 \
-              + newHotString                                                \
-              + textContent.slice(rg.startOffset)
-        textNode.textContent = txt
-        if setEnd
-            @_setCaret(textNode,index + newHotString.length) 
-        else
-            @_setSelection(textNode,index,textNode,index + newHotString.length) 
-
 
     _turnIntoTask : (lineDiv) ->
         if !lineDiv
@@ -420,6 +303,7 @@ module.exports = class CNeditor
             lineDiv  = currSel.startLine.line$[0]
 
         return @_turneLineIntoTask(lineDiv)
+
 
 
     _turneLineIntoTask : (lineDiv) ->
@@ -445,6 +329,7 @@ module.exports = class CNeditor
         return lineDiv
 
 
+
     _turneTaskIntoLine : (taskDiv) ->
         
         # remove button
@@ -462,6 +347,7 @@ module.exports = class CNeditor
         taskDiv.dataset.id   = ''
 
 
+
     _toggleTaskCB : (e) =>
         lineDiv = @_getSelectedLineDiv()
         btn = lineDiv.firstChild
@@ -475,6 +361,7 @@ module.exports = class CNeditor
             @_stackTaskChange(lineDiv.task,'done')
 
         return lineDiv
+
 
 
     _detectTaskChange : () ->
@@ -630,14 +517,22 @@ module.exports = class CNeditor
 
     _isStartingWord  : () ->
         sel = @updateCurrentSelIsStartIsEnd()
-        # rg = this.document.getSelection().getRangeAt(0)
         rg = sel.theoricalRange
+
+        # if selection is at the start of the line
         if sel.rangeIsStartLine
             return true
+
+        # else find the caracter just before the start of the selection
         else 
-            if rg.startOffset == 0 # since normalized, range is in a text node
+            # if the selection is at the beginning of a the text node (since 
+            # normalized, startContainer is in a text node), we get all the text
+            # that is befor the selection
+            if rg.startOffset == 0
                 rg2 = rg.cloneRange()
-                txt = rg.toString()
+                rg2.collapse()
+                rg2.setStart(selection._getLineDiv(rg2.startContainer), 0)
+                txt = rg2.toString()
                 if txt.length == 0
                     # we are not at the beginning of the line but there is no 
                     # text before : means there is a non textual segment embeded
@@ -645,15 +540,25 @@ module.exports = class CNeditor
                     # after it : we consider that this is the start of a word,
                     # but this is not obvious.
                     return true
-                char = txt[txt.length]
+                else
+                    char = text.slice(-1)
             else
                 char = rg.startContainer.textContent.substr(rg.startOffset-1, 1)
 
+            # check that the caracter preceding the selection is a space or a
+            # non breakable space
             if char.charCodeAt(0) == 32 or char.charCodeAt(0) == 160
                 return true
             else
                 return false
 
+
+    getCurrentAllowedInsertions : () ->
+        sel = @updateCurrentSel()
+        if sel.startLineDiv.dataset.type == 'task'
+            return ['contact','event','reminder','tag']
+        else
+            return ['contact','todo','event','reminder','tag']
 
 
     ### ------------------------------------------------------------------------
@@ -684,6 +589,7 @@ module.exports = class CNeditor
             else
                 @replaceCSS("stylesheets/app-deep-4.css")
         
+
     ###* -----------------------------------------------------------------------
      * Initialize the editor content from a html string
      * The html string should not been pretified because of the spaces and
@@ -705,6 +611,7 @@ module.exports = class CNeditor
         @hotString = ''
         # @_initHistory()
 
+
     ### ------------------------------------------------------------------------
     # Clear editor content
     ###
@@ -712,29 +619,34 @@ module.exports = class CNeditor
         emptyLine = '<div id="CNID_1" class="Tu-1"><span></span><br></div>'
         @replaceContent(emptyLine)
     
+
     ### ------------------------------------------------------------------------
     # Returns a markdown string representing the editor content
     ###
     getEditorContent : () ->
         # md2cozy.cozy2md $(@linesDiv)
-        if @_auto.isVisible
-            @linesDiv.removeChild(@_auto.el)
+        # if @_hotString.isPreparing
+        #     @linesDiv.removeChild(@_auto.el)
         txt = @linesDiv.innerHTML
-        if @_auto.isVisible
-            @linesDiv.appendChild(@_auto.el)
+        # if @_auto.isVisible
+        #     @linesDiv.appendChild(@_auto.el)
         if @.isUrlPopoverOn
             txt = txt.replace('<div[=":;\w ]*CNE_urlPopover[\w\W]*','')
+        else if @_hotString.isPreparing
+            txt = txt.replace('<div[=":;\w ]*CNE_autocomplete[\w\W]*','')
 
         # else
         #     @linesDiv.appendChild(@_auto.el)
         #     txt = @linesDiv.innerHTML
         return txt
 
+
     ### ------------------------------------------------------------------------
     # Sets the editor content from a markdown string
     ###
     setEditorContent : (htmlContent) ->
         @replaceContent(htmlContent)
+
 
     ### ------------------------------------------------------------------------
     # DEPRECATED - USED ONLY FOR REVERSE COMPATIBILITY
@@ -743,7 +655,8 @@ module.exports = class CNeditor
     setEditorContentFromMD : (mdContent) ->
         cozyContent = md2cozy.md2cozy mdContent
         @replaceContent(cozyContent)
-                  
+          
+
     ### ------------------------------------------------------------------------
     # Change the path of the css applied to the editor iframe
     ###
@@ -752,6 +665,7 @@ module.exports = class CNeditor
         linkElm = document.querySelector('#editorCSS')
         linkElm.setAttribute('href' , path)
         document.head.appendChild(linkElm)
+
 
     ###* -----------------------------------------------------------------------
      * Return [metaKeyCode,keyCode] corresponding to the key strike combinaison. 
@@ -771,22 +685,24 @@ module.exports = class CNeditor
         metaKeyCode = `(e.altKey ? "Alt" : "") + 
                               (e.ctrlKey ? "Ctrl" : "") + 
                               (e.shiftKey ? "Shift" : "")`
+        
         switch e.keyCode
-            when 13 then keyCode = 'return'
-            when 35 then keyCode = 'end'
-            when 36 then keyCode = 'home'
-            when 33 then keyCode = 'pgUp'
-            when 34 then keyCode = 'pgDwn'
-            when 37 then keyCode = 'left'
-            when 38 then keyCode = 'up'
-            when 39 then keyCode = 'right'
-            when 40 then keyCode = 'down'
-            when 9  then keyCode = 'tab'
-            when 8  then keyCode = 'backspace'
-            when 32 then keyCode = 'space'
-            when 27 then keyCode = 'esc'
-            when 46 then keyCode = 'suppr'
+            when 13 then keyCode = 'return'    ; isAction = true
+            when 35 then keyCode = 'end'       ; isAction = true
+            when 36 then keyCode = 'home'      ; isAction = true
+            when 33 then keyCode = 'pgUp'      ; isAction = true
+            when 34 then keyCode = 'pgDwn'     ; isAction = true
+            when 37 then keyCode = 'left'      ; isAction = true
+            when 38 then keyCode = 'up'        ; isAction = true
+            when 39 then keyCode = 'right'     ; isAction = true
+            when 40 then keyCode = 'down'      ; isAction = true
+            when 9  then keyCode = 'tab'       ; isAction = true
+            when 8  then keyCode = 'backspace' ; isAction = true
+            when 32 then keyCode = 'space'     ; isAction = true
+            when 27 then keyCode = 'esc'       ; isAction = true
+            when 46 then keyCode = 'suppr'     ; isAction = true
             else
+                isAction = false
                 switch e.which
                     when 32 then keyCode = 'space'
                     when 8  then keyCode = 'backspace'
@@ -807,7 +723,7 @@ module.exports = class CNeditor
              ['A', 'B', 'U', 'K', 'L', 'S', 'V', 'Y', 'Z']
             keyCode = 'other'
 
-        return [metaKeyCode,keyCode]
+        return [metaKeyCode, keyCode, isAction]
 
 
     ###* -----------------------------------------------------------------------
@@ -923,9 +839,13 @@ module.exports = class CNeditor
         #       - in _mouseupCB
         #       
         
-        # 4- Give hand to the popover if this one is visible
-        if @_auto.isVisible
-            @_auto
+        # 4- Give hand to the hotString manager if this one is preparing one.
+        # if the hotString manager launched an action, the stop here and prevent
+        # any other action of the editor.
+        if @_hotString.isPreparing
+            if @_hotString.newShortCut(shortcut, metaKeyCode, keyCode)
+                e.preventDefault()
+                return false
 
                  
         # 3- launch the action corresponding to the pressed shortcut
@@ -933,23 +853,23 @@ module.exports = class CNeditor
         switch shortcut
 
             when '-return'
-                if @_auto.isVisible
-                    item = @_auto.hide()
-                    @_doHotStringAction(item)
-                    e.preventDefault()
-                else
-                    @updateCurrentSelIsStartIsEnd()
-                    @_return()
-                    @newPosition = false
-                    e.preventDefault()
-                    @editorTarget$.trigger jQuery.Event('onChange')
+                # if @_auto.isVisible
+                #     item = @_auto.hide()
+                #     @doHotStringAction(item)
+                #     e.preventDefault()
+                # else
+                @updateCurrentSelIsStartIsEnd()
+                @_return()
+                @newPosition = false
+                e.preventDefault()
+                @editorTarget$.trigger jQuery.Event('onChange')
 
             when '-backspace'
-                @hotString = @hotString.slice(0, -1)
-                if @hotString.length < 2
-                    @_auto.hide()
-                else
-                    @_auto.update(@hotString.slice(2))
+                # @hotString = @hotString.slice(0, -1)
+                # if @hotString.length < 2
+                #     @_auto.hide()
+                # else
+                #     @_auto.update(@hotString.slice(2))
 
                 @updateCurrentSelIsStartIsEnd()
                 @_backspace()
@@ -975,8 +895,8 @@ module.exports = class CNeditor
                 e.preventDefault()
                 @newPosition = true
                 @editorTarget$.trigger jQuery.Event('onChange')
-                @hotString = ''
-                @_auto.hide() 
+                # @hotString = ''
+                # @_auto.hide() 
 
             when 'CtrlShift-down'
                 # @_moveLinesDown()
@@ -987,26 +907,25 @@ module.exports = class CNeditor
                 e.preventDefault()
 
             when '-up'
-                if @_auto.isVisible
-                    @_auto.up()
-                    e.preventDefault()
-                else
-                    @_previousLineDiv = @updateCurrentSel().startLineDiv
-                    @newPosition = true
-                    @hotString = ''
+                # if @_auto.isVisible
+                #     @_auto.up()
+                #     e.preventDefault()
+                # else
+                @newPosition = true
+                    # @hotString = ''
 
             when '-down'
-                if @_auto.isVisible
-                    @_auto.down()
-                    e.preventDefault()
-                else
-                    @newPosition = true
-                    @hotString = ''
+                # if @_auto.isVisible
+                #     @_auto.down()
+                #     e.preventDefault()
+                # else
+                @newPosition = true
+                    # @hotString = ''
 
             when '-left', '-right', '-pgUp', '-pgDwn', '-end', '-home'
                 @newPosition = true
-                @hotString = ''
-                @_auto.hide()
+                # @hotString = ''
+                # @_auto.hide()
                 
             when 'Ctrl-A'
                 selection.selectAll(this)
@@ -1030,8 +949,8 @@ module.exports = class CNeditor
                     @newPosition = false
                 @editorTarget$.trigger jQuery.Event('onChange')
                 @_detectTaskChange()
-                if shortcut == '-space'
-                    @hotString = ' '
+                # if shortcut == '-space'
+                #     @hotString = ' '
 
             when 'Ctrl-V'
                 @editorTarget$.trigger jQuery.Event('onChange')
@@ -1065,8 +984,8 @@ module.exports = class CNeditor
                 e.preventDefault()
                 @editorTarget$.trigger jQuery.Event('onChange')
 
-            when '-esc'
-                @_auto.hide()
+            # when '-esc'
+            #     @_auto.hide()
 
 
 
@@ -1371,11 +1290,13 @@ module.exports = class CNeditor
 
         currentSel = @updateCurrentSelIsStartIsEnd()
         range = currentSel.theoricalRange
+
         # Show url popover if range is collapsed in a link segment
         if range.collapsed
             segments = @_getLinkSegments()
             if segments
                 @_showUrlPopover(segments,false)
+
         # if selection is not collapsed, 2 cases : 
         # the start breakpoint is in a link or not
         else
@@ -2128,7 +2049,7 @@ module.exports = class CNeditor
      *     class and if required href.
      *   * Remove empty segments.
      * @param  {element} lineDiv     the DIV containing the line
-     * @param  {Array} breakPoints [{con,offset}...] array of respectively the 
+     * @param  {Array} breakPoints [{cont,offset}...] array of respectively the 
      *                              container and offset of the breakpoint to 
      *                              update if cont is in a segment modified by 
      *                              the fusion. 
@@ -3383,7 +3304,7 @@ module.exports = class CNeditor
         sel.addRange(range)
         return true
 
-    _setSelection : (startContainer,startOffset,endContainer,endOffset) ->
+    setSelection : (startContainer,startOffset,endContainer,endOffset) ->
         range = this.document.createRange()
         range.setStart(startContainer, startOffset )
         range.setEnd(endContainer, endOffset)
@@ -4516,6 +4437,22 @@ module.exports = class CNeditor
         seg.parentElement.insertBefore(span,seg.nextSibling)
         return span
 
+    insertSpaceAfterSeg : (seg) ->
+        nextSeg = seg.nextSibling
+        if nextSeg.nodeName == 'BR'
+            span = @_insertSegmentAfterSeg(seg)
+            bp = {cont:span.firstChild, offset:1}
+        else
+            index = selection.getSegmentIndex(seg)[1] + 1
+            bp = selection.normalizeBP(seg.parentElement, index, true)
+            txtNode = bp.cont
+            c1 = txtNode.textContent[0]
+            if !(c1 == ' ' or c1 == '\u00a0')
+                txtNode.textContent = '\u00a0' + txtNode.textContent
+            bp.offset = 1
+            return bp
+
+
 
     ###* -----------------------------------------------------------------------
      * Walks thoug an html tree in order to convert it in a strutured content
@@ -4789,7 +4726,80 @@ module.exports = class CNeditor
             targetLineDepthRel : context.absDepth
         context.lastAddedLine = @_insertLineAfter(p)
 
-        
+
+
+    doHotStringAction : (autoItem) ->
+        hs = @_hotString
+
+        switch autoItem.type
+
+            when 'ttag'
+                return hs.forceHsType(autoItem.value)
+
+            when 'todo'
+                taskDiv = @._turnIntoTask()
+                if taskDiv
+                    txt = taskDiv.textContent.trim()
+                    reg = new RegExp('^ *@?t?o?d?o? *$','i')
+                    if txt.match(reg)
+                        @._initTaskContent(taskDiv)
+                    else
+                        hs._forceUserHotString('')
+                    hs.reset()
+                    return true
+
+            when 'contact'
+                hs._forceUserHotString(autoItem.text)
+                hs._hsSegment.classList.add('CNE_contact')
+                hs._hsSegment.classList.remove('CNE_hot_string')
+                bp = @.insertSpaceAfterSeg(hs._hsSegment)
+                @_setCaret(bp.cont,1)
+                hs._auto.hide()
+                hs._reInit()
+                return true
+
+            when 'htag'
+                hs._forceUserHotString(autoItem.text)
+                hs._hsSegment.classList.add('CNE_htag')
+                hs._hsSegment.classList.remove('CNE_hot_string')
+                bp = @.insertSpaceAfterSeg(hs._hsSegment)
+                @_setCaret(bp.cont,1)
+                hs._auto.hide()
+                return true
+
+            when 'reminder'
+                format = (n)->
+                    if n.toString().length == 1
+                        return '0' + n
+                    else
+                        return n
+                date = autoItem.text
+                d    = format(date.getDate()     )
+                m    = format(date.getMonth()    )
+                y    = format(date.getFullYear() )
+                h    = format(date.getHours()    )
+                mn   = format(date.getMinutes()  )
+                txt  = d + '/' + m + '/' + y + '  ' + h + ':' + mn
+                hs._forceUserHotString(txt)
+                hs._hsSegment.classList.add('CNE_reminder')
+                hs._hsSegment.classList.remove('CNE_hot_string')
+                bp = @.insertSpaceAfterSeg(hs._hsSegment)
+                @_setCaret(bp.cont,1)
+                hs._auto.hide()
+                hs._reInit()
+
+                # rg = @._applyMetaDataOnSelection('CNE_reminder')
+                # lastSeg = selection.getSegment(rg.endContainer,0)
+                # newSeg = @_insertSegmentAfterSeg(lastSeg)
+                # @_setCaret(newSeg,1)
+                # @hotString = ''
+                # @_auto.hide()
+                return true
+
+        @_auto.hide() 
+        return false
+
+
   
     ### ------------------------------------------------------------------------
     # EXTENSION  :  cleaned up HTML parsing

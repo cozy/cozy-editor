@@ -59,7 +59,7 @@ class AutoComplete
         auto  = document.createElement('div')
         auto.id = 'CNE_autocomplete'
         auto.className = 'CNE_autocomplete'
-        auto.setAttribute('contenteditable','false')
+        auto.setAttribute('contentEditable','false')
         auto.addEventListener 'keypress', (e) =>
             if e.keyCode == 13 # return
                 @_validateUrlPopover()
@@ -75,10 +75,10 @@ class AutoComplete
         auto.appendChild(@contactsDiv)
 
         @setItems( 'tTags', [
-            {text:'contact'         , type:'ttag', mention:' (@)' }
-            {text:'reminder'        , type:'ttag', mention:' (@@)'}
-            {text:'todo'            , type:'ttag'                 }
-            {text:'tag'             , type:'ttag', mention:' (#)' }
+            {text:'contact' , type:'ttag', value:'contact' , mention:' (@)' }
+            {text:'reminder', type:'ttag', value:'reminder', mention:' (@@)'}
+            {text:'todo'    , type:'ttag', value:'todo'                     }
+            {text:'tag'     , type:'ttag', value:'htag'    , mention:' (#)' }
             ])
 
         @setItems( 'contact', [
@@ -102,6 +102,7 @@ class AutoComplete
         return this
 
 
+
     setItems : (type, items) ->
         # console.log ' setItems', items, type
         switch type
@@ -120,11 +121,12 @@ class AutoComplete
         return true
 
 
+
     _createLine : (item) ->
         # console.log '_createLine', item
 
         line = document.createElement('LI')
-
+        # line.contentEditable = false
         type = item.type
         switch type
             when 'ttag'
@@ -139,6 +141,7 @@ class AutoComplete
         t = item.text.split('')
         for c in t
             span = document.createElement('SPAN')
+            # span.contentEditable = false
             span.textContent = c
             line.appendChild(span)
 
@@ -154,27 +157,24 @@ class AutoComplete
         return line
 
 
+
     ###*
      * Show the suggestion list
-     * @param  {Object} currentSel The editor current selection
+     * @param  {Object} seg The segment to be positionned next to.
      * @param  {String} typedTxt   The string typed by the user (hotstring)
      * @param  {[type]} edLineDiv  The editor line div where the user is typing
     ###
-    show : (currentSel,typedTxt,edLineDiv) ->
+    show : (seg,typedTxt) ->
         # modes = ['todo','contact','event','reminder','tag']
-        @_currentEdLineDiv = edLineDiv if edLineDiv
-        # @_setModes(modes)
-        @_updateDisp(typedTxt)
-        @_position(currentSel) if currentSel
-        @container.appendChild(@el)
+        edLineDiv = seg.parentElement
         @isVisible = true
-
-        # add event listener to detect a click outside of the popover
-        @container.addEventListener('mousedown',@_detectMousedownAuto)
-        @container.addEventListener('mouseup',@_detectMouseupAuto)
+        @update(typedTxt)
+        @_position(seg)
+        @container.appendChild(@el)
 
                 
-    setModes : (modes) ->
+
+    setAllowedModes : (modes) ->
         @_modes = modes
         for ttag in @tTags
             ttag.isInMode = false
@@ -183,46 +183,73 @@ class AutoComplete
                     ttag.isInMode = true
                     break
             
-        if modes[0] == @_currentMode
-            return
+        # if modes[0] != @_currentMode
+        #     return @setMode(modes[0])
 
-        switch modes[0]
+        return true
+
+
+
+    setMode : (mode) ->
+
+        @_unSelectLine()
+
+        switch mode
+
             when 'contact'
-                @el.removeChild(@el.lastChild)
-                @el.appendChild(@contactsDiv)
                 @_currentMode = 'contact'
-            when 'tag'
-                @el.removeChild(@el.lastChild)
-                @el.appendChild(@htagDiv)
+                if !@tTagsDiv.parentNode
+                    @el.appendChild(@tTagsDiv)
+                if @htagDiv.parentNode
+                    @el.removeChild(@htagDiv)
+                if !@contactsDiv.parentNode
+                    @el.appendChild(@contactsDiv)
+                if @reminderDiv.parentNode
+                    @el.removeChild(@reminderDiv)
+
+            when 'htag'
                 @_currentMode = 'htag'
+                if @tTagsDiv.parentNode
+                    @el.removeChild(@tTagsDiv)
+                if !@htagDiv.parentNode
+                    @el.appendChild(@htagDiv)
+                if @contactsDiv.parentNode
+                    @el.removeChild(@contactsDiv)
+                if @reminderDiv.parentNode
+                    @el.removeChild(@reminderDiv)
+
             when 'reminder'
-                @el.removeChild(@el.lastChild)
                 now = new Date()
                 @_currentDate = now
                 @_initialDate = new Date()
                 @datePick.datepicker('setValue', now)
                 @timePick.timepicker('setTime', now.getHours()+':'+now.getMinutes()+':'+now.getSeconds())
-                @el.appendChild(@reminderDiv)
                 @_currentMode = 'reminder'
-        
+                if @tTagsDiv.parentNode
+                    @el.removeChild(@tTagsDiv)
+                if @htagDiv.parentNode
+                    @el.removeChild(@htagDiv)
+                if @contactsDiv.parentNode
+                    @el.removeChild(@contactsDiv)
+                if !@reminderDiv.parentNode
+                    @el.appendChild(@reminderDiv)
+
+
 
     update : (typedTxt) ->
+        
         if !@isVisible
             return
-        @_updateDisp(typedTxt)
 
-
-    _updateDisp : (typedTxt) ->
-
-        # check the ttags to show
-        for ttag in @tTags
-            if ttag.isInMode && @_shouldDisp(ttag,typedTxt)
-                ttag.line.style.display = 'block'
-            else 
-                ttag.line.style.display = 'none'
 
         switch @_currentMode
             when 'contact'
+                # check the ttags to show
+                for ttag in @tTags
+                    if ttag.isInMode && @_shouldDisp(ttag,typedTxt)
+                        ttag.line.style.display = 'block'
+                    else 
+                        ttag.line.style.display = 'none'
                 items = @contacts
             when 'htag'
                 items = @htags
@@ -261,17 +288,19 @@ class AutoComplete
         return true
 
 
-    _position : (currentSel) ->
-        span = document.createElement('SPAN')
-        targetRange = currentSel.theoricalRange
-        targetRange.insertNode(span)
+
+    _position : (span) ->
+        # span = document.createElement('SPAN')
+        # targetRange = currentSel.theoricalRange
+        # targetRange.insertNode(span)
         @el.style.left = span.offsetLeft + 'px'
-        @el.style.top = span.offsetTop + 17 + 'px'
-        parent = span.parentNode
-        span.parentNode.removeChild(span)
-        parent.normalize()
-        currentSel.range.collapse(true)
+        @el.style.top  = span.offsetTop  + 17   + 'px'
+        # parent = span.parentElement
+        # parent.removeChild(span)
+        span.parentElement.normalize()
+        # currentSel.range.collapse(true)
         return true
+
 
 
     _sortItems : () ->
@@ -285,6 +314,7 @@ class AutoComplete
         # line.addEventListener('click',@_clickCB)
         @el.appendChild(line)
         return line
+
 
 
     _updateLine : (line,item, typedTxt) ->
@@ -313,50 +343,53 @@ class AutoComplete
         line.item = item
 
 
+
     _selectLine : () ->
         if @_selectedLine
             @_selectedLine.classList.add('SUGG_selected')
 
 
+
     _unSelectLine : () ->
-        if @_selectedLine
-            @_selectedLine.classList.remove('SUGG_selected')
+        line = @_selectedLine
+        if line
+            line.classList.remove('SUGG_selected')
+            @_selectedLine = null
+        return line
+
 
 
     _removeLine : (line)->
         @el.removeChild(line)
 
 
+
     hide : () ->
         if !@isVisible
             return false
         @container.removeChild(@el)
-        @_currentEdLineDiv = null
-        @container.removeEventListener('mousedown',@_detectMousedownAuto)
-        @container.removeEventListener('mouseup',@_detectMouseupAuto)
         switch @_currentMode
             when 'contact'
                 if @_selectedLine
-                    @_unSelectLine()
                     item = @_selectedLine.item
+                    @_unSelectLine()
                 else
                     item = null
                     @_selectedLine = null
             when 'htag'
                 if @_selectedLine && @_selectedLine.item.type == 'htag'
-                    @_unSelectLine()
                     item = @_selectedLine.item
+                    @_unSelectLine()
                 else
                     item = null
                     @_selectedLine = null
             when 'reminder'
                 date = @_currentDate
                 item = text:date, type:'reminder'
-                
-            
         
         @isVisible = false
         return item
+
 
 
     _shouldDisp : (item,typedTxt) ->
@@ -381,7 +414,7 @@ class AutoComplete
                     if c
                         i += 1
                     else
-                        break
+                        i +=1
                 else
                     s.className = ''
                     i += 1
@@ -390,18 +423,19 @@ class AutoComplete
             return false
 
 
+
     up : () ->
 
         if !@_selectedLine
             @_selectedLine = @el.lastChild.lastChild
 
         else
-            @_unSelectLine()
-            prev = @_selectedLine.previousSibling
+            line = @_unSelectLine()
+            prev = line.previousSibling
             if prev
                 @_selectedLine = prev
             else
-                if @_selectedLine.item.type == 'ttag'
+                if line.item.type == 'ttag'
                     @_selectedLine = @el.lastChild.lastChild
                 else
                     @_selectedLine = @el.firstChild.lastChild
@@ -414,17 +448,18 @@ class AutoComplete
         return true
 
 
+
     down : () ->
         if !@_selectedLine
             @_selectedLine = @el.firstChild.firstChild
 
         else
-            @_unSelectLine()
-            next = @_selectedLine.nextSibling
+            line = @_unSelectLine()
+            next = line.nextSibling
             if next
                 @_selectedLine = next
             else
-                if @_selectedLine.item.type == 'ttag'
+                if line.item.type == 'ttag'
                     @_selectedLine = @el.lastChild.firstChild
                 else
                     @_selectedLine = @el.firstChild.firstChild
@@ -435,8 +470,10 @@ class AutoComplete
             @_selectLine()
 
 
+
     val : () ->
         return @_selectedLine.item
+
 
 
     isInTTags : (text) ->
@@ -446,28 +483,5 @@ class AutoComplete
         return false
 
 
-    _detectMousedownAuto : (e) =>
-        console.log '== mousedown'
-        e.preventDefault()
-
-
-    _detectMouseupAuto : (e) =>
-        console.log '== mouseup'
-        # detect if click is in the list or out
-        isOut =     e.target != @el                                    \
-                and $(e.target).parents('#CNE_autocomplete').length == 0
-        if isOut
-            @hide()
-        else
-            if @_currentMode == 'reminder'
-                return
-            selectedLine = e.target
-            while selectedLine && selectedLine.tagName != ('LI')
-                selectedLine = selectedLine.parentElement
-            if selectedLine
-                @editor._doHotStringAction(selectedLine.item,@_currentEdLineDiv)
-                @hide()
-            else
-                @hide()
 
 exports.AutoComplete = AutoComplete
