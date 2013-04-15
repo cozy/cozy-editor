@@ -254,22 +254,30 @@ class AutoComplete
             when 'htag'
                 items = @htags
             when 'reminder'
-                reg1 = /(\d*)h(\d*)mn/i
-                reg2 = /(\d*)h/i
-                txt = typedTxt.slice(2)
-                resReg1 = reg1.exec(txt)
-                resReg2 = reg2.exec(txt)
+                reg1 = /\+?(\d+)h(\d*)mn/i
+                reg2 = /\+?(\d+)h/i
+                reg3 = /\+?((\d+)d)?((\d+)h)?((\d*)mn)?/i
+                regD  = /(\d+)d/i
+                regH  = /(\d+)h/i
+                regMn = /(\d+)mn/i
+                # txt = typedTxt.slice(2)
+                resReg1 = reg1.exec(typedTxt)
+                resReg2 = reg2.exec(typedTxt)
+                resReg3 = reg3.exec(typedTxt)
+                resRegD  = regD.exec(typedTxt)
+                resRegH  = regH.exec(typedTxt)
+                resRegMn = regMn.exec(typedTxt)
 
-                console.log txt
-                console.log resReg1
-                if resReg1
-                    dh  = parseInt(resReg1[1]) * 3600000
-                    dmn = parseInt(resReg1[2]) * 60000
-                else if resReg2
-                    dh = parseInt(resReg2[1])  * 3600000
-                    dmn  = 0
-                if resReg1 or resReg2
-                    @_currentDate.setTime(@_initialDate.getTime() + dh + dmn)
+                console.log resRegD
+                if resRegMn or resRegH or resRegD
+                    dd = dh = dmn = 0
+                    if resRegD
+                        dd  = parseInt(resRegD[1])  * 3600000 * 24
+                    if resRegH
+                        dh  = parseInt(resRegH[1])  * 3600000
+                    if resRegMn
+                        dmn = parseInt(resRegMn[1]) * 60000
+                    @_currentDate.setTime(@_initialDate.getTime()+dd+dh+dmn)
                     now = @_currentDate
                     @datePick.datepicker('setValue', now)
                     @timePick.timepicker('setTime', now.getHours()+':'+now.getMinutes()+':'+now.getSeconds())
@@ -396,7 +404,8 @@ class AutoComplete
         if @regexStore[typedTxt]
             reg = @regexStore[typedTxt]
         else
-            reg = new RegExp(typedTxt.split('').join('[\\w ]*').replace('\W','').replace('\+','\\+'), 'i')
+            regText = typedTxt.replace(/\W/g,'').split('').join('[\\w ]*')
+            reg = new RegExp(regText, 'i')
             @regexStore[typedTxt] = reg
         if item.text.match(reg)
             typedCar = typedTxt.toLowerCase().split('')

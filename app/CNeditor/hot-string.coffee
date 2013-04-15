@@ -238,15 +238,16 @@ module.exports = class HotString
 
     _unhighLight : (dealCaret) ->
         seg = @_hsSegment
-        seg.classList.remove('CNE_hot_string')
-        bp =
-            cont   : @_hsTextNode
-            offset : @_hsType.length + @_hsLeft.length
-        @editor._fusionSimilarSegments(seg.parentElement, [bp])
-        if dealCaret
-            @editor._setCaret(bp.cont,bp.offset)
-        @_hsTextNode = null
-        @_hsSegment  = null
+        if seg.parentElement # seg might have already been removed of the line
+            seg.classList.remove('CNE_hot_string')
+            bp =
+                cont   : @_hsTextNode
+                offset : @_hsType.length + @_hsLeft.length
+            @editor._fusionSimilarSegments(seg.parentElement, [bp])
+            if dealCaret
+                @editor._setCaret(bp.cont,bp.offset)
+            @_hsTextNode = null
+            @_hsSegment  = null
         return true
             
 

@@ -139,109 +139,7 @@ cb = () ->
 
     # editorIframe$.css('width','49%')
         
-    $("#printRangeBtn").on "click", () ->
-        sel = editorCtrler.getEditorSelection()
-        i = 0
-        l = sel.rangeCount
-        while i < l
-            range = sel.getRangeAt(i)
-            console.log "------------"
-            console.log "  Range N°#{i}"
-            console.log range
-            printBreakPoint(range.startContainer,range.startOffset, 'start :')
-            printBreakPoint(range.endContainer,range.endOffset, 'end   :')
-            html = range.cloneContents().innerHTML
-            console.log "range.toHtml= #{html}"
-            i++
-        editorCtrler.setFocus()
 
-    printBreakPoint = (startCont,offset, prefix) ->
-        cont = startCont
-        res  = []
-        while cont.id != "editor-lines" or cont.parentNode == null
-            contId = contClass = ''
-            if cont.id
-                contId = '#' + cont.id
-            if cont.className
-                contClass = '.'+ cont.className
-            # res.unshift(cont.nodeName + contId + contClass)
-            res.unshift(cont)
-            cont = cont.parentNode
-        # console.log prefix , res.join(" / "), '& offset='+offset , startCont
-        a = newFilledArray(9-res.length,' ')
-        res = res.concat a
-        console.log prefix , res[0], res[1], res[2], res[3], res[4], res[5], res[6], res[7], res[8], '& offset='+offset
-
-    newFilledArray = (length, val) ->
-        array = []
-        for i in [0..length] by 1
-            array[i] = val
-        return array
-
-    # Allows user to load a file in the Cozy format
-    $('#contentSelect').on "change" , (e) ->
-        editorCtrler.replaceContent( require("views/templates/#{e.currentTarget.value}")() )
-        checkEditor(editorCtrler)
-
-    # Allows user to load a style sheet for the page
-    $('#cssSelect').on "change" , (e) ->
-        editorCtrler.replaceCSS e.currentTarget.value
-
-    #### -------------------------------------------------------------------
-    # Buttons for the editor
-    # Buttons should probably give back the focus to the editor's iframe
-    $("#indentBtn").on "click", () ->
-        editorCtrler.tab()
-        editorCtrler.setFocus()
-
-    $("#unIndentBtn").on "click", () ->
-        editorCtrler.shiftTab()
-        editorCtrler.setFocus()
-
-    $("#markerListBtn").on "click", () ->
-        editorCtrler.markerList()
-        editorCtrler.setFocus()
-
-    $("#titleBtn").on "click", () ->
-        editorCtrler.titleList()
-        editorCtrler.setFocus()
-
-    $("#toggleBtn").on "click", () ->
-        editorCtrler.toggleType()
-        editorCtrler.setFocus()
-
-    $("#strongBtn").on "click", () ->
-        editorCtrler.strong()
-        editorCtrler.setFocus()
-
-    $("#underlineBtn").on "click", () ->
-        editorCtrler.underline()
-        editorCtrler.setFocus()
-
-    $("#labelBtn").on "click", () ->
-        editorCtrler._applyMetaDataOnSelection('CNE_label')
-        editorCtrler.setFocus()
-
-    $("#linkBtn").on "click", () ->
-        editorCtrler.linkifySelection()
-        editorCtrler.setFocus()
-
-    $("#clearBtn").on "click", () ->
-        editorCtrler.deleteContent()
-        editorCtrler.setFocus()
-
-    $("#undoBtn").on "click", () ->
-        editorCtrler.unDo()
-        editorCtrler.setFocus()
-        
-    $("#redoBtn").on "click", () ->
-        editorCtrler.reDo()
-        editorCtrler.setFocus()
-
-    $('#saveBtn').on 'click', () ->
-        # editorCtrler.saveTasks()        
-        editor3.saveTasks()        
-        
     #### -------------------------------------------------------------------
     # CHECK SYNTAX
     # 
@@ -546,6 +444,137 @@ checkEditor = (editor) ->
 
 
 
+
+doWhenEditorsAreReady = () ->
+
+    # add shortcuts on global objects
+    window.ed1 = editor1
+    window.ed2 = editor2
+    window.ed3 = editor3
+
+    
+    editorCtrler = editor1
+
+    window._history = () ->
+        editor1.__printHistory.call(editor1,'editor1')
+
+
+    $("#ed1").on 'click', () ->
+        editorCtrler = editor1
+        editorCtrler.setFocus()
+
+    $("#ed2").on 'click', () ->
+        editorCtrler = editor2
+        editorCtrler.setFocus()
+
+    $("#ed3").on 'click', () ->
+        editorCtrler = editor3
+        editorCtrler.setFocus()
+
+    $("#printRangeBtn").on "click", () ->
+        sel = editorCtrler.getEditorSelection()
+        i = 0
+        l = sel.rangeCount
+        while i < l
+            range = sel.getRangeAt(i)
+            console.log "------------"
+            console.log "  Range N°#{i}"
+            console.log range
+            printBreakPoint(range.startContainer,range.startOffset, 'start :')
+            printBreakPoint(range.endContainer,range.endOffset, 'end   :')
+            html = range.cloneContents().innerHTML
+            console.log "range.toHtml= #{html}"
+            i++
+        editorCtrler.setFocus()
+
+    printBreakPoint = (startCont,offset, prefix) ->
+        cont = startCont
+        res  = []
+        while cont.id != "editor-lines" or cont.parentNode == null
+            contId = contClass = ''
+            if cont.id
+                contId = '#' + cont.id
+            if cont.className
+                contClass = '.'+ cont.className
+            # res.unshift(cont.nodeName + contId + contClass)
+            res.unshift(cont)
+            cont = cont.parentNode
+        # console.log prefix , res.join(" / "), '& offset='+offset , startCont
+        a = newFilledArray(9-res.length,' ')
+        res = res.concat a
+        console.log prefix , res[0], res[1], res[2], res[3], res[4], res[5], res[6], res[7], res[8], '& offset='+offset
+
+    newFilledArray = (length, val) ->
+        array = []
+        for i in [0..length] by 1
+            array[i] = val
+        return array
+
+    # Allows user to load a file in the Cozy format
+    $('#contentSelect').on "change" , (e) ->
+        editorCtrler.replaceContent( require("views/templates/#{e.currentTarget.value}")() )
+        checkEditor(editorCtrler)
+
+    # Allows user to load a style sheet for the page
+    $('#cssSelect').on "change" , (e) ->
+        editorCtrler.replaceCSS e.currentTarget.value
+
+    #### -------------------------------------------------------------------
+    # Buttons for the editor
+    # Buttons should probably give back the focus to the editor's iframe
+    $("#indentBtn").on "click", () ->
+        editorCtrler.tab()
+        editorCtrler.setFocus()
+
+    $("#unIndentBtn").on "click", () ->
+        editorCtrler.shiftTab()
+        editorCtrler.setFocus()
+
+    $("#markerListBtn").on "click", () ->
+        editorCtrler.markerList()
+        editorCtrler.setFocus()
+
+    $("#titleBtn").on "click", () ->
+        editorCtrler.titleList()
+        editorCtrler.setFocus()
+
+    $("#toggleBtn").on "click", () ->
+        editorCtrler.toggleType()
+        editorCtrler.setFocus()
+
+    $("#strongBtn").on "click", () ->
+        editorCtrler.strong()
+        editorCtrler.setFocus()
+
+    $("#underlineBtn").on "click", () ->
+        editorCtrler.underline()
+        editorCtrler.setFocus()
+
+    $("#labelBtn").on "click", () ->
+        editorCtrler._applyMetaDataOnSelection('CNE_label')
+        editorCtrler.setFocus()
+
+    $("#linkBtn").on "click", () ->
+        editorCtrler.linkifySelection()
+        editorCtrler.setFocus()
+
+    $("#clearBtn").on "click", () ->
+        editorCtrler.deleteContent()
+        editorCtrler.setFocus()
+
+    $("#undoBtn").on "click", () ->
+        editorCtrler.unDo()
+        editorCtrler.setFocus()
+        
+    $("#redoBtn").on "click", () ->
+        editorCtrler.reDo()
+        editorCtrler.setFocus()
+
+    $('#saveBtn').on 'click', () ->
+        # editorCtrler.saveTasks()        
+        editor3.saveTasks()        
+        
+
 ###****************************************************
  * 3 - CREATION OF THE EDITOR
 ###
@@ -554,16 +583,10 @@ editor2 = 0
 editor3 = 0
 
 $ ->
+
     resizeWellEditor()
 
     $('#ed1').button('toggle')
-    
-    $('#ed1').on 'click', ()->
-        console.log 'click ed1'
-    $('#ed2').on 'click', ()->
-        console.log 'click ed2'
-    $('#ed3').on 'click', ()->
-        console.log 'click ed3'
 
     editor2 = new CNeditor( document.querySelector('#editorIframe2'), () ->
         
@@ -576,12 +599,7 @@ $ ->
             # content = require('views/templates/content-shortlines-large')
             content = require('views/templates/content-shortlines-small')
             @replaceContent content()
-
-            # add shortcuts on global objects
-            window.ed1 = editor1
-            window.ed2 = editor2
-            window.ed3 = editor3
-            window._history = ()->
-                editor1.__printHistory.call(editor1,'editor1')
+            doWhenEditorsAreReady()
         )
     )
+

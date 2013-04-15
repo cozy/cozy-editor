@@ -314,7 +314,10 @@ module.exports = class CNeditor
         btn = this.document.createElement('SPAN')
         btn.className = 'CNE_task_btn'
         btn.dataset.type = 'taskBtn'
-        text = this.document.createTextNode('\u00a0')
+        if @isChromeOrSafari
+            text = this.document.createTextNode(' ')
+        else
+            text = this.document.createTextNode('\u00a0')
         btn.appendChild(text) # insert for arrow keys navigation
         btn.addEventListener 'click', @_toggleTaskCB
         lineDiv.insertBefore(btn, lineDiv.firstChild)
@@ -621,23 +624,43 @@ module.exports = class CNeditor
     
 
     ### ------------------------------------------------------------------------
-    # Returns a markdown string representing the editor content
+    # Returns an html string representing the editor content
     ###
     getEditorContent : () ->
-        # md2cozy.cozy2md $(@linesDiv)
-        # if @_hotString.isPreparing
-        #     @linesDiv.removeChild(@_auto.el)
-        txt = @linesDiv.innerHTML
-        # if @_auto.isVisible
-        #     @linesDiv.appendChild(@_auto.el)
-        if @.isUrlPopoverOn
-            txt = txt.replace('<div[=":;\w ]*CNE_urlPopover[\w\W]*','')
-        else if @_hotString.isPreparing
-            txt = txt.replace('<div[=":;\w ]*CNE_autocomplete[\w\W]*','')
+        if @_hotString.isPreparing or @.isUrlPopoverOn
+            clone = @linesDiv.cloneNode(true)
 
-        # else
-        #     @linesDiv.appendChild(@_auto.el)
-        #     txt = @linesDiv.innerHTML
+            # if the auto completion of hot string is visible : remove it
+            if @_hotString.isPreparing
+                segment = clone.querySelector('.CNE_hot_string')
+                segment.classList.remove('CNE_hot_string')
+                lineDiv = segment.parentElement
+                segment.textContent = ''
+                @_fusionSimilarSegments(lineDiv, [])
+                segment = clone.querySelector('#CNE_autocomplete')
+                segment.parentElement.removeChild(segment)
+            
+            # if the urlpopover is visible : remove it
+            if  @.isUrlPopoverOn
+                # remove the url popover
+                segment = clone.querySelector('#CNE_urlPopover')
+                segment.parentElement.removeChild(segment)
+                # remove the style of the selected segments
+                segments = clone.querySelectorAll('.CNE_url_in_edition')
+                for seg in segments
+                    seg.classList.remove('CNE_url_in_edition')
+                # if the link were created, remove them
+                if @urlPopover.isLinkCreation
+                    lineDiv = selection._getLineDiv(segments[0])
+                    for seg in segments
+                        @_applyAhrefToSegments(seg, seg , [], false, '')
+                    @_fusionSimilarSegments(lineDiv,[])
+
+            txt = clone.innerHTML
+
+        else
+            txt = @linesDiv.innerHTML
+        
         return txt
 
 
@@ -1432,7 +1455,10 @@ module.exports = class CNeditor
         pop.urlInput.focus()
         
         # colorize the concerned segments.
-        seg.style.backgroundColor = '#dddddd' for seg in segments
+        for seg in segments
+            # seg.style.backgroundColor = '#dddddd' 
+            seg.classList.add('CNE_url_in_edition')
+
         return true
 
 
@@ -1456,34 +1482,39 @@ module.exports = class CNeditor
     _cancelUrlPopover : (doNotRestoreOginalSel) =>
         pop = @urlPopover
         segments = pop.segments
+
         # remove the click listener
         @editorBody.removeEventListener('mouseup', @_detectClickOutUrlPopover)
+        
         # remove popover
         pop.parentElement.removeChild(pop)
         @.isUrlPopoverOn = false
+        
         # remove the "selected style" of the segments
-        seg.style.removeProperty('background-color') for seg in segments
+        for seg in segments
+            # seg.style.removeProperty('background-color') 
+            seg.classList.remove('CNE_url_in_edition')
+
         # case of a link creation called and cancelled : a segment for the link
         # to creat has already been added in order to show the selection when 
         # popover is visible. As it is canceled, we undo in order to remove this
         # link.
         if pop.isLinkCreation
-            if doNotRestoreOginalSel
-                # sel = @getEditorSelection()
-                # sel = rangy.serializeSelection sel, true, @linesDiv
-                
-                # rg = this.document.createRange()
-                # rg.setStartBefore(segments[0])
-                # rg.setEndAfter(segments[segments.length-1])
-                # serial = @serializeRange(rg)
-                serial = @serializeSel()
-                # TODO : don't use history to retrieve the initial state...
-                # juste save the initial line should be enough.
-                @_forceUndo()
-                if serial
-                    @deSerializeSelection(serial)
-            else
-                @_forceUndo()
+            s0 = segments[0]
+            s1 = segments[segments.length-1]
+            bp1 =
+                cont   : s0
+                offset : 0
+            bp2 =
+                cont   : s1
+                offset : s1.childNodes.length
+            bps = [bp1,bp2]
+            selection.normalizeBPs(bps)
+            lineDiv = selection._getLineDiv(s0)
+            @_applyAhrefToSegments(s0, s1 , bps, false, '')
+            @_fusionSimilarSegments(lineDiv,bps)
+            if !doNotRestoreOginalSel
+                @setSelectionBp(bp1, bp2)
             
         else if !doNotRestoreOginalSel
             sel = this.document.getSelection()
@@ -1527,7 +1558,9 @@ module.exports = class CNeditor
         @editorBody.removeEventListener('mouseup', @_detectClickOutUrlPopover)
         pop.parentElement.removeChild(pop)
         @.isUrlPopoverOn = false
-        seg.style.removeProperty('background-color') for seg in segments
+        for seg in segments
+            # seg.style.removeProperty('background-color') 
+            seg.classList.remove('CNE_url_in_edition')
 
         # 3- in case of a link creation, addhistory has already be done, but it 
         # must be done if it is not a link creation.
@@ -1595,7 +1628,8 @@ module.exports = class CNeditor
         bp = selection.normalizeBP(lineDiv, i+1)
         @_fusionSimilarSegments(lineDiv, [bp])
 
-        # 9- manage selection
+        # 9- manage selection, find a space after url or add it and move bp
+        bp = @insertSpaceAfterUrl(selection.getNestedSegment(bp.cont))
         @_setCaret(bp.cont,bp.offset)
         @setFocus()
 
@@ -1659,36 +1693,76 @@ module.exports = class CNeditor
         if range.collapsed
             return
 
-        # 1- create a range for each selected line and put them in 
-        # an array (linesRanges)
         line = currentSel.startLine
         endLine = currentSel.endLine
 
-        # case when the selection starts at the end of a non empty line
-        if currentSel.firstLineIsEnd
-            # if start line is empty : apply style to its segment, otherwise
-            # begin on next line.
-            if line.line$[0].textContent != '' 
+        # 1- if the selection starts at the end of a non empty segment, move
+        # the start of selection at the beginning of next Segment or even to the
+        # start of next line
+        if range.startContainer.length != 0 and 
+           range.startContainer.length == range.startOffset
+            seg = selection.getNestedSegment(range.startContainer)
+            nextSegment = selection.getNextSegment(seg)
+            if nextSegment
+                range.setStartBefore(nextSegment.firstChild)
+                rangeIsToNormalize = true
+            else
                 line = line.lineNext
                 if line == null
                     return
                 range.setStartBefore(line.line$[0].firstChild)
-                selection.normalize(range)
-                if range.collapsed
-                    return
+                rangeIsToNormalize = true
 
-        # case when the selection ends at the start of the line
-        if currentSel.lastLineIsStart
-            # if last line is empty : apply style to its segment, otherwise 
-            # begin on previous line.
-            if endLine.line$[0].textContent != ''
+        if range.endContainer.length != 0 and 
+           range.endOffset == 0
+            seg = selection.getNestedSegment(range.endContainer)
+            prevSegment = selection.getPrevSegment(seg)
+            if prevSegment
+                range.setEndAfter(prevSegment.lastChild)
+                rangeIsToNormalize = true
+            else
                 endLine = endLine.linePrev
                 if endLine == null
                     return
-                range.setEndBefore(endLine.line$[0].lastChild)
-                selection.normalize(range)
+                range.setEndAfter(endLine.line$[0].lastChild)
+                rangeIsToNormalize = true
                 if range.collapsed
                     return
+
+        if rangeIsToNormalize
+            selection.normalize(range)
+            if range.collapsed
+                return
+
+        # 2- create a range for each selected line and put them in 
+        # an array (linesRanges)
+        
+
+        # # case when the selection starts at the end of a non empty line
+        # if currentSel.firstLineIsEnd
+        #     # if start line is empty : apply style to its segment, otherwise
+        #     # begin on next line.
+        #     if line.line$[0].textContent != '' 
+        #         line = line.lineNext
+        #         if line == null
+        #             return
+        #         range.setStartBefore(line.line$[0].firstChild)
+        #         selection.normalize(range)
+        #         if range.collapsed
+        #             return
+
+        # # case when the selection ends at the start of the line
+        # if currentSel.lastLineIsStart
+        #     # if last line is empty : apply style to its segment, otherwise 
+        #     # begin on the previous line.
+        #     if endLine.line$[0].textContent != ''
+        #         endLine = endLine.linePrev
+        #         if endLine == null
+        #             return
+        #         range.setEndBefore(endLine.line$[0].lastChild)
+        #         selection.normalize(range)
+        #         if range.collapsed
+        #             return
 
         # case when metadata is a mono line metadata ('A' for instance), then
         # we limit the selection to the first line
@@ -1727,7 +1801,8 @@ module.exports = class CNeditor
             selection.normalize(rgEnd)
             linesRanges.push(rgEnd)
 
-        # 2- decide if we apply metaData or remove it
+
+        # 3- decide if we apply metaData or remove it
         # For this we go throught each line and each selected segment to check
         # if metaData is applied or not. For instance if all segments are strong
         # the action is to un-strongify. If one segment is not bold, then the
@@ -1739,13 +1814,13 @@ module.exports = class CNeditor
                             @_checkIfMetaIsEverywhere(range, metaData, others) 
         addMeta = !isAlreadyMeta
 
-        # 3- Apply the correct action on each lines and getback the breakpoints
+        # 4- Apply the correct action on each lines and getback the breakpoints
         # corresponding to the initial range
         bps = []
         for range in linesRanges
             bps.push( @_applyMetaOnLineRange(range, addMeta, metaData, others) )
         
-        # 4- Position selection
+        # 5- Position selection
         rg = this.document.createRange() # be carefull : chrome requires the range to be created by the document where the range will be in. In our case, we must use the editor document.
         bp1 = bps[0][0]
         bp2 = bps[bps.length - 1][1]
@@ -3314,6 +3389,16 @@ module.exports = class CNeditor
         sel.addRange(range)
         return true
 
+    setSelectionBp : (bp1,bp2) ->
+        range = this.document.createRange()
+        range.setStart(bp1.cont, bp1.offset )
+        range.setEnd(bp2.cont, bp2.offset)
+        selection.normalize(range)
+        sel = this.document.getSelection()
+        sel.removeAllRanges()
+        sel.addRange(range)
+        return true
+
 
 
     ### ------------------------------------------------------------------------
@@ -3430,6 +3515,12 @@ module.exports = class CNeditor
                         htmlLine.firstChild.appendChild(txt)
             
             if htmlLine.dataset.type == 'task'
+                if @isChromeOrSafari
+                    htmlLine.firstChild.textContent = ' '
+                    # text = this.document.createTextNode(' ')
+                else
+                    htmlLine.firstChild.textContent = '\u00a0'
+                    # text = this.document.createTextNode('\u00a0')
                 @_setTaskToLine(htmlLine)
 
         @_highestId = lineID
@@ -3731,7 +3822,7 @@ module.exports = class CNeditor
         # console.log '_addHistory' , @_history.historyPos.length, @_history.historyPos
         # do nothing if urlpopover is on, otherwise its html will also be 
         # serialized in the history.
-        if @isUrlPopoverOn or @isAutoCompleteOn
+        if @isUrlPopoverOn or @_hotString.isPreparing
             return
 
         # 1- If some undo has been done, delete the steps forward (redo will
@@ -4437,6 +4528,12 @@ module.exports = class CNeditor
         seg.parentElement.insertBefore(span,seg.nextSibling)
         return span
 
+    ###*
+     * returns a break point, collapsed after a space caracter immediately
+     * following a given segment. A segment will we inserted if required.
+     * @param  {[type]} seg [description]
+     * @return {[type]}     [description]
+    ###
     insertSpaceAfterSeg : (seg) ->
         nextSeg = seg.nextSibling
         if nextSeg.nodeName == 'BR'
@@ -4450,8 +4547,30 @@ module.exports = class CNeditor
             if !(c1 == ' ' or c1 == '\u00a0')
                 txtNode.textContent = '\u00a0' + txtNode.textContent
             bp.offset = 1
-            return bp
+        return bp
 
+
+    ###*
+     * returns a break point, collapsed after a space caracter immediately
+     * following a given segment. A segment will we inserted if required.
+     * @param  {[type]} seg [description]
+     * @return {Object}     {cont,offset} : the break point
+    ###
+    insertSpaceAfterUrl : (seg) ->
+        nextSeg = seg.nextSibling
+        if nextSeg.nodeName == 'BR'
+            span = @_insertSegmentAfterSeg(seg)
+            bp = {cont:span.firstChild, offset:1}
+        else
+            index = selection.getSegmentIndex(seg)[1] + 1
+            bp = selection.normalizeBP(seg.parentElement, index, true)
+            txtNode = bp.cont
+            # c1 = txtNode.textContent[0]
+            # if c1 != ' ' and c1 != '\u00a0'
+            #     txtNode.textContent = '\u00a0' + txtNode.textContent
+            # bp.offset = 1
+            bp.offset = 0
+        return bp
 
 
     ###* -----------------------------------------------------------------------
@@ -4746,6 +4865,7 @@ module.exports = class CNeditor
                     else
                         hs._forceUserHotString('')
                     hs.reset()
+                    @editorTarget$.trigger jQuery.Event('onChange')
                     return true
 
             when 'contact'
@@ -4756,6 +4876,7 @@ module.exports = class CNeditor
                 @_setCaret(bp.cont,1)
                 hs._auto.hide()
                 hs._reInit()
+                @editorTarget$.trigger jQuery.Event('onChange')
                 return true
 
             when 'htag'
@@ -4765,6 +4886,7 @@ module.exports = class CNeditor
                 bp = @.insertSpaceAfterSeg(hs._hsSegment)
                 @_setCaret(bp.cont,1)
                 hs._auto.hide()
+                @editorTarget$.trigger jQuery.Event('onChange')
                 return true
 
             when 'reminder'
@@ -4787,15 +4909,10 @@ module.exports = class CNeditor
                 @_setCaret(bp.cont,1)
                 hs._auto.hide()
                 hs._reInit()
-
-                # rg = @._applyMetaDataOnSelection('CNE_reminder')
-                # lastSeg = selection.getSegment(rg.endContainer,0)
-                # newSeg = @_insertSegmentAfterSeg(lastSeg)
-                # @_setCaret(newSeg,1)
-                # @hotString = ''
-                # @_auto.hide()
+                @editorTarget$.trigger jQuery.Event('onChange')
                 return true
 
+        @editorTarget$.trigger jQuery.Event('onChange')
         @_auto.hide() 
         return false
 
@@ -4899,3 +5016,4 @@ module.exports = class CNeditor
         #console.log "metaKeyStrokesCode:'#{metaKeyStrokesCode}' keyStrokesCode:'#{keyStrokesCode}'"
 
 CNeditor = exports.CNeditor
+

@@ -325,7 +325,7 @@
         return div:parent, isStart:true, isEnd:true
     [segmentI,nodeI] = µ.getSegmentIndex(cont)
     n     = parent.childNodes.length
-    isStart = isStart && (index==0)
+    isStart = isStart && (segmentI==0)
     isEnd   = isEnd && ((nodeI==n-1) or (nodeI==n-2))
     
     return div:parent, isStart:isStart, isEnd:isEnd
@@ -467,8 +467,24 @@
         parent = elt.parentNode
     return elt
 
+
 µ.isSegment = (segment) ->
-    return !segment.classList.contains('CNE_task_btn')
+    return segment.nodeName != 'BR'                                            \
+           and !segment.classList.contains('CNE_task_btn')
+
+
+µ.getNextSegment = (seg) ->
+    seg = seg.nextSibling
+    while seg and !µ.isSegment(seg)
+        seg = seg.nextSibling
+    return seg
+
+
+µ.getPrevSegment = (seg) ->
+    seg = seg.previousSibling
+    while seg and !µ.isSegment(seg)
+        seg = seg.previousSibling
+    return seg
 
 
 
