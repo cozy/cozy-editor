@@ -15,24 +15,23 @@ module.exports = class HotString
             '@@' : 'reminder'
             '#'  : 'tag'
         @isPreparing  = false # true if a hot sring is under construction
-        @_fullHS      = ''
         @_hsType      = ''
         @_hsRight     = ''
         @_hsLeft      = ''
         @_hsString    = ''
         @_currentMode = ''
         # ex 1 : 
-        #     @_fullHS = ' @zorro' 
+        #     typed    = ' @zorro' 
         #     @_hsType = '@'
         #     @_hsString = 'zorro'
         # ex 2 : 
-        #     @_fullHS = ' @@23/12/2014 23:33' 
+        #     typed    = ' @@23/12/2014 23:33' 
         #     @_hsType = '@@'
         #     @_hsString = '23/12/2014 23:33'
         # ex 3 : 
-        #     @_fullHS = ' #Lucas Toulouse' 
+        #     typed    = ' #factures' 
         #     @_hsType = '#'
-        #     @_hsString = 'Lucas Toulouse'
+        #     @_hsString = 'factures'
         @_getShortCut = editor.getShortCut
         # flag set by newTypedChar (fired by keypress event) when a hot string 
         # has begun to be typed. The aim is to hightlight the hotstring in the 
@@ -67,7 +66,6 @@ module.exports = class HotString
                 else
                     @_hsLeft = @_hsLeft.slice(0, -1)
                     @_hsString = @_hsLeft + @_hsRight
-                    @_fullHS = @_hsType + @_hsString
                     @_auto.update(@_hsString)
                 preventDefault = false
 
@@ -77,7 +75,6 @@ module.exports = class HotString
                 else
                     @_hsRight = @_hsRight.slice(1)
                     @_hsString = @_hsLeft + @_hsRight
-                    @_fullHS = @_hsType + @_hsString
                     @_auto.update(@_hsString)
                 preventDefault = false
 
@@ -132,8 +129,7 @@ module.exports = class HotString
 
 
     printHotString : () ->
-        console.log '_fullHS = "'  + @_fullHS  + '"' ,
-                    '_hsType = "'  + @_hsType  + '"' ,
+        console.log '_hsType = "'  + @_hsType  + '"' ,
                     '_hsLeft = "'  + @_hsLeft  + '"' ,
                     '_hsRight = "' + @_hsRight + '"'
 
@@ -163,7 +159,6 @@ module.exports = class HotString
             if !isAction
                 @_hsLeft  += String.fromCharCode(charCode)
                 @_hsString = @_hsLeft + @_hsRight
-                @_fullHS   = @_hsType + @_hsString
                 # @printHotString()
                 autoItem = @_isAHotString(@_hsString)
                 if autoItem
@@ -178,31 +173,51 @@ module.exports = class HotString
                 modes = @editor.getCurrentAllowedInsertions()
                 if 'contact' in modes
                     @_hsType = '@'
-                    @_fullHS = '@'
                     @isPreparing = true
-                    @container.addEventListener('mousedown',@_mouseDownCb)
-                    @container.addEventListener('mouseup',@_mouseUpCb)
+                    # @container.addEventListener('mousedown',@_mouseDownCb)
+                    # @container.addEventListener('mouseup',@_mouseUpCb)
                     @_auto.setAllowedModes(modes)
                     @_currentMode = 'contact'
                     @_auto.setMode('contact')
-                    @_autoToBeShowed = true
+                    @_autoToBeShowed = mode:'insertion'
 
         else if charCode == 35  # '#'
             if @editor._isStartingWord()
                 modes = @editor.getCurrentAllowedInsertions()
                 if 'tag' in modes
                     @_hsType = '#'
-                    @_fullHS = '#'
                     @isPreparing = true
-                    @container.addEventListener('mousedown',@_mouseDownCb)
-                    @container.addEventListener('mouseup',@_mouseUpCb)
+                    # @container.addEventListener('mousedown',@_mouseDownCb)
+                    # @container.addEventListener('mouseup',@_mouseUpCb)
                     # @_auto.setAllowedModes(modes)
                     @_currentMode = 'htag'
                     @_auto.setMode('htag')
-                    @_autoToBeShowed = true
+                    @_autoToBeShowed = mode:'insertion'
 
         # @printHotString()
         return true
+
+
+
+    edit : (seg, range) ->
+        @_hsType   = '@'
+        rg = range.cloneRange()
+        rg.setStartBefore(seg)
+        @_hsLeft   = rg.toString()
+        rg = range.cloneRange()
+        rg.setEndAfter(seg)
+        @_hsRight  = rg.toString()
+        @_hsString = seg.textContent
+
+        @isPreparing = true
+        # @container.addEventListener('mousedown',@_mouseDownCb)
+        # @container.addEventListener('mouseup',@_mouseUpCb)
+        modes = @editor.getCurrentAllowedInsertions()
+        @_auto.setAllowedModes(modes)
+        @_currentMode = 'contact'
+        @_auto.setMode('contact')
+        @_autoToBeShowed = mode:'edit',segment:seg
+        @_tryHighlight()
 
 
 
@@ -218,47 +233,64 @@ module.exports = class HotString
 
 
     _tryHighlight : () =>
-        if @_autoToBeShowed
-            rg = @editor.getEditorSelection().getRangeAt(0)
-            @editor.setSelection(
-                rg.startContainer                    , 
-                rg.startOffset - @_hsType.length     ,
-                rg.endContainer                      , 
-                rg.endOffset
-            )
-            rg = @editor._applyMetaDataOnSelection('CNE_hot_string')
-            @_hsTextNode = rg.startContainer
-            @_hsSegment  = rg.startContainer.parentElement
-            @editor._setCaret(@_hsSegment, @_hsSegment.childNodes.length)
-            @_autoToBeShowed = false
-            @_auto.show(@_hsSegment , '')
+
+        if !@_autoToBeShowed
+            return true
+
+        switch @_autoToBeShowed.mode
+            when 'edit'
+                @_hsSegment  = @_autoToBeShowed.segment
+                @_hsTextNode = @_hsSegment.firstChild
+                @_hsSegment.classList.add('CNE_hot_string')
+                @_autoToBeShowed = false
+                @_auto.show(@_hsSegment , @_hsString)
+                
+            when 'insertion'
+                rg = @editor.getEditorSelection().getRangeAt(0)
+                @editor.setSelection(
+                    rg.startContainer                    , 
+                    rg.startOffset - @_hsType.length     ,
+                    rg.endContainer                      , 
+                    rg.endOffset
+                )
+                rg = @editor._applyMetaDataOnSelection('CNE_hot_string')
+                @_hsTextNode = rg.startContainer
+                @_hsSegment  = rg.startContainer.parentElement
+                @editor._setCaret(@_hsSegment, @_hsSegment.childNodes.length)
+                @_autoToBeShowed = false
+                @_auto.show(@_hsSegment , '')
+        
         return true
 
 
 
-    _unhighLight : (dealCaret) ->
+    _unhighLight : (bps) ->
         seg = @_hsSegment
         if seg.parentElement # seg might have already been removed of the line
             seg.classList.remove('CNE_hot_string')
-            bp =
-                cont   : @_hsTextNode
-                offset : @_hsType.length + @_hsLeft.length
-            @editor._fusionSimilarSegments(seg.parentElement, [bp])
-            if dealCaret
-                @editor._setCaret(bp.cont,bp.offset)
+            # bp =
+            #     cont   : @_hsTextNode
+            #     offset : @_hsType.length + @_hsLeft.length
+            @editor._fusionSimilarSegments(seg.parentElement, bps)
+            # if dealCaret
+            #     @editor._setCaret(bp.cont,bp.offset)
             @_hsTextNode = null
             @_hsSegment  = null
         return true
             
 
 
-    _forceUserHotString : (newHotString, setEnd) ->
+    _forceUserHotString : (newHotString, bps) ->
         textNode = @_hsTextNode
         textNode.textContent = newHotString
-        if setEnd
-            @editor._setCaret(textNode,textNode.length) 
-        else
-            @editor._setSelectionOnNode(textNode) 
+        for bp in bps
+            if bp.cont == textNode
+                bp.offset = newHotString.length
+        return bps
+        # if setEnd
+        #     @editor._setCaret(textNode,textNode.length) 
+        # else
+        #     @editor._setSelectionOnNode(textNode) 
 
 
 
@@ -270,23 +302,27 @@ module.exports = class HotString
                 
             when 'reminder'
                 # hs._auto.hide()
-                @._forceUserHotString('@@',true)
+                bp = 
+                    cont  : @_hsTextNode
+                    offset: @_hsTextNode.length
+                @._forceUserHotString('@@',[bp])
+                @editor._setCaret(bp.cont, bp.offset)
                 @._hsType = '@@'
-                # @._auto.setAllowedModes(['reminder'])
                 @_currentMode = 'reminder'
                 @._auto.setMode('reminder')
-                # @._auto.show(null , hs._hsString, null)
                 return true
 
             when 'htag'
                 @._auto.hide()
-                @._forceUserHotString('#',true)
-                @._fullHS   = '#'
+                bp = 
+                    cont  : @_hsTextNode
+                    offset: @_hsTextNode.length
+                @._forceUserHotString('#',[bp])
+                @editor._setCaret(bp.cont, bp.offset)
                 @._hsType   = '#'
                 @._hsString = ''
                 @._hsRight  = ''
                 @._hsLeft   = ''
-                # @._auto.setAllowedModes(['tag'])
                 @_currentMode = 'htag'
                 @._auto.setMode('htag')
                 @._auto.show(@._hsSegment , @._hsString)
@@ -295,21 +331,34 @@ module.exports = class HotString
 
 
     reset : (dealCaret) ->
-        @_unhighLight(dealCaret)
+
+        if dealCaret
+            bp =
+                cont  : @_hsTextNode
+                offset: @_hsTextNode.length
+            @_unhighLight([bp])
+            
+        else
+            @_unhighLight([])
+
         @_reInit()
         @_auto.hide()
+        
+        if dealCaret
+            @editor._setCaret(bp.cont, bp.offset)
+
+        return true
 
 
 
     _reInit : () ->
-        @_fullHS     = ''
         @_hsType     = ''
         @_hsString   = ''
         @_hsRight    = ''
         @_hsLeft     = ''
         @isPreparing = false
-        @container.removeEventListener('mousedown',@_mouseDownCb)
-        @container.removeEventListener('mouseup',  @_mouseUpCb  )
+        # @container.removeEventListener('mousedown',@_mouseDownCb)
+        # @container.removeEventListener('mouseup',  @_mouseUpCb  )
         # @printHotString()
 
 
@@ -325,7 +374,7 @@ module.exports = class HotString
 
 
 
-    _mouseDownCb : (e) =>
+    mouseDownCb : (e) ->
         console.log '== mousedown'
         # detect if click is in the list or out
         isOut =     e.target != @el                                    \
@@ -335,21 +384,41 @@ module.exports = class HotString
 
 
 
-    _mouseUpCb : (e) =>
+    mouseUpCb : (e) ->
         console.log '== mouseup'
-        # detect if click is in the list or out
-        isOut =     e.target != @el                                    \
-                and $(e.target).parents('#CNE_autocomplete').length == 0
-        if isOut
-            @reset(false)
+        
+        sel = @editor.getEditorSelection()
+        rg = sel.getRangeAt(0)
+
+        if rg.startContainer == @_hsSegment
+            rg = range.cloneRange()
+            rg.setStartBefore(seg)
+            @_hsLeft   = rg.toString()
+            rg = range.cloneRange()
+            rg.setEndAfter(seg)
+            @_hsRight  = rg.toString()
+            @_hsString = seg.textContent
             return true
-        else
+            
+        # detect if click is in the list or out
+        isIn =     e.target == @el                                             \
+                or $(e.target).parents('#CNE_autocomplete').length != 0
+        
+        if isIn
+        
             if @_currentMode == 'reminder'
                 return true
+        
             selectedLine = e.target
             while selectedLine && selectedLine.tagName != ('LI')
                 selectedLine = selectedLine.parentElement
             if selectedLine
                 @editor.doHotStringAction(selectedLine.item)
+
             else
                 @reset(true)
+
+        else
+            @reset(false)
+            return true
+                

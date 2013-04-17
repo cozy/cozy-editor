@@ -9,7 +9,7 @@
 #                  is set to the editorCtrl (callBack.call(this))
 # properties & methods :
 #   replaceContent    : (htmlContent) ->  # TODO: replace with markdown
-#   _keyDownCallBack : (e) =>
+#   _keyDownCb : (e) =>
 #   _insertLineAfter  : (param) ->
 #   _insertLineBefore : (param) ->
 #   
@@ -151,21 +151,45 @@ module.exports = class CNeditor
         # callback
         @callBack.call(this)
 
+
+
+    _mousedownCb : (e) =>
+        if @_hotString.isPreparing
+            @_hotString.mouseDownCb(e)
+
     ###*
-     * Whe the user click in the editor, moueup event will set @newPosition to
+     * When the user click in the editor, moueup event will set @newPosition to
      * true.
     ###
-    _mouseupCB : () =>
+    _mouseupCb : (e) =>
         @newPosition = true
 
+        if @_hotString.isPreparing
+            @_hotString.mouseUpCb(e)
 
-    _keyupCast : (e) =>
-        [metaKeyCode,keyCode] = @getShortCut(e)
-        shortcut = metaKeyCode + '-' + keyCode
-        switch shortcut
-            when 'Ctrl-S', 'Ctrl-other'
-                return
-        @editorTarget$.trigger jQuery.Event("onKeyUp")
+        rg = this.document.getSelection().getRangeAt(0)
+        container = selection.getSegment(rg.startContainer)
+        switch container.className
+            
+            # remove carret from tasks buttons.
+            when 'CNE_task_btn'
+                # if left : go to the end of previous line.
+                if e.keyCode == 37 
+                    line = selection.getLineDiv(container,0).previousSibling
+                    if line
+                        newCont = line.lastChild.previousSibling
+                        @_setCaret(newCont,newCont.childNodes.length)
+                    else
+                        @_setCaret(container.nextSibling,0)
+                # put it at the beginning of the text of the task
+                else 
+                    @_setCaret(container.nextSibling,0)
+
+            # when in a meta segment (contact, reminder etc...), edit it.
+            when 'CNE_contact'
+                if !@_hotString.isPreparing
+                    @_hotString.edit(container,rg)
+
 
 
     _clickCB : (e) =>
@@ -199,44 +223,46 @@ module.exports = class CNeditor
 
         # listen keydown on capturing phase (before bubbling)
         # main actions triger.
-        @linesDiv.addEventListener('keydown', @_keyDownCallBackTry, true)
+        @linesDiv.addEventListener('keydown', @_keyDownCbTry, true)
         
         # if @isChromeOrSafari
         @linesDiv.addEventListener('keyup', @_keyUpCorrection, false)
 
         # Listen to mouse to detect when caret is moved
-        @linesDiv.addEventListener('mouseup', @_mouseupCB, true)
+        @linesDiv.addEventListener('mouseup', @_mouseupCb, true)
+        @linesDiv.addEventListener('mousedown', @_mousedownCb, true)
 
         # We cast the keyup event in editorTarget
-        @editorBody$.on('keyup', @_keyupCast)
+        @editorBody$.on('keyup', @_keyupCb)
 
         # Click and paste call backs
         @editorBody$.on('click', @_clickCB)
         @editorBody$.on 'paste', @_pasteCB
 
         # @editorBody.addEventListener('keypress', @_hotStringDetectionKeypress)
-        @editorBody.addEventListener('keypress', @_hotString.newtypedChar)
+        @editorBody.addEventListener('keypress', @_keypressCb)
 
 
     _unRegisterEventListeners : () ->
         # listen keydown on capturing phase (before bubbling)
         # main actions triger.
-        @linesDiv.removeEventListener('keydown', @_keyDownCallBackTry, true)
+        @linesDiv.removeEventListener('keydown', @_keyDownCbTry, true)
         
         # if @isChromeOrSafari
         @linesDiv.removeEventListener('keyup', @_keyUpCorrection, false)
 
         # Listen to mouse to detect when caret is moved
-        @linesDiv.removeEventListener('mouseup', @_mouseupCB, true)
+        @linesDiv.removeEventListener('mouseup', @_mouseupCb, true)
+        @linesDiv.removeEventListener('mousedown', @_mousedownCb, true)
 
         # We cast the keyup event in editorTarget
-        @editorBody$.off('keyup', @_keyupCast)
+        @editorBody$.off('keyup', @_keyupCb)
 
         # Click and paste call backs
         @editorBody$.off('click', @_clickCB)
         @editorBody$.off('paste', @_pasteCB)
 
-        @editorBody.removeEventListener('keypress', @_hotString.newtypedChar)
+        @editorBody.removeEventListener('keypress', @_keypressCb)
 
 
     disable : () ->
@@ -482,7 +508,7 @@ module.exports = class CNeditor
     saveTasks : () ->
         for id,t of @_tasksModifStacks
             console.log 'saveTask, action', t.a, id, t
-            
+
             if t.a == 'create'
                 t = t.t
                 l = t.lineDiv
@@ -766,10 +792,10 @@ module.exports = class CNeditor
      * to avoid to loose data.
      * @param  {event} e  The key event
     ###
-    _keyDownCallBackTry : (e) =>
+    _keyDownCbTry : (e) =>
         # try actions, in case of error, undo
         try
-            @_keyDownCallBack(e)
+            @_keyDownCb(e)
         catch error
             alert('A bug occured, we prefer to undo your last action not to take any risk.\n\nMessage :\n' + error)
             e.preventDefault()
@@ -782,10 +808,10 @@ module.exports = class CNeditor
      * the test can detect the error.
     ###
     registerKeyDownCbForTest : ()=>
-        @linesDiv.removeEventListener('keydown', @_keyDownCallBackTry, true)
+        @linesDiv.removeEventListener('keydown', @_keyDownCbTry, true)
         # otherwise _unRegisterEventListeners will no longer work
-        @_keyDownCallBackTry = @_keyDownCallBack 
-        @linesDiv.addEventListener('keydown', @_keyDownCallBackTry, true)
+        @_keyDownCbTry = @_keyDownCb 
+        @linesDiv.addEventListener('keydown', @_keyDownCbTry, true)
 
 
     ###*------------------------------------------------------------------------
@@ -814,7 +840,7 @@ module.exports = class CNeditor
      *   ex : shortcut = 'CtrlShift-up', 'Ctrl-115' (ctrl+s), '-115' (s),
      *                   'Ctrl-'
     ###
-    _keyDownCallBack : (e) =>
+    _keyDownCb : (e) =>
         
         if ! @isEnabled
             return true
@@ -822,20 +848,8 @@ module.exports = class CNeditor
         # 1- Prepare the shortcut corresponding to pressed keys
         [metaKeyCode,keyCode] = @getShortCut(e)
         shortcut = metaKeyCode + '-' + keyCode
-        # console.log '_keyDownCallBack', shortcut, 'e.which'
-        #     , e.which, String.fromCharCode(e.which )
-        # switch e.keyCode
-        #     when 16 #Shift
-        #         e.preventDefault()
-        #         return
-        #     when 17 #Ctrl
-        #         e.preventDefault()
-        #         return
-        #     when 18 #Alt
-        #         e.preventDefault()
-        #         return
 
-        # 26 Add a new history step if the short cut is different from previous
+        # 2- Add a new history step if the short cut is different from previous
         # shortcut and only in case a a return, a backspace, a space...
         # This means that in case of multiple return, only the first one is in
         # history. A letter such as 'a' doesn't increase the history.
@@ -870,7 +884,7 @@ module.exports = class CNeditor
         #    before to run the action corresponding to the shorcut.
         #    The update of @newPosition is done :
         #       - bellow depending on the key stroke
-        #       - in _mouseupCB
+        #       - in _mouseupCb
         #       
         
         # 4- Give hand to the hotString manager if this one is preparing one.
@@ -882,7 +896,7 @@ module.exports = class CNeditor
                 return false
 
                  
-        # 3- launch the action corresponding to the pressed shortcut
+        # 5- launch the action corresponding to the pressed shortcut
         # If a popover is visible, the actions are sent to it
         switch shortcut
 
@@ -1022,6 +1036,16 @@ module.exports = class CNeditor
             #     @_auto.hide()
 
 
+    _keypressCb : (e) =>
+        @_hotString.newtypedChar(e)
+
+    _keyupCb : (e) =>
+        [metaKeyCode,keyCode] = @getShortCut(e)
+        shortcut = metaKeyCode + '-' + keyCode
+        switch shortcut
+            when 'Ctrl-S', 'Ctrl-other'
+                return
+        @editorTarget$.trigger jQuery.Event("onKeyUp")
 
     ###* -----------------------------------------------------------------------
      * updates @currentSel =
@@ -1170,39 +1194,49 @@ module.exports = class CNeditor
 
 
     ###* -----------------------------------------------------------------------
-     * This function is called two correct 2 problems :
-     * A/ in order to keep the navigation with arrows working, we have to insert
-     * a text in the buttons of tasks. That's why we have to remove the carret 
-     * from the button when the browser put it in a button.
-     * B/ in Chrome, the insertion of a caracter by the browser may be out of a 
-     * span. 
-     * This is du to a bug in Chrome : you can create a range with its start 
-     * break point in an empty span. But if you add this range to the selection,
-     * then this latter will not respect your range and its start break point 
-     * will be outside the range. When a key is pressed to insert a caracter,
-     * the browser inserts it at the start break point, ie outside the span...
-     * this function detects after each keyup is there is a text node outside a
-     * span and move its content and the carret.
+     * Detects where the carret is after a keyup in order to launch required 
+     * actions :
+     * A/ edit meta data
+     * B/ correct the 2 following problems :
+     *   a- in order to keep the navigation with arrows working, we have to 
+     *   insert a text in the buttons of tasks. That's why we have to remove the
+     *   carret from the button when the browser put it in a button.
+     *   b- in Chrome, the insertion of a caracter by the browser may be out of 
+     *   a span. 
+     *   This is du to a bug in Chrome : you can create a range with its start 
+     *   break point in an empty span. But if you add this range to the 
+     *   selection, then this latter will not respect your range and its start 
+     *   break point will be outside the range. When a key is pressed to insert 
+     *   a caracter, the browser inserts it at the start break point, ie outside
+     *   the span... this function detects after each keyup is there is a text 
+     *   node outside a span and move its content and the carret.
      * @param  {Event} e The key event
     ###
     _keyUpCorrection : (e) =>
         
-        # A- remove carret from tasks buttons.
-        container = this.document.getSelection().getRangeAt(0).startContainer
-        if container.nodeName != 'SPAN'
-            container = container.parentElement
-        if container.className == 'CNE_task_btn'
-            # if left : go to the end of previous line.
-            if e.keyCode == 37 
-                line = selection.getLineDiv(container,0).previousSibling
-                if line
-                    newCont = line.lastChild.previousSibling
-                    @_setCaret(newCont,newCont.childNodes.length)
-                else
+        # A- Detect in which segment the caret is and launch adapted actions
+        rg = this.document.getSelection().getRangeAt(0)
+        container = selection.getSegment(rg.startContainer)
+        switch container.className
+            
+            # remove carret from tasks buttons.
+            when 'CNE_task_btn'
+                # if left : go to the end of previous line.
+                if e.keyCode == 37 
+                    line = selection.getLineDiv(container,0).previousSibling
+                    if line
+                        newCont = line.lastChild.previousSibling
+                        @_setCaret(newCont,newCont.childNodes.length)
+                    else
+                        @_setCaret(container.nextSibling,0)
+                # put it at the beginning of the text of the task
+                else 
                     @_setCaret(container.nextSibling,0)
-            # put it at the beginning of the text of the task
-            else 
-                @_setCaret(container.nextSibling,0)
+
+            # when in a meta segment (contact, reminder etc...), edit it.
+            when 'CNE_contact'
+                if !@_hotString.isPreparing
+                    @_hotString.edit(container,rg)
         
         # B- if chrome, place last caracter in the correct segment.
         if @isChromeOrSafari
@@ -3111,7 +3145,7 @@ module.exports = class CNeditor
             selection.cleanSelection(startLine, endLine, range)
             replaceCaret = false
         else
-            # currentSel has been updated by _keyDownCallBack
+            # currentSel has been updated by _keyDownCb
             # We don't use @currentSel.range because with chrome it might
             # not be in a text node...
             range          = @currentSel.theoricalRange
@@ -4851,7 +4885,12 @@ module.exports = class CNeditor
 
 
     doHotStringAction : (autoItem) ->
+            
         hs = @_hotString
+
+        if !autoItem
+            hs.reset(true)
+            return true
 
         switch autoItem.type
 
@@ -4866,13 +4905,13 @@ module.exports = class CNeditor
                     if txt.match(reg)
                         @._initTaskContent(taskDiv)
                     else
-                        hs._forceUserHotString('')
-                    hs.reset()
+                        hs._forceUserHotString('', [])
+                    hs.reset(false)
                     @editorTarget$.trigger jQuery.Event('onChange')
                     return true
 
             when 'contact'
-                hs._forceUserHotString(autoItem.text)
+                hs._forceUserHotString(autoItem.text, [])
                 hs._hsSegment.classList.add('CNE_contact')
                 hs._hsSegment.classList.remove('CNE_hot_string')
                 bp = @.insertSpaceAfterSeg(hs._hsSegment)
@@ -4883,7 +4922,7 @@ module.exports = class CNeditor
                 return true
 
             when 'htag'
-                hs._forceUserHotString(autoItem.text)
+                hs._forceUserHotString(autoItem.text, [])
                 hs._hsSegment.classList.add('CNE_htag')
                 hs._hsSegment.classList.remove('CNE_hot_string')
                 bp = @.insertSpaceAfterSeg(hs._hsSegment)
@@ -4905,7 +4944,7 @@ module.exports = class CNeditor
                 h    = format(date.getHours()    )
                 mn   = format(date.getMinutes()  )
                 txt  = d + '/' + m + '/' + y + '  ' + h + ':' + mn
-                hs._forceUserHotString(txt)
+                hs._forceUserHotString(txt, [])
                 hs._hsSegment.classList.add('CNE_reminder')
                 hs._hsSegment.classList.remove('CNE_hot_string')
                 bp = @.insertSpaceAfterSeg(hs._hsSegment)
