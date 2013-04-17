@@ -390,14 +390,14 @@ module.exports = class CNeditor
         t = new Task(description:lineDiv.textContent)
         lineDiv.task = t
         console.log 'create task  ' , t
+        @_internalTaskCounter += 1
+        t.internalId = 'CNE_task_id_' + @_internalTaskCounter
         @_stackTaskChange(t,'create') 
         # t.save({},silent:true)
         # .done () ->
         #     console.log " t.save.done()",t.id
         #     realtimer.watch(t)
         #     lineDiv.dataset.id = t.id
-        @_internalTaskCounter += 1
-        t.internalId = 'CNE_task_id_' + @_internalTaskCounter
         lineDiv.dataset.id = t.internalId # set a temporary id
         t.lineDiv = lineDiv
         @_taskList.push(t)
@@ -415,11 +415,12 @@ module.exports = class CNeditor
                 return true
 
         # if the id stored in the hmtml line is a temporary id and that there is
-        # task localy with this temporary id, then it's a strange case (can 
+        # task localy with this temporary id, then it's a rare case (can 
         # happen if the html of the editor is saved and closed before the task 
         # has its final id). We choose in this case to create the task.
         if id.slice(0,12) == 'CNE_task_id_'
             @_createTaskForLine(lineDiv)
+            @editorTarget$.trigger jQuery.Event('onChange')
         else
             # console.log 'fetch requested with id', id
             t = new Task(id:id)
@@ -459,45 +460,55 @@ module.exports = class CNeditor
         # action in : done, undone, modified, removed
         console.log 'editor : A task has been ' + action, task.id 
         switch action
+
             when 'done'
-                # task.set({done:true},{silent:true})
                 @_tasksModifStacks[task.internalId] = t:task, a:action
+
             when 'undone'
-                # task.set({done:false},{silent:true})
                 @_tasksModifStacks[task.internalId] = t:task, a:action
+
             when 'modified'
-                # task.set({description:task.lineDiv.textContent},{silent:true})
                 if !@_tasksModifStacks[task.internalId]?
                     @_tasksModifStacks[task.internalId]= t:task, a:action
+
             when 'create'
                 @_tasksModifStacks[task.internalId] = t:task, a:action
+
             else
                 return
 
 
+
     saveTasks : () ->
         for id,t of @_tasksModifStacks
-            console.log 'save :', id,t
+            console.log 'saveTask, action', t.a, id, t
+            
             if t.a == 'create'
                 t = t.t
                 l = t.lineDiv
                 t.save({
                         done        : (l.dataset.state == 'done')
                         description :  l.textContent.slice(1)
-                    },{silent:true}
-                )
-                .done () =>
-                    console.log "editor t.save.done()",t.id
-                    realtimer.watch(t)
-                    l.dataset.id = t.id
+                       },
+                       {
+                        silent  : true
+                        success : (t) =>
+                            console.log "editor t.save.done()",t.id
+                            realtimer.watch(t)
+                            t.lineDiv.dataset.id = t.id
+                            @editorTarget$.trigger jQuery.Event('onChange')
 
-                    # will be called by modification on server side.
-                    # Modifications initiated on this client will be saved with silent=true
-                    # so that this call back is not fired whereas ui is uptodate
-                    t.on 'change', () =>
-                        console.log "onchange from save", t.id
-                        console.log t.changedAttributes()
-                        @_updateTaskLine(t)
+                            # will be called by modification on server side.
+                            # Modifications initiated on this client will be saved with silent=true
+                            # so that this call back is not fired whereas ui is uptodate
+                            t.on 'change', () =>
+                                console.log "onchange from save", t.id
+                                console.log t.changedAttributes()
+                                @_updateTaskLine(t)
+                        
+                        }
+                )
+
             else
                 t = t.t
                 l = t.lineDiv
@@ -3497,14 +3508,6 @@ module.exports = class CNeditor
                 lineNew.lineDepthRel = lineDepthRel
                 lineNew.lineNext     = null
                 lineNew.linePrev     = linePrev
-                # lineNew =
-                #     line$        : htmlLine$
-                #     lineID       : lineID_st
-                #     lineType     : lineType
-                #     lineDepthAbs : lineDepthAbs
-                #     lineDepthRel : lineDepthRel
-                #     lineNext     : null
-                #     linePrev     : linePrev
                 if linePrev != null then linePrev.lineNext = lineNew
                 linePrev = lineNew
                 @_lines[lineID_st] = lineNew
