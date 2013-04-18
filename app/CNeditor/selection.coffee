@@ -152,18 +152,16 @@
         | cont = body          | bpEnd(cont.lastChild) |
         | offset = cont.length |                       |
 ###
-µ.normalize = (range) ->
-    # console.log 'µ.normalize'
-    # console.log '  range.startContainer = ', range.startContainer, range.startOffset
-    isCollapsed = range.collapsed
-    newStartBP = µ.normalizeBP(range.startContainer, range.startOffset)
-    range.setStart(newStartBP.cont,newStartBP.offset)
+µ.normalize = (rg, preferNext) ->
+    isCollapsed = rg.collapsed
+    newStartBP = µ.normalizeBP(rg.startContainer, rg.startOffset, preferNext)
+    rg.setStart(newStartBP.cont,newStartBP.offset)
     if isCollapsed
-        range.collapse(true)
+        rg.collapse(true)
         newEndBP = newStartBP
     else
-        newEndBP = µ.normalizeBP(range.endContainer, range.endOffset)
-        range.setEnd(newEndBP.cont,newEndBP.offset)
+        newEndBP = µ.normalizeBP(rg.endContainer, rg.endOffset, preferNext)
+        rg.setEnd(newEndBP.cont,newEndBP.offset)
 
     return [newStartBP, newEndBP]
 

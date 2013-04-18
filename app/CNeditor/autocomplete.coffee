@@ -371,7 +371,10 @@ class AutoComplete
         @el.removeChild(line)
 
 
-
+    ###*
+     * Hide auto complete and returns the current selected item, null if none.
+     * @return {[type]} [description]
+    ###
     hide : () ->
         if !@isVisible
             return false
