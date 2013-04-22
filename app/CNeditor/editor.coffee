@@ -781,6 +781,9 @@ module.exports = class CNeditor
         keyCode = e.keyCode
         switch keyCode
             when 13 then key = 'return'    ; isAction = true
+            when 16 then key = 'shift'     ; isAction = true
+            when 17 then key = 'ctrl'      ; isAction = true
+            when 18 then key = 'alt'       ; isAction = true
             when 35 then key = 'end'       ; isAction = true
             when 36 then key = 'home'      ; isAction = true
             when 33 then key = 'pgUp'      ; isAction = true
@@ -809,7 +812,8 @@ module.exports = class CNeditor
                     when 86 then key = 'V'
                     when 89 then key = 'Y'
                     when 90 then key = 'Z'
-                    else key = 'other'
+                    else 
+                        key = 'other'
 
         shortcut = metaKey + '-' + key
         
@@ -824,7 +828,7 @@ module.exports = class CNeditor
             isAction : isAction
             shortcut : shortcut
             keyCode  : keyCode
-        # console.log 'editor.getShortCut()', @_shortcut
+        console.log 'editor.getShortCut()', @_shortcut.shortcut
 
 
     ###* -----------------------------------------------------------------------
@@ -902,6 +906,7 @@ module.exports = class CNeditor
                             'CtrlShift-left', 'CtrlShift-right', 
                             'Ctrl-V', '-space', '-other']
             @_addHistory()
+
         
         @_lastKey = shortcut
 
@@ -943,8 +948,31 @@ module.exports = class CNeditor
             rg = this.document.getSelection().getRangeAt(0)
             if !selection.getSegment(rg.startContainer,0).dataset.type
                 @setTagUnEditable()
-                 
-        # 5- launch the action corresponding to the pressed shortcut
+
+        # 7- Manage "simple keys" (letters, arrows & alike, with or without 
+        # shift but without alt and ctrl (CtrlSthift allowed for arrows & alike)
+        switch @_shortcut.key
+            when 'up', 'down', 'left', 'right', 'pgUp', 'pgDwn', 'end', 'home'
+                if !e.altKey && (e.shiftKey or (!e.shiftKey && !e.ctrlrlKey) )
+                    @newPosition = true
+                    return true
+            when 'other', 'space'
+                if !e.ctrlrlKey && !e.altKey
+                    if @newPosition
+                        sel = @updateCurrentSel() 
+                        if ! sel.theoricalRange.collapsed
+                            @_backspace()
+                        @newPosition = false
+                    @editorTarget$.trigger jQuery.Event('onChange')
+                    @_detectTaskChange()
+                    return true
+
+        # 6- if alt or ctrl is pressed, then prevent default, only custom 
+        # behaviour defined below must occur, no default by browser.
+        if e.altKey or e.ctrlKey
+            e.preventDefault()
+
+        # 8- launch the action corresponding to the pressed shortcut
         # If a popover is visible, the actions are sent to it
         switch shortcut
 
@@ -989,15 +1017,6 @@ module.exports = class CNeditor
                 # @_moveLinesUp()
                 e.preventDefault()
 
-            when '-up'
-                @newPosition = true
-
-            when '-down'
-                @newPosition = true
-
-            when '-left', '-right', '-pgUp', '-pgDwn', '-end', '-home'
-                @newPosition = true
-                
             when 'Ctrl-A'
                 selection.selectAll(this)
                 e.preventDefault()
@@ -1011,15 +1030,6 @@ module.exports = class CNeditor
                 @toggleType()
                 e.preventDefault()
                 @editorTarget$.trigger jQuery.Event('onChange')
-
-            when '-other', '-space'
-                if @newPosition
-                    sel = @updateCurrentSel() 
-                    if ! sel.theoricalRange.collapsed
-                        @_backspace()
-                    @newPosition = false
-                @editorTarget$.trigger jQuery.Event('onChange')
-                @_detectTaskChange()
 
             when 'Ctrl-V'
                 @editorTarget$.trigger jQuery.Event('onChange')
@@ -1053,6 +1063,10 @@ module.exports = class CNeditor
                 e.preventDefault()
                 @editorTarget$.trigger jQuery.Event('onChange')
 
+            else
+                console.log 'keyDownCb ELSE'
+                e.preventDefault()
+
 
 
     _keypressCb : (e) =>
@@ -1065,10 +1079,7 @@ module.exports = class CNeditor
      * Detects where the carret is after a keyup in order to launch required 
      * actions :
      * A/ correct the 2 following problems :
-     *   a- in order to keep the navigation with arrows working, we have to 
-     *   insert a text in the buttons of tasks. That's why we have to remove the
-     *   carret from the button when the browser put it in a button.
-     *   b- in Chrome, the insertion of a caracter by the browser may be out of 
+     *   a- in Chrome, the insertion of a caracter by the browser may be out of 
      *   a span. 
      *   This is du to a bug in Chrome : you can create a range with its start 
      *   break point in an empty span. But if you add this range to the 
@@ -1077,24 +1088,29 @@ module.exports = class CNeditor
      *   a caracter, the browser inserts it at the start break point, ie outside
      *   the span... this function detects after each keyup is there is a text 
      *   node outside a span and move its content and the carret.
+     *   b- in order to keep the navigation with arrows working, we have to 
+     *   insert a text in the buttons of tasks. That's why we have to remove the
+     *   carret from the button when the browser put it in a button.
      * B/ edit meta data
-     * C/ Fire the editor onKeyUp event 
+     * C/ Deal case when the selection has been changed with keyboard
+     * D/ Deal hot string.
+     * E/ Fire the editor onKeyUp event 
      * @param  {Event} e The key event
     ###
     _keyupCb : (e) =>
 
-        # A/ If chrome, place last inserted caracter in the correct segment.
+        # A/a) If chrome, place last inserted caracter in the correct segment.
         if @isChromeOrSafari
             @_chromeCorrection()
 
-        # B/ Detect in which segment the caret is and launch adapted actions
+        # A/ Detect in which segment the caret is and launch adapted actions
         rg = this.document.getSelection().getRangeAt(0)
         startSeg = selection.getSegment(rg.startContainer)
         endSeg   = selection.getSegment(rg.endContainer)
         if startSeg.dataset
             switch startSeg.dataset.type
                 
-                # Remove carret from tasks buttons.
+                # A/b) Remove carret from tasks buttons.
                 when 'taskBtn'
                     # if left : go to the end of previous line.
                     if e.keyCode == 37 
@@ -1108,12 +1124,12 @@ module.exports = class CNeditor
                     else 
                         @_setCaret(startSeg.nextSibling,0)
 
-                # When in a meta segment (contact, reminder etc...), edit it.
+                # B/ When in a meta segment (contact, reminder etc...), edit it.
                 when 'contact', 'reminder', 'htag'
                     if !@_hotString.isPreparing
                         @_hotString.edit(startSeg,rg)
 
-        # C/ mouseup of a shift press : a selection with keyboard might occured
+        # C/ shift Keyup : a selection with keyboard might occured
         if e.keyCode == 16 
             # 1- setTags as editable again.
             @setTagEditable()
@@ -5087,8 +5103,25 @@ module.exports = class CNeditor
         return false
 
 
+    ###*
+     * The selection within tags is difficult. The idea is to have selection 
+     * whether in a tag, or fully outside any tag. To deal the different pb,
+     * here is the logic choosen :
+     * tags are usually "editable" (= contentEditable = true) except :
+     *   - when shift key is pressed (keydown) outside a tag : then turn all
+     *     tags un-editable. If the user modify the selection with keyboard 
+     *     (shift + arrow or alike) then the browser will not let selection go
+     *     into a tag.
+     *   - when mousedown outside of a tag : then turn all tag un-editable so 
+     *     that selection can not end in one of them.
+     *   - when mouseup or keyup : let all tags be editable agin and check if 
+     *     the selection has an end in a tag and not the other (possible if the 
+     *     change of the selection started within a tag in edition), then modify
+     *     the selection to be fully in the tag.
+     * 
+    ###
     setTagEditable : () ->
-        console.log 'set tags EDITABLE'
+        # console.log 'set tags EDITABLE'
         if !@_areTagsEditable
             for tag in @_tagList
                 tag.contentEditable = true
@@ -5096,7 +5129,7 @@ module.exports = class CNeditor
 
 
     setTagUnEditable : () ->
-        console.log 'set tags UN-EDITABLE'
+        # console.log 'set tags UN-EDITABLE'
         if @_areTagsEditable
             for tag in @_tagList
                 tag.contentEditable = false

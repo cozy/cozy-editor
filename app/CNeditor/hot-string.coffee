@@ -4,6 +4,7 @@ selection    = require('./selection').selection
 module.exports = class HotString 
     
 
+
     constructor : (editor) ->
         @editor    = editor
         @_isEdit   = false
@@ -41,6 +42,7 @@ module.exports = class HotString
         # to an empty range.
         @_autoToBeShowed = false
         @container.addEventListener('keyup', @_tryHighlight)
+
 
 
     ###* -----------------------------------------------------------------------
@@ -98,6 +100,7 @@ module.exports = class HotString
                     '_hsRight = "' + @_hsRight + '"'
 
 
+
     ###* -----------------------------------------------------------------------
      * Update the current "hotString" typed by the user. This function is called
      * by editor._keypressCb(), and detects keys such as '@' and "normal 
@@ -137,6 +140,7 @@ module.exports = class HotString
 
         # @printHotString()
         return true
+
 
 
     ###* -----------------------------------------------------------------------
@@ -216,7 +220,6 @@ module.exports = class HotString
             id   : seg.dataset.id
             value: seg.dataset.value
 
-        # rg = range.cloneRange()
         startOffset = range.startOffset + @_hsType.length
         endOffset   = range.endOffset   + @_hsType.length
 
@@ -239,10 +242,6 @@ module.exports = class HotString
         #     d = d
 
         return true
-        # bp = 
-        #     cont : range.startContainer
-        #     offset: range.startOffset
-        # @editor._setCaret(bp.cont,bp.offset+1) 
 
 
 
@@ -254,6 +253,7 @@ module.exports = class HotString
 
         # console.log 'isNormal = ', res, '(' + charCode + ')'
         return res
+
 
 
     ###*
@@ -314,9 +314,12 @@ module.exports = class HotString
         return bps
 
 
+
     validate : () ->
         item = @_auto.getSelectedItem()
         @editor.doHotStringAction(item)
+
+
 
     ###* -----------------------------------------------------------------------
      * Reset hot string : the segment is removed and autocomplete hidden. In 
