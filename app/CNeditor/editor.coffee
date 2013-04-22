@@ -157,27 +157,26 @@ module.exports = class CNeditor
 
 
     _mousedownCb : (e) =>
-        # console.log '== mousedown'
+        # console.log '== editor._mousedownCb()'
         
         # if a hotstring is under preparation, let hotstring controler deal with
         # the new keystroke
         if @_hotString.isPreparing
             @_hotString.mouseDownCb(e)
 
-        # if the mousedown occurs in a tag, then set all tags to uneditable so
-        # that selection can not end within a tag.
+        # if the mousedown occurs outside of a tag, then set all tags to 
+        # uneditable so that selection can not end within a tag.
         startCont = this.document.getSelection().getRangeAt(0).startContainer
-        startSeg = selection.getSegment(startCont, 0)
+        startSeg = selection.getSegment(e.target, 0)
         if !startSeg.dataset.type
             @setTagUnEditable()
-
 
     ###*
      * When the user click in the editor, mouseup event will set @newPosition to
      * true and take actions depending on selection location and editor state.
     ###
     _mouseupCb : (e) =>
-        # console.log '== mouseup'
+        # console.log '== editor._mouseupCb()'
         @newPosition = true
 
         # In case the mousedownCb set tags to uneditable, then revert.
@@ -190,16 +189,32 @@ module.exports = class CNeditor
                 return true
 
         # B- else deal selection of the editor
-        [startSeg,endSeg] = @putSelectionInOrOutMetaSegment()
+        rg = this.document.getSelection().getRangeAt(0)
+        startSeg = selection.getSegment(rg.startContainer)
+        endSeg   = selection.getSegment(rg.endContainer)
 
-        if @_hotString.isPreparing and startSeg != @_hotString._hsSegment
-            @_hotString.reset(false)
-
-        # 3- if carret is in the button of a task, move it
+        # 1- if carret is in the button of a task, move it
         if startSeg.dataset.type == 'taskBtn'
             @_setCaret(startSeg.nextSibling,0)
         else if endSeg.dataset.type == 'taskBtn'
             @_setCaret(endSeg.nextSibling,0)
+
+        # 2- if selection has an end which is a tag (hoString, reminder, 
+        # contact...) but not the other, then put all the selection within the 
+        # tag.
+        if (startSeg.dataset.type && !endSeg.dataset.type)
+            @setSelection(rg.startContainer, rg.startOffset,
+                          startSeg         , startSeg.childNodes.length)
+            endSeg = startSeg
+        else if (!startSeg.dataset.type && endSeg.dataset.type)
+            @setSelection(endSeg         , 0 ,
+                          rg.endContainer, rg.endOffset)
+            startSeg = endSeg
+
+        # 3- if hotstring is preparing but the selection is no longer in the
+        # hotString segment : reset hotString.
+        if @_hotString.isPreparing and startSeg != @_hotString._hsSegment
+            @_hotString.reset('current')
 
         # 4- when in a meta segment (contact, reminder etc...), edit it.
         switch startSeg.dataset.type
@@ -207,7 +222,7 @@ module.exports = class CNeditor
                 if !@_hotString.isPreparing
                     rg = this.document.getSelection().getRangeAt(0)
                     @_hotString.edit(startSeg, rg)
-                    while False # otherwise bug in ff debugger...
+                    while false # otherwise bug in ff debugger...
                         d
 
         return true
@@ -216,7 +231,7 @@ module.exports = class CNeditor
 
 
     _clickCB : (e) =>
-        # console.log "== click"
+        # console.log "== editor._clickCB()"
         @_lastKey = null
         # if the start of selection after a click is in a link, then show
         # url popover to edit the link.
@@ -922,9 +937,12 @@ module.exports = class CNeditor
                 e.preventDefault()
                 return false
 
-        if e.shiftKey && e.keyCode == 16 # mousedown of a shift press
-            @setTagUnEditable()
-
+        # 5- if a shift keydown : prevent the partial selection of tag by setting
+        # all of them uneditable in case where this happens outside of a tag.
+        if e.keyCode == 16 
+            rg = this.document.getSelection().getRangeAt(0)
+            if !selection.getSegment(rg.startContainer,0).dataset.type
+                @setTagUnEditable()
                  
         # 5- launch the action corresponding to the pressed shortcut
         # If a popover is visible, the actions are sent to it
@@ -1070,41 +1088,63 @@ module.exports = class CNeditor
             @_chromeCorrection()
 
         # B/ Detect in which segment the caret is and launch adapted actions
-        [startSeg,endSeg,rg] = @putSelectionInOrOutMetaSegment()
-        switch startSeg.dataset.type
-            
-            # Remove carret from tasks buttons.
-            when 'taskBtn'
-                # if left : go to the end of previous line.
-                if e.keyCode == 37 
-                    line = selection.getLineDiv(startSeg,0).previousSibling
-                    if line
-                        newCont = line.lastChild.previousSibling
-                        @_setCaret(newCont,newCont.childNodes.length)
-                    else
+        rg = this.document.getSelection().getRangeAt(0)
+        startSeg = selection.getSegment(rg.startContainer)
+        endSeg   = selection.getSegment(rg.endContainer)
+        if startSeg.dataset
+            switch startSeg.dataset.type
+                
+                # Remove carret from tasks buttons.
+                when 'taskBtn'
+                    # if left : go to the end of previous line.
+                    if e.keyCode == 37 
+                        line = selection.getLineDiv(startSeg,0).previousSibling
+                        if line
+                            newCont = line.lastChild.previousSibling
+                            @_setCaret(newCont,newCont.childNodes.length)
+                        else
+                            @_setCaret(startSeg.nextSibling,0)
+                    # put it at the beginning of the text of the task
+                    else 
                         @_setCaret(startSeg.nextSibling,0)
-                # put it at the beginning of the text of the task
-                else 
-                    @_setCaret(startSeg.nextSibling,0)
 
-            # When in a meta segment (contact, reminder etc...), edit it.
-            when 'contact', 'reminder', 'htag'
-                if !@_hotString.isPreparing
-                    @_hotString.edit(startSeg,rg)
+                # When in a meta segment (contact, reminder etc...), edit it.
+                when 'contact', 'reminder', 'htag'
+                    if !@_hotString.isPreparing
+                        @_hotString.edit(startSeg,rg)
 
-        if @_hotString.isPreparing
-            if startSeg == @_hotString._hsSegment
-                @_hotString.updateHs()
-            else
-                @_hotString.updateHs()
+        # C/ mouseup of a shift press : a selection with keyboard might occured
+        if e.keyCode == 16 
+            # 1- setTags as editable again.
+            @setTagEditable()
+            # 2- if selection has an end which is a tag (hoString, reminder, 
+            # contact...) but not the other, then put all the selection within the 
+            # tag.
+            if (startSeg.dataset.type && !endSeg.dataset.type)
+                @setSelection(rg.startContainer, rg.startOffset,
+                              startSeg         , startSeg.childNodes.length)
+                endSeg = startSeg
+            else if (!startSeg.dataset.type && endSeg.dataset.type)
+                @setSelection(endSeg         , 0 ,
+                              rg.endContainer, rg.endOffset)
+                startSeg = endSeg
+            # 3- if hotstring is preparing but the selection is no longer in the
+            # hotString segment : reset hotString.
+            if @_hotString.isPreparing and startSeg != @_hotString._hsSegment
                 @_hotString.reset('current')
 
-        # C/ 
-        if e.shiftKey && e.keyCode == 16 # mouseup of a shift press
-            @setTagEditable()
-
+        # D/ if a hot string is preparing, check selection is still in it.
+        if @_hotString.isPreparing
+            # if a selection is on progress (a left, right,up, down,begin,end,
+            # pageup,pagedwn while shift key is pressed) then do nothing.
+            if !(e.shiftKey and e.keyCode in [37,38,36,33,40,39,34,35])
+                if startSeg == @_hotString._hsSegment
+                    @_hotString.updateHs()
+                else
+                    @_hotString.updateHs()
+                    @_hotString.reset('current')
         
-        # C/ Fire the editor onKeyUp event 
+        # E/ Fire the editor onKeyUp event 
         switch @_shortcut.shortcut
             when 'Ctrl-S', 'Ctrl-other'
                 return
@@ -3500,35 +3540,6 @@ module.exports = class CNeditor
 
 
 
-    putSelectionInOrOutMetaSegment : () ->
-        rg = this.document.getSelection().getRangeAt(0)
-        startSeg = selection.getSegment(rg.startContainer)
-        endSeg   = selection.getSegment(rg.endContainer)
-
-        # B1- Selection must be fully within a meta segment or outside
-        # Both break points must be inside the same meta segment or outside.
-        #             ...  <meta segment>  ...   </meta segment>  ...
-        #  forbiden :  |                     |
-        #  forbiden :                        |                      |  
-        #  allowed  :                      |  |
-        #  allowed  :  |                                            |  
-        # if startSeg.dataset.type
-        #     if startSeg != endSeg
-        #         rg.setStartBefore(startSeg)
-        #         selIsChanged = true
-        # if endSeg.dataset.type
-        #     if endSeg != startSeg
-        #         rg.setEndAfter(endSeg)
-        #         selIsChanged = true
-        # if selIsChanged
-        #     @setSelectionFromRg(rg,true)
-        #     # rg = this.document.getSelection().getRangeAt(0)
-        #     startSeg = selection.getSegment(rg.startContainer)
-        #     endSeg   = selection.getSegment(rg.endContainer)
-
-        return [startSeg,endSeg,rg]
-
-
     ### ------------------------------------------------------------------------
     #  _insertLineAfter
     # 
@@ -5032,6 +5043,7 @@ module.exports = class CNeditor
                 hs._forceUserHotString(autoItem.text, [])
                 hs._hsSegment.classList.add('CNE_htag')
                 hs._hsSegment.dataset.type = 'htag'
+                @_tagList.push(hs._hsSegment)
                 hs._hsSegment.classList.remove('CNE_hot_string')
                 bp = @.insertSpaceAfterSeg(hs._hsSegment)
                 @_setCaret(bp.cont,1)
@@ -5058,6 +5070,7 @@ module.exports = class CNeditor
                 hs._hsSegment.classList.add('CNE_reminder')
                 hs._hsSegment.classList.remove('CNE_hot_string')
                 hs._hsSegment.dataset.type = 'reminder'
+                @_tagList.push(hs._hsSegment)
                 hs._hsSegment.dataset.value = date.format()
                 
                 bp = @.insertSpaceAfterSeg(hs._hsSegment)
@@ -5075,6 +5088,7 @@ module.exports = class CNeditor
 
 
     setTagEditable : () ->
+        console.log 'set tags EDITABLE'
         if !@_areTagsEditable
             for tag in @_tagList
                 tag.contentEditable = true
@@ -5082,6 +5096,7 @@ module.exports = class CNeditor
 
 
     setTagUnEditable : () ->
+        console.log 'set tags UN-EDITABLE'
         if @_areTagsEditable
             for tag in @_tagList
                 tag.contentEditable = false

@@ -221,13 +221,13 @@ module.exports = class HotString
         endOffset   = range.endOffset   + @_hsType.length
 
         @_hsTextNode = seg.firstChild
-        @_hsTextNode.textContent = @_hsType + seg.textContent
+        @_hsString = seg.textContent
+        @_hsTextNode.textContent = @_hsType + @_hsString
         seg.classList.remove(segClass)
         seg.dataset.type = ''
         @editor.setSelection(seg.firstChild, startOffset ,
                              seg.firstChild, endOffset
         ) 
-        @_hsString = seg.textContent
         modes = @editor.getCurrentAllowedInsertions()
         @_auto.setAllowedModes(modes)
         @_currentMode = type
@@ -235,8 +235,8 @@ module.exports = class HotString
         @_autoToBeShowed = mode:'edit',segment:seg
         @_tryHighlight()
 
-        while false
-            d = d
+        # while false
+        #     d = d
 
         return true
         # bp = 
@@ -270,6 +270,7 @@ module.exports = class HotString
                 @_hsSegment  = @_autoToBeShowed.segment
                 @_hsTextNode = @_hsSegment.firstChild
                 @_hsSegment.classList.add('CNE_hot_string')
+                @_hsSegment.dataset.type = 'hotString'
                 @_autoToBeShowed = false
                 @_auto.show(@_hsSegment , @_hsString)
                 
@@ -284,6 +285,7 @@ module.exports = class HotString
                 rg = @editor._applyMetaDataOnSelection('CNE_hot_string')
                 @_hsTextNode = rg.startContainer
                 @_hsSegment  = rg.startContainer.parentElement
+                @_hsSegment.dataset.type = 'hotString'
                 @editor._setCaret(@_hsSegment, @_hsSegment.childNodes.length)
                 @_autoToBeShowed = false
                 @_auto.show(@_hsSegment , '')
@@ -327,7 +329,7 @@ module.exports = class HotString
      *                  the carret is not managed here.
     ###
     reset : (dealCaret, hardReset) ->
-        # console.log 'hotString.rest()'
+        # console.log 'hotString.reset()'
         
         if !@isPreparing
             return true
