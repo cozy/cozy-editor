@@ -93,7 +93,7 @@ module.exports = class CNeditor
         @linesDiv = linesDiv
         linesDiv.setAttribute('id','editor-lines')
         linesDiv.setAttribute('class','editor-frame')
-        linesDiv.setAttribute('contenteditable','true')
+        linesDiv.contentEditable =  true
         @editorBody$.append(linesDiv)
         if @isInIframe
             linesDiv.style.overflowY = 'auto'
@@ -113,6 +113,9 @@ module.exports = class CNeditor
 
         # initialisation of the hot sting manager
         @_hotString = new HotString(this)
+
+        # init the array that will contain all the tag segments of the editor
+        @_tagList = []
 
         # set the properties of the editor
         @_lines      = {}            # contains every line
@@ -155,17 +158,30 @@ module.exports = class CNeditor
 
     _mousedownCb : (e) =>
         # console.log '== mousedown'
+        
+        # if a hotstring is under preparation, let hotstring controler deal with
+        # the new keystroke
         if @_hotString.isPreparing
             @_hotString.mouseDownCb(e)
 
+        # if the mousedown occurs in a tag, then set all tags to uneditable so
+        # that selection can not end within a tag.
+        startCont = this.document.getSelection().getRangeAt(0).startContainer
+        startSeg = selection.getSegment(startCont, 0)
+        if !startSeg.dataset.type
+            @setTagUnEditable()
+
 
     ###*
-     * When the user click in the editor, moueup event will set @newPosition to
-     * true.
+     * When the user click in the editor, mouseup event will set @newPosition to
+     * true and take actions depending on selection location and editor state.
     ###
     _mouseupCb : (e) =>
         # console.log '== mouseup'
         @newPosition = true
+
+        # In case the mousedownCb set tags to uneditable, then revert.
+        @setTagEditable()
 
         # A- if a hotstring is preparing, give hand to the hotString controler
         if @_hotString.isPreparing
@@ -185,13 +201,17 @@ module.exports = class CNeditor
         else if endSeg.dataset.type == 'taskBtn'
             @_setCaret(endSeg.nextSibling,0)
 
-        # 4- 
+        # 4- when in a meta segment (contact, reminder etc...), edit it.
         switch startSeg.dataset.type
-            # when in a meta segment (contact, reminder etc...), edit it.
             when 'contact', 'reminder', 'htag'
                 if !@_hotString.isPreparing
                     rg = this.document.getSelection().getRangeAt(0)
                     @_hotString.edit(startSeg, rg)
+                    while False # otherwise bug in ff debugger...
+                        d
+
+        return true
+
 
 
 
@@ -593,9 +613,9 @@ module.exports = class CNeditor
     getCurrentAllowedInsertions : () ->
         sel = @updateCurrentSel()
         if sel.startLineDiv.dataset.type == 'task'
-            return ['contact','event','reminder','tag']
+            return ['contact','event','reminder','htag']
         else
-            return ['contact','todo','event','reminder','tag']
+            return ['contact','todo','event','reminder','htag']
 
 
     ### ------------------------------------------------------------------------
@@ -789,6 +809,7 @@ module.exports = class CNeditor
             isAction : isAction
             shortcut : shortcut
             keyCode  : keyCode
+        # console.log 'editor.getShortCut()', @_shortcut
 
 
     ###* -----------------------------------------------------------------------
@@ -866,7 +887,7 @@ module.exports = class CNeditor
                             'CtrlShift-left', 'CtrlShift-right', 
                             'Ctrl-V', '-space', '-other']
             @_addHistory()
-           
+        
         @_lastKey = shortcut
 
         @currentSel =
@@ -900,6 +921,9 @@ module.exports = class CNeditor
             if @_hotString.keyDownCb(shortcut)
                 e.preventDefault()
                 return false
+
+        if e.shiftKey && e.keyCode == 16 # mousedown of a shift press
+            @setTagUnEditable()
 
                  
         # 5- launch the action corresponding to the pressed shortcut
@@ -1018,6 +1042,7 @@ module.exports = class CNeditor
 
 
 
+
     ###* -----------------------------------------------------------------------
      * Detects where the carret is after a keyup in order to launch required 
      * actions :
@@ -1042,51 +1067,7 @@ module.exports = class CNeditor
 
         # A/ If chrome, place last inserted caracter in the correct segment.
         if @isChromeOrSafari
-        # loop on all elements of the div of the line. If there are textnodes,
-        # insert them in the previous span, if none, to the next, if none create
-        # one. Then delete the textnode.
-            curSel = @updateCurrentSel()
-            line   = curSel.startLine.line$[0]
-            nodes  = line.childNodes
-            l = nodes.length
-            i = 0
-            while i < l
-                node = nodes[i]
-                if node.nodeName == '#text'
-                    t = node.textContent
-                    if node.previousSibling
-                        if node.previousSibling.nodeName in ['SPAN','A']
-                            node.previousSibling.textContent += t
-                        else
-                            throw new Error('A line should be constituted of 
-                                only <span> and <a>')
-                    else if node.nextSibling
-                        if node.nextSibling.nodeName in ['SPAN','A']
-                            node.nextSibling.textContent = t + 
-                                node.nextSibling.textContent
-                            # TODO : position of carret should be at the end of 
-                            # string "t"
-                        else if node.nextSibling.nodeName in ['BR']
-                            newSpan = document.createElement('span')
-                            newSpan.textContent = t
-                            line.replaceChild(newSpan,node)
-                            l += 1
-                            i += 1
-                        else
-                            throw new Error('A line should be constituted of 
-                                only <span> and <a>')
-                    else
-                        throw new Error('A line should be constituted of a final
-                                <br/>')
-                    line.removeChild(node)
-                    l -= 1 
-                else
-                    i += 1
-
-            # the final <br/> may be deleted by chrome : if so : add it.
-            if nodes[l-1].nodeName != 'BR'
-                brNode = document.createElement('br')
-                line.appendChild(brNode)
+            @_chromeCorrection()
 
         # B/ Detect in which segment the caret is and launch adapted actions
         [startSeg,endSeg,rg] = @putSelectionInOrOutMetaSegment()
@@ -1118,6 +1099,10 @@ module.exports = class CNeditor
                 @_hotString.updateHs()
                 @_hotString.reset('current')
 
+        # C/ 
+        if e.shiftKey && e.keyCode == 16 # mouseup of a shift press
+            @setTagEditable()
+
         
         # C/ Fire the editor onKeyUp event 
         switch @_shortcut.shortcut
@@ -1126,6 +1111,66 @@ module.exports = class CNeditor
         @editorTarget$.trigger jQuery.Event("onKeyUp")
 
         return true
+
+
+
+    ###*
+     *   In Chrome, the insertion of a caracter by the browser may be out of 
+     *   a span. 
+     *   This is du to a bug in Chrome : you can create a range with its start 
+     *   break point in an empty span. But if you add this range to the 
+     *   selection, then this latter will not respect your range and its start 
+     *   break point will be outside the range. When a key is pressed to insert 
+     *   a caracter, the browser inserts it at the start break point, ie outside
+     *   the span... this function detects after each keyup is there is a text 
+     *   node outside a span and move its content and the carret.
+    ###
+    _chromeCorrection : () ->
+        # loop on all elements of the div of the line. If there are textnodes,
+        # insert them in the previous span, if none, to the next, if none create
+        # one. Then delete the textnode.
+        curSel = @updateCurrentSel()
+        line   = curSel.startLine.line$[0]
+        nodes  = line.childNodes
+        l = nodes.length
+        i = 0
+        while i < l
+            node = nodes[i]
+            if node.nodeName == '#text'
+                t = node.textContent
+                if node.previousSibling
+                    if node.previousSibling.nodeName in ['SPAN','A']
+                        node.previousSibling.textContent += t
+                    else
+                        throw new Error('A line should be constituted of 
+                            only <span> and <a>')
+                else if node.nextSibling
+                    if node.nextSibling.nodeName in ['SPAN','A']
+                        node.nextSibling.textContent = t + 
+                            node.nextSibling.textContent
+                        # TODO : position of carret should be at the end of 
+                        # string "t"
+                    else if node.nextSibling.nodeName in ['BR']
+                        newSpan = document.createElement('span')
+                        newSpan.textContent = t
+                        line.replaceChild(newSpan,node)
+                        l += 1
+                        i += 1
+                    else
+                        throw new Error('A line should be constituted of 
+                            only <span> and <a>')
+                else
+                    throw new Error('A line should be constituted of a final
+                            <br/>')
+                line.removeChild(node)
+                l -= 1 
+            else
+                i += 1
+
+        # the final <br/> may be deleted by chrome : if so : add it.
+        if nodes[l-1].nodeName != 'BR'
+            brNode = document.createElement('br')
+            line.appendChild(brNode)
 
 
 
@@ -1384,7 +1429,7 @@ module.exports = class CNeditor
         pop  = document.createElement('div')
         pop.id = 'CNE_urlPopover'
         pop.className = 'CNE_urlpop'
-        pop.setAttribute('contenteditable','false')
+        pop.setAttribute.contentEditable = false
         pop.innerHTML = 
             """
             <span class="CNE_urlpop_head">Link</span>
@@ -3467,19 +3512,19 @@ module.exports = class CNeditor
         #  forbiden :                        |                      |  
         #  allowed  :                      |  |
         #  allowed  :  |                                            |  
-        if startSeg.dataset.type
-            if startSeg != endSeg
-                rg.setStartBefore(startSeg)
-                selIsChanged = true
-        if endSeg.dataset.type
-            if endSeg != startSeg
-                rg.setEndAfter(endSeg)
-                selIsChanged = true
-        if selIsChanged
-            @setSelectionFromRg(rg,true)
-            # rg = this.document.getSelection().getRangeAt(0)
-            startSeg = selection.getSegment(rg.startContainer)
-            endSeg   = selection.getSegment(rg.endContainer)
+        # if startSeg.dataset.type
+        #     if startSeg != endSeg
+        #         rg.setStartBefore(startSeg)
+        #         selIsChanged = true
+        # if endSeg.dataset.type
+        #     if endSeg != startSeg
+        #         rg.setEndAfter(endSeg)
+        #         selIsChanged = true
+        # if selIsChanged
+        #     @setSelectionFromRg(rg,true)
+        #     # rg = this.document.getSelection().getRangeAt(0)
+        #     startSeg = selection.getSegment(rg.startContainer)
+        #     endSeg   = selection.getSegment(rg.endContainer)
 
         return [startSeg,endSeg,rg]
 
@@ -4281,7 +4326,7 @@ module.exports = class CNeditor
     ###
     _initClipBoard : () ->
         clipboardEl = document.createElement('div')
-        clipboardEl.setAttribute('contenteditable','true')
+        clipboardEl.contentEditable = true
         clipboardEl.id = 'editor-clipboard'
         @clipboard$ = $(clipboardEl)
         getOffTheScreen =
@@ -4927,7 +4972,6 @@ module.exports = class CNeditor
      * Called by the hotString controler when return is hit or when an item of 
      * the auto complete is clicked.
      * @param  {Object} autoItem {text:'value', type:'reminder'|'contact'|...}
-     * @return {[type]}          [description]
     ###
     doHotStringAction : (autoItem) ->
             
@@ -4940,7 +4984,23 @@ module.exports = class CNeditor
         switch autoItem.type
 
             when 'ttag'
-                return @doHotStringAction(type:'todo')
+                switch autoItem.value
+                    when 'todo'
+                        return @doHotStringAction(type:'todo')
+
+                    when 'htag'
+                        hs._forceUserHotString('#', [])
+                        hs.updateHs()
+                        bp = selection.normalizeBP(hs._hsSegment, 1)
+                        @_setCaret(bp.cont, bp.offset)
+                        return true
+
+                    when 'reminder'
+                        hs._forceUserHotString('@@', [])
+                        hs.updateHs()
+                        bp = selection.normalizeBP(hs._hsSegment, 1)
+                        @_setCaret(bp.cont, bp.offset)
+                        return true
 
             when 'todo'
                 taskDiv = @._turnIntoTask()
@@ -4959,6 +5019,7 @@ module.exports = class CNeditor
                 hs._forceUserHotString(autoItem.text, [])
                 hs._hsSegment.classList.add('CNE_contact')
                 hs._hsSegment.dataset.type = 'contact'
+                @_tagList.push(hs._hsSegment)
                 hs._hsSegment.classList.remove('CNE_hot_string')
                 bp = @.insertSpaceAfterSeg(hs._hsSegment)
                 @_setCaret(bp.cont,1)
@@ -4979,12 +5040,13 @@ module.exports = class CNeditor
                 return true
 
             when 'reminder'
+                
                 format = (n)->
                     if n.toString().length == 1
                         return '0' + n
                     else
                         return n
-                date = autoItem.text
+                date = autoItem.value
                 d    = format(date.getDate()     )
                 m    = format(date.getMonth()    )
                 y    = format(date.getFullYear() )
@@ -4992,20 +5054,38 @@ module.exports = class CNeditor
                 mn   = format(date.getMinutes()  )
                 txt  = d + '/' + m + '/' + y + '  ' + h + ':' + mn
                 hs._forceUserHotString(txt, [])
+
                 hs._hsSegment.classList.add('CNE_reminder')
-                hs._hsSegment.dataset.type = 'reminder'
                 hs._hsSegment.classList.remove('CNE_hot_string')
+                hs._hsSegment.dataset.type = 'reminder'
+                hs._hsSegment.dataset.value = date.format()
+                
                 bp = @.insertSpaceAfterSeg(hs._hsSegment)
                 @_setCaret(bp.cont,1)
+                
                 hs._auto.hide()
                 hs._reInit()
                 @editorTarget$.trigger jQuery.Event('onChange')
+
                 return true
 
         @editorTarget$.trigger jQuery.Event('onChange')
         @_auto.hide() 
         return false
 
+
+    setTagEditable : () ->
+        if !@_areTagsEditable
+            for tag in @_tagList
+                tag.contentEditable = true
+            @_areTagsEditable = true
+
+
+    setTagUnEditable : () ->
+        if @_areTagsEditable
+            for tag in @_tagList
+                tag.contentEditable = false
+            @_areTagsEditable = false
 
   
     ### ------------------------------------------------------------------------

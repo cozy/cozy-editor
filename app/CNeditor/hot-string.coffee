@@ -8,13 +8,13 @@ module.exports = class HotString
         @editor    = editor
         @_isEdit   = false
         @container = editor.linesDiv
-        @_auto     = new AutoComplete(editor.linesDiv, editor)
+        @_auto     = new AutoComplete(editor.linesDiv, editor, this)
         # @_auto       = editor._auto
         @_hsTypes  = ['@', '@@', '#']
         @_modes    = 
             '@'  : 'contact'
             '@@' : 'reminder'
-            '#'  : 'tag'
+            '#'  : 'htag'
         @isPreparing  = false # true if a hot sring is under construction
         @_hsType      = ''
         @_hsRight     = ''
@@ -54,9 +54,7 @@ module.exports = class HotString
         switch shortcut
 
             when '-return'
-                item = @_auto.hide()
-                @isPreparing = false
-                @editor.doHotStringAction(item)
+                @validate()
                 preventDefault = true
 
             when '-up'
@@ -108,7 +106,7 @@ module.exports = class HotString
      * @param  {Event} e The keyboard event
     ###
     keypressCb : (e) ->
-        # console.log  'newtypedChar'
+        # console.log  'hotstring.keypressCb()'
         charCode = e.which
 
         if @isPreparing
@@ -127,12 +125,15 @@ module.exports = class HotString
         else if charCode == 35  # '#'
             if @editor._isStartingWord()
                 modes = @editor.getCurrentAllowedInsertions()
-                if 'tag' in modes
+                if 'htag' in modes
                     @_hsType = '#'
                     @isPreparing = true
                     @_currentMode = 'htag'
                     @_auto.setMode('htag')
                     @_autoToBeShowed = mode:'insertion'
+        # else if charCode == 37 # left
+        #     if selection.
+
 
         # @printHotString()
         return true
@@ -191,10 +192,12 @@ module.exports = class HotString
      * @param  {Range} range The range of the selection
     ###
     edit : (seg, range) ->
+        console.log 'hotstring.edit()'
         @_isEdit = true
         @isPreparing = true
 
         type = seg.dataset.type
+
         switch type
             when 'reminder'
                 @_hsType   = '@@'
@@ -206,15 +209,16 @@ module.exports = class HotString
                 @_hsType   = '#'
                 segClass   = 'CNE_htag'
 
+
         @_editedItem = 
             text : seg.textContent
             type : seg.dataset.type
             id   : seg.dataset.id
             value: seg.dataset.value
 
-        rg = range.cloneRange()
-        startOffset = range.startOffset + 1
-        endOffset   = range.endOffset   + 1
+        # rg = range.cloneRange()
+        startOffset = range.startOffset + @_hsType.length
+        endOffset   = range.endOffset   + @_hsType.length
 
         @_hsTextNode = seg.firstChild
         @_hsTextNode.textContent = @_hsType + seg.textContent
@@ -230,6 +234,9 @@ module.exports = class HotString
         @_auto.setMode(type)
         @_autoToBeShowed = mode:'edit',segment:seg
         @_tryHighlight()
+
+        while false
+            d = d
 
         return true
         # bp = 
@@ -249,7 +256,10 @@ module.exports = class HotString
         return res
 
 
-
+    ###*
+     * In charge of diplaying the hotstring segment and the auto completion div
+     * when a creation or edition begins.
+    ###
     _tryHighlight : () =>
 
         if !@_autoToBeShowed
@@ -302,40 +312,9 @@ module.exports = class HotString
         return bps
 
 
-    # forceHsType : (type) ->
-    #     switch type
-
-    #         when 'todo'
-    #             return @editor.doHotStringAction(type:'todo')
-                
-    #         when 'reminder'
-    #             # hs._auto.hide()
-    #             bp = 
-    #                 cont  : @_hsTextNode
-    #                 offset: @_hsTextNode.length
-    #             @._forceUserHotString('@@',[bp])
-    #             @editor._setCaret(bp.cont, bp.offset)
-    #             @._hsType = '@@'
-    #             @_currentMode = 'reminder'
-    #             @._auto.setMode('reminder')
-    #             return true
-
-    #         when 'htag'
-    #             @._auto.hide()
-    #             bp = 
-    #                 cont  : @_hsTextNode
-    #                 offset: @_hsTextNode.length
-    #             @._forceUserHotString('#',[bp])
-    #             @editor._setCaret(bp.cont, bp.offset)
-    #             @._hsType   = '#'
-    #             @._hsString = ''
-    #             @._hsRight  = ''
-    #             @._hsLeft   = ''
-    #             @_currentMode = 'htag'
-    #             @._auto.setMode('htag')
-    #             @._auto.show(@._hsSegment , @._hsString)
-    #             return true
-
+    validate : () ->
+        item = @_auto.getSelectedItem()
+        @editor.doHotStringAction(item)
 
     ###* -----------------------------------------------------------------------
      * Reset hot string : the segment is removed and autocomplete hidden. In 

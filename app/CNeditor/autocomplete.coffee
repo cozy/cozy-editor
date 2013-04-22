@@ -5,10 +5,11 @@ require('./bootstrap-timepicker')
 class AutoComplete
     
 
-    constructor : (container, editor) ->
+    constructor : (container, editor, hotString) ->
         
         @container  = container
         @editor     = editor
+        @hotString  = hotString
         @tTags       = [] # types of tags
         @tTagsDiv    = document.createElement('DIV')
         @contacts    = [] # items of contact
@@ -44,6 +45,14 @@ class AutoComplete
             showSeconds  : true
             showMeridian : false
         )
+        
+        # listener for the title click
+        reminderTitle = @reminderDiv.querySelector('.reminder-title')
+        reminderTitle.addEventListener 'click', () =>
+            @hotString.validate()
+            console.log 't'
+        
+
         # .timepicker().on('changeTime.timepicker', (e) ->
         #     console.log e.time
         #     t = e.time
@@ -179,7 +188,7 @@ class AutoComplete
         for ttag in @tTags
             ttag.isInMode = false
             for m in modes
-                if ttag.text == m
+                if ttag.value == m
                     ttag.isInMode = true
                     break
             
@@ -371,6 +380,7 @@ class AutoComplete
         @el.removeChild(line)
 
 
+
     ###*
      * Hide auto complete and returns the current selected item, null if none.
      * @return {[type]} [description]
@@ -379,6 +389,15 @@ class AutoComplete
         if !@isVisible
             return false
         @container.removeChild(@el)
+        @isVisible = false
+
+        item = @getSelectedItem()
+        
+        return item
+
+
+
+    getSelectedItem : () ->
         switch @_currentMode
             when 'contact'
                 if @_selectedLine
@@ -396,9 +415,8 @@ class AutoComplete
                     @_selectedLine = null
             when 'reminder'
                 date = @_currentDate
-                item = text:date, type:'reminder'
-        
-        @isVisible = false
+                item = text:date, type:'reminder', value:@_currentDate
+
         return item
 
 
