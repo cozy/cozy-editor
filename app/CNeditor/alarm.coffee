@@ -1,4 +1,4 @@
-request = require("lib/request")
+request = require("./request")
 
 # Model that describes a single task
 module.exports = class Alarm extends Backbone.Model

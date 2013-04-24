@@ -28,7 +28,7 @@
         "clean-css-brunch": "> 1.0 < 1.5",
 
         "coffeelint-brunch": "> 1.0 < 1.5",
-        "cozy-realtime-adapter":"> 0"
+        "cozy-realtime-adapter":"= 0.0.3"
     },
     "devDependencies": {
         "mocha": "0.14.0",
