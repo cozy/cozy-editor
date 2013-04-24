@@ -1,32 +1,34 @@
 ### ------------------------------------------------------------------------
 # CLASS FOR THE COZY NOTE EDITOR
 #
-# usage : 
+# usage :
 #
 # newEditor = new CNEditor( iframeTarget,callBack )
 #   iframeTarget = iframe where the editor will be nested
-#   callBack     = launched when editor ready, the context 
+#   callBack     = launched when editor ready, the context
 #                  is set to the editorCtrl (callBack.call(this))
 # properties & methods :
 #   replaceContent    : (htmlContent) ->  # TODO: replace with markdown
 #   _keyDownCb : (e) =>
 #   _insertLineAfter  : (param) ->
 #   _insertLineBefore : (param) ->
-#   
+#
 #   editorIframe      : the iframe element where is nested the editor
 #   editorBody$       : the jquery pointer on the body of the iframe
 #   _lines            : {} an objet, each property refers a line
-#   _highestId        : 
-#   _firstLine        : points the first line : TODO : not taken into account 
+#   _highestId        :
+#   _firstLine        : points the first line : TODO : not taken into account
 ###
 
 md2cozy      = require('./md2cozy').md2cozy
 selection    = require('./selection').selection
 Task         = require('./task')
-# AutoComplete = require('./autocomplete').AutoComplete
 HotString    = require('./hot-string')
+Tags         = require('./tags')
 Line         = require('./line')
+
 realtimer    = require('./realtimer')
+
 
 
 module.exports = class CNeditor
@@ -34,7 +36,7 @@ module.exports = class CNeditor
     ###
     #   Constructor : newEditor = new CNEditor( iframeTarget,callBack )
     #       iframeTarget = iframe where the editor will be nested
-    #       callBack     = launched when editor ready, the context 
+    #       callBack     = launched when editor ready, the context
     #                      is set to the editorCtrl (callBack.call(this))
     ###
     constructor : (editorTarget, callBack) ->
@@ -48,7 +50,7 @@ module.exports = class CNeditor
         @_tasksModifStacks = {} # a list of tasks waiting to be sent to server.
         Task.initialize () =>
             @taskCanBeUsed = Task.canBeUsed
-        
+
         # launch loard editor in synchrone or async whether the editor is in a
         # div or an iframe.
         if @editorTarget.nodeName == "IFRAME"
@@ -73,7 +75,7 @@ module.exports = class CNeditor
             cssLink += 'href="stylesheets/CNeditor.css" rel="stylesheet">'
             editor_head$.html(cssLink)
 
-        
+
         # preparation of the div
         else
             @editorBody$ = @editorTarget$
@@ -99,7 +101,7 @@ module.exports = class CNeditor
             linesDiv.style.right     = 0
             linesDiv.style.left      = 0
 
-    
+
         # init clipboard div and url popover
         @_initClipBoard()
         @_initUrlPopover()
@@ -110,12 +112,12 @@ module.exports = class CNeditor
         # initialisation of the hot sting manager
         @_hotString = new HotString(this)
 
-        # init the array that will contain all the tag segments of the editor
-        @_tagList = []
+        # init Tags helper
+        @Tags = new Tags()
 
         # set the properties of the editor
         @_lines      = {}            # contains every line
-        @newPosition = true          # true if cursor has moved 
+        @newPosition = true          # true if cursor has moved
         @_highestId  = 0             # last inserted line identifier
         @_deepest    = 1             # current maximum indentation
         @_firstLine  = null          # pointer to the first line
@@ -140,10 +142,10 @@ module.exports = class CNeditor
         @isFirefox = `'MozBoxSizing' in document.documentElement.style`
         @isSafari = Object.prototype.toString.call(window.HTMLElement)
         @isSafari = @isSafari.indexOf('Constructor') > 0
-        @isChrome = !@isSafari && 
+        @isChrome = !@isSafari &&
                  (`'WebkitTransform' in document.documentElement.style`)
         @isChromeOrSafari = @isChrome or @isSafari
-        
+
         # initialize event listeners
         @enable()
 
@@ -154,18 +156,18 @@ module.exports = class CNeditor
 
     _mousedownCb : (e) =>
         # console.log '== editor._mousedownCb()'
-        
+
         # if a hotstring is under preparation, let hotstring controler deal with
         # the new keystroke
         if @_hotString.isPreparing
             @_hotString.mouseDownCb(e)
 
-        # if the mousedown occurs outside of a tag, then set all tags to 
+        # if the mousedown occurs outside of a tag, then set all tags to
         # uneditable so that selection can not end within a tag.
         startCont = this.document.getSelection().getRangeAt(0).startContainer
         startSeg = selection.getSegment(e.target, 0)
         if !startSeg.dataset.type
-            @setTagUnEditable()
+            @Tags.setTagUnEditable()
 
     ###*
      * When the user click in the editor, mouseup event will set @newPosition to
@@ -176,7 +178,7 @@ module.exports = class CNeditor
         @newPosition = true
 
         # In case the mousedownCb set tags to uneditable, then revert.
-        @setTagEditable()
+        @Tags.setTagEditable()
 
         # A- if a hotstring is preparing, give hand to the hotString controler
         if @_hotString.isPreparing
@@ -195,8 +197,8 @@ module.exports = class CNeditor
         else if endSeg.dataset.type == 'taskBtn'
             @_setCaret(endSeg.nextSibling,0)
 
-        # 2- if selection has an end which is a tag (hoString, reminder, 
-        # contact...) but not the other, then put all the selection within the 
+        # 2- if selection has an end which is a tag (hoString, reminder,
+        # contact...) but not the other, then put all the selection within the
         # tag.
         if (startSeg.dataset.type && !endSeg.dataset.type)
             @setSelection(rg.startContainer, rg.startOffset,
@@ -217,6 +219,7 @@ module.exports = class CNeditor
             when 'contact', 'reminder', 'htag'
                 if !@_hotString.isPreparing
                     rg = this.document.getSelection().getRangeAt(0)
+                    @Tags.remove(startSeg)
                     @_hotString.edit(startSeg, rg)
                     while false # otherwise bug in ff debugger...
                         d
@@ -323,8 +326,8 @@ module.exports = class CNeditor
     ###* -----------------------------------------------------------------------
      * this method is modified during construction if the editor target is not
      * an iframe
-     * @return {String} Returns the serialized current selection within the 
-     *                  editor. In case serialisation is impossible (for 
+     * @return {String} Returns the serialized current selection within the
+     *                  editor. In case serialisation is impossible (for
      *                  instance if there is no selectio within editor), then
      *                  false is returned.
     ###
@@ -362,7 +365,7 @@ module.exports = class CNeditor
     _turneLineIntoTask : (lineDiv) ->
         if !@taskCanBeUsed
             return false
-        
+
         # add button
         btn = this.document.createElement('SPAN')
         btn.className = 'CNE_task_btn'
@@ -374,11 +377,11 @@ module.exports = class CNeditor
         btn.appendChild(text) # insert for arrow keys navigation
         btn.addEventListener 'click', @_toggleTaskCB
         lineDiv.insertBefore(btn, lineDiv.firstChild)
-        
+
         # add lineDiv attibut
         lineDiv.dataset.type  = 'task'
         lineDiv.dataset.state = 'undone'
-        
+
         # creation of the model of the task
         @_createTaskForLine(lineDiv)
 
@@ -387,7 +390,7 @@ module.exports = class CNeditor
 
 
     _turneTaskIntoLine : (taskDiv) ->
-        
+
         # remove button
         btn = taskDiv.firstChild
         btn.removeEventListener('click', @_toggleTaskCB)
@@ -395,7 +398,7 @@ module.exports = class CNeditor
 
         # remove model :
         @_stackTaskChange(taskDiv.task,'removed')
-        
+
         # taskDiv attibutes
         taskDiv.task = null
         taskDiv.dataset.type = ''
@@ -445,7 +448,7 @@ module.exports = class CNeditor
         console.log 'create task  ' , t
         @_internalTaskCounter += 1
         t.internalId = 'CNE_task_id_' + @_internalTaskCounter
-        @_stackTaskChange(t,'create') 
+        @_stackTaskChange(t,'create')
         # t.save({},silent:true)
         # .done () ->
         #     console.log " t.save.done()",t.id
@@ -468,8 +471,8 @@ module.exports = class CNeditor
                 return true
 
         # if the id stored in the hmtml line is a temporary id and that there is
-        # task localy with this temporary id, then it's a rare case (can 
-        # happen if the html of the editor is saved and closed before the task 
+        # task localy with this temporary id, then it's a rare case (can
+        # happen if the html of the editor is saved and closed before the task
         # has its final id). We choose in this case to create the task.
         if id.slice(0,12) == 'CNE_task_id_'
             @_createTaskForLine(lineDiv)
@@ -484,7 +487,7 @@ module.exports = class CNeditor
                 console.log "editor : t.fetch.done()",t.id
                 realtimer.watchOne t
                 @_updateTaskLine(t) #task may have change when note was not open
-            
+
             t.on 'change', (t)=>
                 console.log ' editor : change from fetch detected !', t.id
                 console.log t.changedAttributes()
@@ -492,7 +495,7 @@ module.exports = class CNeditor
                 @_updateTaskLine(t)
 
             @_taskList.push(t)
-        
+
         return null
 
 
@@ -511,7 +514,7 @@ module.exports = class CNeditor
 
     _stackTaskChange : (task,action) ->
         # action in : done, undone, modified, removed
-        console.log 'editor : A task has been ' + action, task.id 
+        console.log 'editor : A task has been ' + action, task.id
         switch action
 
             when 'done'
@@ -596,8 +599,8 @@ module.exports = class CNeditor
             return true
 
         # else find the caracter just before the start of the selection
-        else 
-            # if the selection is at the beginning of a the text node (since 
+        else
+            # if the selection is at the beginning of a the text node (since
             # normalized, startContainer is in a text node), we get all the text
             # that is befor the selection
             if rg.startOffset == 0
@@ -606,9 +609,9 @@ module.exports = class CNeditor
                 rg2.setStart(selection._getLineDiv(rg2.startContainer), 0)
                 txt = rg2.toString()
                 if txt.length == 0
-                    # we are not at the beginning of the line but there is no 
+                    # we are not at the beginning of the line but there is no
                     # text before : means there is a non textual segment embeded
-                    # in the line, for instance an image without space character 
+                    # in the line, for instance an image without space character
                     # after it : we consider that this is the start of a word,
                     # but this is not obvious.
                     return true
@@ -635,7 +638,7 @@ module.exports = class CNeditor
 
     ### ------------------------------------------------------------------------
     # EXTENSION : _updateDeepest
-    # 
+    #
     # Find the maximal deep (thus the deepest line) of the text
     # TODO: improve it so it only calculates the new depth from the modified
     #       lines (not all of them)
@@ -650,7 +653,7 @@ module.exports = class CNeditor
             if @editorBody$.children("#" + "#{lines[c].lineID}").length > 0 and
                lines[c].lineType == "Th" and lines[c].lineDepthAbs > max
                 max = @_lines[c].lineDepthAbs
-                
+
         # Following code is way too ugly to be kept
         # It needs to be replaced with a way to change a variable in a styl or
         # css file... but I don't even know if it is possible.
@@ -660,12 +663,12 @@ module.exports = class CNeditor
                 @replaceCSS("stylesheets/app-deep-#{max}.css")
             else
                 @replaceCSS("stylesheets/app-deep-4.css")
-        
+
 
     ###* -----------------------------------------------------------------------
      * Initialize the editor content from a html string
      * The html string should not been pretified because of the spaces and
-     * charriage return. 
+     * charriage return.
      * If unPretify = true then a regex tries to set up things
     ###
     replaceContent : (htmlString, unPretify) ->
@@ -690,7 +693,7 @@ module.exports = class CNeditor
     deleteContent : ->
         emptyLine = '<div id="CNID_1" class="Tu-1"><span></span><br></div>'
         @replaceContent(emptyLine)
-    
+
 
     ### ------------------------------------------------------------------------
     # Returns an html string representing the editor content
@@ -708,7 +711,7 @@ module.exports = class CNeditor
                 @_fusionSimilarSegments(lineDiv, [])
                 segment = clone.querySelector('#CNE_autocomplete')
                 segment.parentElement.removeChild(segment)
-            
+
             # if the urlpopover is visible : remove it
             if  @.isUrlPopoverOn
                 # remove the url popover
@@ -729,7 +732,7 @@ module.exports = class CNeditor
 
         else
             txt = @linesDiv.innerHTML
-        
+
         return txt
 
 
@@ -747,7 +750,7 @@ module.exports = class CNeditor
     setEditorContentFromMD : (mdContent) ->
         cozyContent = md2cozy.md2cozy mdContent
         @replaceContent(cozyContent)
-          
+
 
     ### ------------------------------------------------------------------------
     # Change the path of the css applied to the editor iframe
@@ -760,13 +763,13 @@ module.exports = class CNeditor
 
 
     ###* -----------------------------------------------------------------------
-     * Return [metaKeyCode,keyCode] corresponding to the key strike combinaison. 
+     * Return [metaKeyCode,keyCode] corresponding to the key strike combinaison.
      * the string structure = [meta key]-[key]
      *   * [metaKeyCode] : (Alt)*(Ctrl)*(Shift)*
-     *   * [keyCode] : (return|end|...|A|S|V|Y|Z)|(other) 
-     * ex : 
-     *   * "AltShift" & "up" 
-     *   * "AltCtrl" & "down" 
+     *   * [keyCode] : (return|end|...|A|S|V|Y|Z)|(other)
+     * ex :
+     *   * "AltShift" & "up"
+     *   * "AltCtrl" & "down"
      *   * "Shift" & "A"
      *   * "Ctrl" & "S"
      *   * "" & "other"
@@ -774,8 +777,8 @@ module.exports = class CNeditor
      * @return {[type]}   [description]
     ###
     getShortCut : (e) ->
-        metaKey = `(e.altKey ? "Alt" : "") + 
-                              (e.ctrlKey ? "Ctrl" : "") + 
+        metaKey = `(e.altKey ? "Alt" : "") +
+                              (e.ctrlKey ? "Ctrl" : "") +
                               (e.shiftKey ? "Shift" : "")`
 
         keyCode = e.keyCode
@@ -812,13 +815,13 @@ module.exports = class CNeditor
                     when 86 then key = 'V'
                     when 89 then key = 'Y'
                     when 90 then key = 'Z'
-                    else 
+                    else
                         key = 'other'
 
         shortcut = metaKey + '-' + key
-        
+
         # a,s,v,y,z alone are simple characters
-        if metaKey == '' && key in 
+        if metaKey == '' && key in
              ['A', 'B', 'U', 'K', 'L', 'S', 'V', 'Y', 'Z']
             key = 'other'
 
@@ -828,7 +831,7 @@ module.exports = class CNeditor
             isAction : isAction
             shortcut : shortcut
             keyCode  : keyCode
-        console.log 'editor.getShortCut()', @_shortcut.shortcut
+        # console.log 'editor.getShortCut()', @_shortcut.shortcut
 
 
     ###* -----------------------------------------------------------------------
@@ -846,42 +849,42 @@ module.exports = class CNeditor
                    any risk.\n\nMessage :\n' + error)
             e.preventDefault()
             @unDo()
-    
+
 
     ###* -----------------------------------------------------------------------
      * Change the callback called by keydown event for the "test" callback.
-     * The aim is that during test we don't want to intercept errors so that 
+     * The aim is that during test we don't want to intercept errors so that
      * the test can detect the error.
     ###
     registerKeyDownCbForTest : ()=>
         @linesDiv.removeEventListener('keydown', @_keyDownCbTry, true)
         # otherwise _unRegisterEventListeners will no longer work
-        @_keyDownCbTry = @_keyDownCb 
+        @_keyDownCbTry = @_keyDownCb
         @linesDiv.addEventListener('keydown', @_keyDownCbTry, true)
 
 
     ###*------------------------------------------------------------------------
      *
      * The listener of keyPress event on the editor's iframe... the king !
-     * 
+     *
      * Params :
-     * e : the event object. Interesting attributes : 
+     * e : the event object. Interesting attributes :
      *   .which
      *   .altKey
      *   .ctrlKey
      *   .metaKey
      *   .shiftKey
      *   .keyCode
-     *   
+     *
      * SHORTCUT
      *
-     * Definition of a shortcut : 
+     * Definition of a shortcut :
      *   a combination alt,ctrl,shift,meta
-     *   + one caracter(.which) 
-     *   or 
-     *     arrow (.keyCode=dghb:) or 
-     *     return(keyCode:13) or 
-     *     bckspace (which:8) or 
+     *   + one caracter(.which)
+     *   or
+     *     arrow (.keyCode=dghb:) or
+     *     return(keyCode:13) or
+     *     bckspace (which:8) or
      *     tab(keyCode:9)
      *   ex : shortcut = 'CtrlShift-up', 'Ctrl-115' (ctrl+s), '-115' (s),
      *                   'Ctrl-'
@@ -903,11 +906,11 @@ module.exports = class CNeditor
         if @_lastKey != shortcut and \
                shortcut in ['-return', '-backspace', '-suppr',
                             'CtrlShift-down', 'CtrlShift-up',
-                            'CtrlShift-left', 'CtrlShift-right', 
+                            'CtrlShift-left', 'CtrlShift-right',
                             'Ctrl-V', '-space', '-other']
             @_addHistory()
 
-        
+
         @_lastKey = shortcut
 
         @currentSel =
@@ -926,14 +929,14 @@ module.exports = class CNeditor
         #    modified with keyboard or mouse.
         #    If newPosition == true and a character is typed or a suppression
         #    key is pressed, then selection must be "normalized" so that its
-        #    break points are in text nodes. Normalization is done by 
-        #    updateCurrentSel or updateCurrentSelIsStartIsEnd that is chosen 
+        #    break points are in text nodes. Normalization is done by
+        #    updateCurrentSel or updateCurrentSelIsStartIsEnd that is chosen
         #    before to run the action corresponding to the shorcut.
         #    The update of @newPosition is done :
         #       - bellow depending on the key stroke
         #       - in _mouseupCb
-        #       
-        
+        #
+
         # 4- Give hand to the hotString manager if this one is preparing one.
         # if the hotString manager launched an action, the stop here and prevent
         # any other action of the editor.
@@ -944,12 +947,12 @@ module.exports = class CNeditor
 
         # 5- if a shift keydown : prevent the partial selection of tag by setting
         # all of them uneditable in case where this happens outside of a tag.
-        if e.keyCode == 16 
+        if e.keyCode == 16
             rg = this.document.getSelection().getRangeAt(0)
             if !selection.getSegment(rg.startContainer,0).dataset.type
-                @setTagUnEditable()
+                @Tags.setTagUnEditable()
 
-        # 7- Manage "simple keys" (letters, arrows & alike, with or without 
+        # 6- Manage "simple keys" (letters, arrows & alike, with or without
         # shift but without alt and ctrl (CtrlSthift allowed for arrows & alike)
         switch @_shortcut.key
             when 'up', 'down', 'left', 'right', 'pgUp', 'pgDwn', 'end', 'home'
@@ -959,7 +962,7 @@ module.exports = class CNeditor
             when 'other', 'space'
                 if !e.ctrlrlKey && !e.altKey
                     if @newPosition
-                        sel = @updateCurrentSel() 
+                        sel = @updateCurrentSel()
                         if ! sel.theoricalRange.collapsed
                             @_backspace()
                         @newPosition = false
@@ -967,7 +970,7 @@ module.exports = class CNeditor
                     @_detectTaskChange()
                     return true
 
-        # 6- if alt or ctrl is pressed, then prevent default, only custom 
+        # 7- if alt or ctrl is pressed, then prevent default, only custom
         # behaviour defined below must occur, no default by browser.
         if e.altKey or e.ctrlKey
             e.preventDefault()
@@ -988,7 +991,7 @@ module.exports = class CNeditor
                 @_backspace()
                 # important, for instance in the case of a deletion of a range
                 # within a single line
-                @newPosition = true 
+                @newPosition = true
                 e.preventDefault()
                 @editorTarget$.trigger jQuery.Event('onChange')
 
@@ -1064,7 +1067,7 @@ module.exports = class CNeditor
                 @editorTarget$.trigger jQuery.Event('onChange')
 
             else
-                console.log 'keyDownCb ELSE'
+                # console.log 'keyDownCb ELSE'
                 e.preventDefault()
 
 
@@ -1076,25 +1079,25 @@ module.exports = class CNeditor
 
 
     ###* -----------------------------------------------------------------------
-     * Detects where the carret is after a keyup in order to launch required 
+     * Detects where the carret is after a keyup in order to launch required
      * actions :
      * A/ correct the 2 following problems :
-     *   a- in Chrome, the insertion of a caracter by the browser may be out of 
-     *   a span. 
-     *   This is du to a bug in Chrome : you can create a range with its start 
-     *   break point in an empty span. But if you add this range to the 
-     *   selection, then this latter will not respect your range and its start 
-     *   break point will be outside the range. When a key is pressed to insert 
+     *   a- in Chrome, the insertion of a caracter by the browser may be out of
+     *   a span.
+     *   This is du to a bug in Chrome : you can create a range with its start
+     *   break point in an empty span. But if you add this range to the
+     *   selection, then this latter will not respect your range and its start
+     *   break point will be outside the range. When a key is pressed to insert
      *   a caracter, the browser inserts it at the start break point, ie outside
-     *   the span... this function detects after each keyup is there is a text 
+     *   the span... this function detects after each keyup is there is a text
      *   node outside a span and move its content and the carret.
-     *   b- in order to keep the navigation with arrows working, we have to 
+     *   b- in order to keep the navigation with arrows working, we have to
      *   insert a text in the buttons of tasks. That's why we have to remove the
      *   carret from the button when the browser put it in a button.
      * B/ edit meta data
      * C/ Deal case when the selection has been changed with keyboard
      * D/ Deal hot string.
-     * E/ Fire the editor onKeyUp event 
+     * E/ Fire the editor onKeyUp event
      * @param  {Event} e The key event
     ###
     _keyupCb : (e) =>
@@ -1109,11 +1112,11 @@ module.exports = class CNeditor
         endSeg   = selection.getSegment(rg.endContainer)
         if startSeg.dataset
             switch startSeg.dataset.type
-                
+
                 # A/b) Remove carret from tasks buttons.
                 when 'taskBtn'
                     # if left : go to the end of previous line.
-                    if e.keyCode == 37 
+                    if e.keyCode == 37
                         line = selection.getLineDiv(startSeg,0).previousSibling
                         if line
                             newCont = line.lastChild.previousSibling
@@ -1121,20 +1124,21 @@ module.exports = class CNeditor
                         else
                             @_setCaret(startSeg.nextSibling,0)
                     # put it at the beginning of the text of the task
-                    else 
+                    else
                         @_setCaret(startSeg.nextSibling,0)
 
                 # B/ When in a meta segment (contact, reminder etc...), edit it.
                 when 'contact', 'reminder', 'htag'
                     if !@_hotString.isPreparing
+                        @Tags.remove(startSeg)
                         @_hotString.edit(startSeg,rg)
 
         # C/ shift Keyup : a selection with keyboard might occured
-        if e.keyCode == 16 
+        if e.keyCode == 16
             # 1- setTags as editable again.
-            @setTagEditable()
-            # 2- if selection has an end which is a tag (hoString, reminder, 
-            # contact...) but not the other, then put all the selection within the 
+            @Tags.setTagEditable()
+            # 2- if selection has an end which is a tag (hoString, reminder,
+            # contact...) but not the other, then put all the selection within the
             # tag.
             if (startSeg.dataset.type && !endSeg.dataset.type)
                 @setSelection(rg.startContainer, rg.startOffset,
@@ -1152,15 +1156,15 @@ module.exports = class CNeditor
         # D/ if a hot string is preparing, check selection is still in it.
         if @_hotString.isPreparing
             # if a selection is on progress (a left, right,up, down,begin,end,
-            # pageup,pagedwn while shift key is pressed) then do nothing.
-            if !(e.shiftKey and e.keyCode in [37,38,36,33,40,39,34,35])
+            # pageup,pagedwn & ctrl while shift key is pressed) then do nothing.
+            if !(e.shiftKey and e.keyCode in [17,37,38,36,33,40,39,34,35])
                 if startSeg == @_hotString._hsSegment
                     @_hotString.updateHs()
                 else
                     @_hotString.updateHs()
                     @_hotString.reset('current')
-        
-        # E/ Fire the editor onKeyUp event 
+
+        # E/ Fire the editor onKeyUp event
         switch @_shortcut.shortcut
             when 'Ctrl-S', 'Ctrl-other'
                 return
@@ -1171,14 +1175,14 @@ module.exports = class CNeditor
 
 
     ###*
-     *   In Chrome, the insertion of a caracter by the browser may be out of 
-     *   a span. 
-     *   This is du to a bug in Chrome : you can create a range with its start 
-     *   break point in an empty span. But if you add this range to the 
-     *   selection, then this latter will not respect your range and its start 
-     *   break point will be outside the range. When a key is pressed to insert 
+     *   In Chrome, the insertion of a caracter by the browser may be out of
+     *   a span.
+     *   This is du to a bug in Chrome : you can create a range with its start
+     *   break point in an empty span. But if you add this range to the
+     *   selection, then this latter will not respect your range and its start
+     *   break point will be outside the range. When a key is pressed to insert
      *   a caracter, the browser inserts it at the start break point, ie outside
-     *   the span... this function detects after each keyup is there is a text 
+     *   the span... this function detects after each keyup is there is a text
      *   node outside a span and move its content and the carret.
     ###
     _chromeCorrection : () ->
@@ -1198,13 +1202,13 @@ module.exports = class CNeditor
                     if node.previousSibling.nodeName in ['SPAN','A']
                         node.previousSibling.textContent += t
                     else
-                        throw new Error('A line should be constituted of 
+                        throw new Error('A line should be constituted of
                             only <span> and <a>')
                 else if node.nextSibling
                     if node.nextSibling.nodeName in ['SPAN','A']
-                        node.nextSibling.textContent = t + 
+                        node.nextSibling.textContent = t +
                             node.nextSibling.textContent
-                        # TODO : position of carret should be at the end of 
+                        # TODO : position of carret should be at the end of
                         # string "t"
                     else if node.nextSibling.nodeName in ['BR']
                         newSpan = document.createElement('span')
@@ -1213,13 +1217,13 @@ module.exports = class CNeditor
                         l += 1
                         i += 1
                     else
-                        throw new Error('A line should be constituted of 
+                        throw new Error('A line should be constituted of
                             only <span> and <a>')
                 else
                     throw new Error('A line should be constituted of a final
                             <br/>')
                 line.removeChild(node)
-                l -= 1 
+                l -= 1
             else
                 i += 1
 
@@ -1239,14 +1243,14 @@ module.exports = class CNeditor
             startLineDiv     : the element corresponding to startLine
             endLineDiv       : the element corresponding to endLine
             isStartInTask    : {Boolean} True if the startLine is a task
-            rangeIsStartLine : {boolean} true if the selection ends at 
+            rangeIsStartLine : {boolean} true if the selection ends at
                                the end of its line : NOT UPDATE HERE - see
                                updateCurrentSelIsStartIsEnd
-            rangeIsEndLine   : {boolean} true if the selection starts at 
+            rangeIsEndLine   : {boolean} true if the selection starts at
                                the start of its line : NOT UPDATE HERE - see
                                updateCurrentSelIsStartIsEnd
-            theoricalRange   : theoricalRange : normalization of the selection 
-                               should put each break points in a node text. It 
+            theoricalRange   : theoricalRange : normalization of the selection
+                               should put each break points in a node text. It
                                doesn't work in chrome due to a bug. We therefore
                                store here the "theorical range" that the
                                selection should match. It means that if you are
@@ -1278,7 +1282,7 @@ module.exports = class CNeditor
         startLine = @_lines[startLineDiv.id]
         endLine   = @_lines[endLineDiv.id]
         isStartInTask = startLineDiv.dataset.type == 'task'
-        
+
         # upadte
         @currentSel =
             sel              : sel
@@ -1297,7 +1301,7 @@ module.exports = class CNeditor
 
     ###* -----------------------------------------------------------------------
      * updates @currentSel and check if range is at the start of begin of the
-     * corresponding line. 
+     * corresponding line.
      * @currentSel =
             sel              : {Selection} of the editor's document
             range            : sel.getRangeAt(0)
@@ -1306,12 +1310,12 @@ module.exports = class CNeditor
             startLineDiv     : the element corresponding to startLine
             endLineDiv       : the element corresponding to endLine
             isStartInTask    : {Boolean} True if the startLine is a task
-            rangeIsStartLine : {boolean} true if the selection ends at 
+            rangeIsStartLine : {boolean} true if the selection ends at
                                the end of its line.
-            rangeIsEndLine   : {boolean} true if the selection starts at 
+            rangeIsEndLine   : {boolean} true if the selection starts at
                                the start of its line.
-            theoricalRange   : theoricalRange : normalization of the selection 
-                               should put each break points in a node text. It 
+            theoricalRange   : theoricalRange : normalization of the selection
+                               should put each break points in a node text. It
                                doesn't work in chrome due to a bug. We therefore
                                store here the "theorical range" that the
                                selection should match. It means that if you are
@@ -1387,10 +1391,10 @@ module.exports = class CNeditor
         sel = this.document.getSelection()
         if sel.rangeCount > 0
             rg = sel.getRangeAt(0)
-            
+
             if expectWide and rg.collapsed
                 return true
-            
+
             cont = rg.startContainer
             while cont != null
                 if cont == @linesDiv
@@ -1408,7 +1412,7 @@ module.exports = class CNeditor
                 return true
         else
             return true
-            
+
 
     ###* -----------------------------------------------------------------------
      * Put a strong (bold) css class on the selection of the editor.
@@ -1416,7 +1420,7 @@ module.exports = class CNeditor
      * @return {[type]} [description]
     ###
     strong : () ->
-        if !@isEnabled or @hasNoSelection(true)
+        if !@isEnabled or @hasNoSelection(true) or @_hotString.isPreparing
             return true
         @._addHistory()
         rg = @._applyMetaDataOnSelection('CNE_strong')
@@ -1428,7 +1432,7 @@ module.exports = class CNeditor
 
 
     underline : () ->
-        if ! @isEnabled or @hasNoSelection(true)
+        if ! @isEnabled or @hasNoSelection(true) or @_hotString.isPreparing
             return true
         @._addHistory()
         rg = @._applyMetaDataOnSelection('CNE_underline')
@@ -1440,7 +1444,7 @@ module.exports = class CNeditor
 
 
     linkifySelection: () ->
-        if ! @isEnabled or @hasNoSelection()
+        if ! @isEnabled or @hasNoSelection() or @_hotString.isPreparing
             return true
 
         currentSel = @updateCurrentSelIsStartIsEnd()
@@ -1452,7 +1456,7 @@ module.exports = class CNeditor
             if segments
                 @_showUrlPopover(segments,false)
 
-        # if selection is not collapsed, 2 cases : 
+        # if selection is not collapsed, 2 cases :
         # the start breakpoint is in a link or not
         else
             segments = @_getLinkSegments()
@@ -1462,21 +1466,21 @@ module.exports = class CNeditor
             # case when the start break point is not in a link
             else
                 @_addHistory()
-                # We apply a temporary link metadata in order to make the 
+                # We apply a temporary link metadata in order to make the
                 # modification zone visible to the user.
                 # We set isUrlPopoverOn so that when we apply this temporary
                 # style there is no detection of modification (neither task nor
                 # editor content nor anything)
-                @isUrlPopoverOn = true 
+                @isUrlPopoverOn = true
                 rg = @_applyMetaDataOnSelection('A','http://')
                 if rg
                     segments = @_getLinkSegments(rg)
                     @_showUrlPopover(segments,true)
-                else 
+                else
                     @isUrlPopoverOn = true
-        
+
         return true
-            
+
 
     ###* -----------------------------------------------------------------------
      * initialise the popover during the editor initialization.
@@ -1486,7 +1490,7 @@ module.exports = class CNeditor
         pop.id = 'CNE_urlPopover'
         pop.className = 'CNE_urlpop'
         pop.setAttribute.contentEditable = false
-        pop.innerHTML = 
+        pop.innerHTML =
             """
             <span class="CNE_urlpop_head">Link</span>
             <span  class="CNE_urlpop_shortcuts">(Ctrl+K)</span>
@@ -1500,7 +1504,7 @@ module.exports = class CNeditor
                 <button class="btn">Delete</button>
             </div>
             """
-        pop.titleElt = pop.firstChild 
+        pop.titleElt = pop.firstChild
         pop.link = pop.getElementsByTagName('A')[0]
 
         # b = document.querySelector('body')
@@ -1523,7 +1527,7 @@ module.exports = class CNeditor
                 @_cancelUrlPopover(false)
 
             return false
-        
+
         @urlPopover = pop
 
         return true
@@ -1531,7 +1535,7 @@ module.exports = class CNeditor
 
     ###* -----------------------------------------------------------------------
      * Show, positionate and initialise the popover for link edition.
-     * @param  {array} segments  An array with the segments of 
+     * @param  {array} segments  An array with the segments of
      *                           the link [<a>,...<a>]. Must be created even if
      *                           it is a creation in order to put a background
      *                           on the segment where the link will be.
@@ -1541,24 +1545,24 @@ module.exports = class CNeditor
     ###
     _showUrlPopover : (segments, isLinkCreation) ->
         pop = @urlPopover
-        
+
         # Disable the editor to prevent actions when popover is on
         @disable()
 
         @.isUrlPopoverOn = true
         pop.isLinkCreation = isLinkCreation # save the flag
-        
+
         # save initial selection range to restore it on close
         pop.initialSelRg = @currentSel.theoricalRange.cloneRange()
-        
+
         # save segments array
         pop.segments = segments
-        
+
         # positionnate the popover (centered for now)
         seg = segments[0]
         pop.style.left = seg.offsetLeft + 'px'
         pop.style.top = seg.offsetTop + 20 + 'px'
-        
+
         # update the inputs fields of popover
         href = seg.href
         if href == '' or href == 'http:///'
@@ -1579,17 +1583,17 @@ module.exports = class CNeditor
 
         # Insert the popover
         seg.parentElement.parentElement.appendChild(pop)
-        
+
         # add event listener to detect a click outside of the popover
         @editorBody.addEventListener('mouseup',@_detectClickOutUrlPopover)
-        
+
         # select and put focus in the popover
         pop.urlInput.select()
         pop.urlInput.focus()
-        
+
         # colorize the concerned segments.
         for seg in segments
-            # seg.style.backgroundColor = '#dddddd' 
+            # seg.style.backgroundColor = '#dddddd'
             seg.classList.add('CNE_url_in_edition')
 
         return true
@@ -1609,7 +1613,7 @@ module.exports = class CNeditor
      * Close the popover and revert modifications if isLinkCreation == true
      * @param  {boolean} doNotRestoreOginalSel If true, lets the caret at its
      *                                         position (used when you click
-     *                                         outside url popover in order not 
+     *                                         outside url popover in order not
      *                                         to loose the new selection)
     ###
     _cancelUrlPopover : (doNotRestoreOginalSel) =>
@@ -1618,18 +1622,18 @@ module.exports = class CNeditor
 
         # remove the click listener
         @editorBody.removeEventListener('mouseup', @_detectClickOutUrlPopover)
-        
+
         # remove popover
         pop.parentElement.removeChild(pop)
         @.isUrlPopoverOn = false
-        
+
         # remove the "selected style" of the segments
         for seg in segments
-            # seg.style.removeProperty('background-color') 
+            # seg.style.removeProperty('background-color')
             seg.classList.remove('CNE_url_in_edition')
 
         # case of a link creation called and cancelled : a segment for the link
-        # to creat has already been added in order to show the selection when 
+        # to creat has already been added in order to show the selection when
         # popover is visible. As it is canceled, we undo in order to remove this
         # link.
         if pop.isLinkCreation
@@ -1648,7 +1652,7 @@ module.exports = class CNeditor
             @_fusionSimilarSegments(lineDiv,bps)
             if !doNotRestoreOginalSel
                 @setSelectionBp(bp1, bp2)
-            
+
         else if !doNotRestoreOginalSel
             sel = this.document.getSelection()
             sel.removeAllRanges()
@@ -1673,7 +1677,7 @@ module.exports = class CNeditor
      * Close the popover and applies modifications to the link.
     ###
     _validateUrlPopover : (event) =>
-        
+
         if event
             event.stopPropagation()
 
@@ -1692,10 +1696,10 @@ module.exports = class CNeditor
         pop.parentElement.removeChild(pop)
         @.isUrlPopoverOn = false
         for seg in segments
-            # seg.style.removeProperty('background-color') 
+            # seg.style.removeProperty('background-color')
             seg.classList.remove('CNE_url_in_edition')
 
-        # 3- in case of a link creation, addhistory has already be done, but it 
+        # 3- in case of a link creation, addhistory has already be done, but it
         # must be done if it is not a link creation.
         if !pop.isLinkCreation
             sel = this.document.getSelection()
@@ -1709,10 +1713,10 @@ module.exports = class CNeditor
         # 5- case of a deletion of the urlInput value => 'remove the link'
         if pop.urlInput.value == ''
             l = segments.length
-            bp1 = 
+            bp1 =
                 cont : segments[0].firstChild
                 offset : 0
-            bp2 = 
+            bp2 =
                 cont   : segments[l-1].firstChild
                 offset : segments[l-1].firstChild.length
             bps = [bp1,bp2]
@@ -1743,7 +1747,7 @@ module.exports = class CNeditor
             seg.href = pop.urlInput.value for seg in segments
             lastSeg = seg
 
-        # 7- case if the text of the link is modified : we concatenate 
+        # 7- case if the text of the link is modified : we concatenate
         # all segments
         else
             seg = segments[0]
@@ -1778,8 +1782,8 @@ module.exports = class CNeditor
 
 
     ###* -----------------------------------------------------------------------
-     * Tests if a the start break point of the selection or of a range is in a 
-     * segment being a link. If yes returns the array of the segments 
+     * Tests if a the start break point of the selection or of a range is in a
+     * segment being a link. If yes returns the array of the segments
      * corresponding to the link starting in this bp, false otherwise.
      * The link can be composed of several segments, but they are on a single
      * line. Only the start break point is taken into account, not the end bp.
@@ -1817,7 +1821,7 @@ module.exports = class CNeditor
      * Applies a metadata such as STRONG, UNDERLINED, A/href etc... on the
      * selected text. The selection must not be collapsed.
      * @param  {string} metaData  The css class of the meta data or 'A' if link
-     * @param  {string} others... Other params if metadata requires 
+     * @param  {string} others... Other params if metadata requires
      *                            some (href for instance)
     ###
     _applyMetaDataOnSelection : (metaData, others...) ->
@@ -1832,7 +1836,7 @@ module.exports = class CNeditor
         # 1- if the selection starts at the end of a non empty segment, move
         # the start of selection at the beginning of next Segment or even to the
         # start of next line
-        if range.startContainer.length != 0 and 
+        if range.startContainer.length != 0 and
            range.startContainer.length == range.startOffset
             seg = selection.getNestedSegment(range.startContainer)
             nextSegment = selection.getNextSegment(seg)
@@ -1846,7 +1850,7 @@ module.exports = class CNeditor
                 range.setStartBefore(line.line$[0].firstChild)
                 rangeIsToNormalize = true
 
-        if range.endContainer.length != 0 and 
+        if range.endContainer.length != 0 and
            range.endOffset == 0
             seg = selection.getNestedSegment(range.endContainer)
             prevSegment = selection.getPrevSegment(seg)
@@ -1867,15 +1871,15 @@ module.exports = class CNeditor
             if range.collapsed
                 return
 
-        # 2- create a range for each selected line and put them in 
+        # 2- create a range for each selected line and put them in
         # an array (linesRanges)
-        
+
 
         # # case when the selection starts at the end of a non empty line
         # if currentSel.firstLineIsEnd
         #     # if start line is empty : apply style to its segment, otherwise
         #     # begin on next line.
-        #     if line.line$[0].textContent != '' 
+        #     if line.line$[0].textContent != ''
         #         line = line.lineNext
         #         if line == null
         #             return
@@ -1886,7 +1890,7 @@ module.exports = class CNeditor
 
         # # case when the selection ends at the start of the line
         # if currentSel.lastLineIsStart
-        #     # if last line is empty : apply style to its segment, otherwise 
+        #     # if last line is empty : apply style to its segment, otherwise
         #     # begin on the previous line.
         #     if endLine.line$[0].textContent != ''
         #         endLine = endLine.linePrev
@@ -1911,7 +1915,7 @@ module.exports = class CNeditor
         # if a single line selection
         if line == endLine
             linesRanges = [range]
-        
+
         # if a multi line selection
         else
             # range for the 1st line
@@ -1939,12 +1943,12 @@ module.exports = class CNeditor
         # For this we go throught each line and each selected segment to check
         # if metaData is applied or not. For instance if all segments are strong
         # the action is to un-strongify. If one segment is not bold, then the
-        # action is to strongify.    
+        # action is to strongify.
         isAlreadyMeta = true
         for range in linesRanges
             isAlreadyMeta = isAlreadyMeta \
-                              && 
-                            @_checkIfMetaIsEverywhere(range, metaData, others) 
+                              &&
+                            @_checkIfMetaIsEverywhere(range, metaData, others)
         addMeta = !isAlreadyMeta
 
         # 4- Apply the correct action on each lines and getback the breakpoints
@@ -1952,12 +1956,12 @@ module.exports = class CNeditor
         bps = []
         for range in linesRanges
             bps.push( @_applyMetaOnLineRange(range, addMeta, metaData, others) )
-        
+
         # 5- Position selection
-        # be carefull : chrome requires the range to be created by the document 
-        # where the range will be in. In our case, we must use the editor 
+        # be carefull : chrome requires the range to be created by the document
+        # where the range will be in. In our case, we must use the editor
         # document.
-        rg = this.document.createRange() 
+        rg = this.document.createRange()
         bp1 = bps[0][0]
         bp2 = bps[bps.length - 1][1]
         rg.setStart(bp1.cont, bp1.offset)
@@ -1970,16 +1974,16 @@ module.exports = class CNeditor
 
 
     ###* -----------------------------------------------------------------------
-     * Walk though the segments delimited by the range (which must be in a 
+     * Walk though the segments delimited by the range (which must be in a
      * single line) to check if the meta si on all of them.
      * @param  {range} range a range contained within a line. The range must be
      *                 normalized, ie its breakpoints must be in text nodes.
      * @param  {string} meta  The name of the meta data to look for. It can be
      *                        a css class ('CNE_strong' for instance), or a
      *                        metadata type ('A' for instance)
-     * @param  {string} href  Others parameters of the meta data type if 
+     * @param  {string} href  Others parameters of the meta data type if
      *                        required (href value for a 'A' meta)
-     * @return {boolean}       true if the meta data is already on all the 
+     * @return {boolean}       true if the meta data is already on all the
      *                         segments delimited by the range.
     ###
     _checkIfMetaIsEverywhere : (range, meta, others) ->
@@ -1991,8 +1995,8 @@ module.exports = class CNeditor
     _checkIfCSSIsEverywhere : (range, CssClass) ->
         # Loop  on segments to decide wich action is to be done on all
         #    segments. For instance if all segments are strong the action is
-        #    to un-strongify. If one segment is not bold, then the action is 
-        #    to strongify.        
+        #    to un-strongify. If one segment is not bold, then the action is
+        #    to strongify.
         segment    = range.startContainer.parentNode
         endSegment = range.endContainer.parentNode
         stopNext   = (segment == endSegment)
@@ -2022,20 +2026,20 @@ module.exports = class CNeditor
     ###* -----------------------------------------------------------------------
      * Add or remove a meta data to the segments delimited by the range. The
      * range must be within a single line and normalized (its breakpoints must
-     * be in text nodes). 
-     * @param  {range} range    The range on which we want to apply the 
+     * be in text nodes).
+     * @param  {range} range    The range on which we want to apply the
      *                          metadata. The range must be within a single line
      *                          and normalized (its breakpoints must be in text
      *                          nodes). The start breakpoint can not be at the
-     *                          end of the line, except in the case of an empty 
-     *                          line fully selected. Same for end breakpoint : 
-     *                          it can not be at the beginning of the line, 
-     *                          except in the case of an empty line fully 
+     *                          end of the line, except in the case of an empty
+     *                          line fully selected. Same for end breakpoint :
+     *                          it can not be at the beginning of the line,
+     *                          except in the case of an empty line fully
      *                          selected.
-     * @param  {boolean} addMeta  True if the action is to add the metaData, 
+     * @param  {boolean} addMeta  True if the action is to add the metaData,
      *                            False if the action is to remove it.
      * @param  {string} metaData The name of the meta data to look for. It can
-     *                           be a css class ('CNE_strong' for instance), 
+     *                           be a css class ('CNE_strong' for instance),
      *                           or a metadata type ('A' for instance)
      * @param {array} others Array of others params fot meta, can be [] but not
      *                       null (not optionnal)
@@ -2059,19 +2063,19 @@ module.exports = class CNeditor
         #    We split the segment in two of the same type and class if :
         #      - the start segment doesn't have the required property
         #      - the start break point is not strictly inside a node text
-        
+
 
         if bp1.offset == 0
             # nothing special, the full segment will be converted, empty or not.
-        
+
         # case bp1 is at the end of the non empty text node : we start on the
-        # next segment. This one must exist, otherwise range would start at the 
+        # next segment. This one must exist, otherwise range would start at the
         # end of a non empty line
         else if bp1.offset == bp1.cont.length
             startSeg = startSeg.nextSibling
-            # rem : nextSibling can not be </br> because the start break point 
+            # rem : nextSibling can not be </br> because the start break point
             # can not be at the end of a non empty line. In the latter case the
-            # range should have been moved to next line before calling this 
+            # range should have been moved to next line before calling this
             # function.
             if startSeg == null or startSeg.nodeName == 'BR'
                 return
@@ -2118,14 +2122,14 @@ module.exports = class CNeditor
         #    We split the segment in two of the same type and class if :
         #      - the end break point is not strictly inside a node  text
         #      - the end segment doesn't have the required property
-        
+
         if bp2.offset == bp2.cont.length
             # nothing special, the full segment will be converted, empty or not.
-            
+
         else if bp2.offset == 0
             endSeg = endSeg.previousSibling
             # rem : previousSibling should not be null because the end break
-            # point can not be at the start of a non empty line. In the latter 
+            # point can not be at the start of a non empty line. In the latter
             # case the range should have been moved to previous line before
             # calling this function.
             if endSeg == null
@@ -2147,7 +2151,7 @@ module.exports = class CNeditor
                 bp2.cont   = endSeg.lastChild
                 bp2.offset = endSeg.lastChild.length
                 rg.insertNode(frag1)
-        
+
         # 4- apply the required style
         if metaData == 'A'
             bps = [bp1,bp2]
@@ -2167,12 +2171,12 @@ module.exports = class CNeditor
 
 
     ###* -----------------------------------------------------------------------
-     * Test if a segment already has the meta : same type, same class and other 
+     * Test if a segment already has the meta : same type, same class and other
      * for complex meta (for instance href for <a>)
      * @param  {element}  segment  The segment to test
      * @param  {string}  metaData the type of meta data : A or a CSS class
      * @param  {array}  others   An array of the other parameter of the meta,
-     *                           for instance si metaData == 'A', 
+     *                           for instance si metaData == 'A',
      *                           others[0] == href
      * @return {Boolean}          True if the segment already have the meta data
     ###
@@ -2183,14 +2187,14 @@ module.exports = class CNeditor
             return segment.classList.contains(metaData)
 
     ###* -----------------------------------------------------------------------
-     * Applies or remove a meta data of type "A" (link) on a succession of 
+     * Applies or remove a meta data of type "A" (link) on a succession of
      * segments (from startSegment to endSegment which must be on the same line)
      * This fuction may let similar segments contiguous, the decision to fusion
      * is to be taken by the caller.
      * @param  {element} startSegment The first segment to modify
      * @param  {element} endSegment   The last segment to modify (must be in the
      *                                same line as startSegment)
-     * @param  {Array} bps          [{cont,offset}...] An array of breakpoints 
+     * @param  {Array} bps          [{cont,offset}...] An array of breakpoints
      *                              to update if their container is modified
      *                              while applying the meta data.
      * @param  {Boolean} addMeta      True to apply the meta, False to remove
@@ -2222,7 +2226,7 @@ module.exports = class CNeditor
                             bp.cont = span.firstChild
                     segment.parentNode.replaceChild(span,segment)
                     segment = span
-                
+
             if stopNext
                 break
             segment = segment.nextSibling
@@ -2231,7 +2235,7 @@ module.exports = class CNeditor
 
 
     ###* -----------------------------------------------------------------------
-     * Applies or remove a CSS class to a succession of segments (from 
+     * Applies or remove a CSS class to a succession of segments (from
      * startsegment to endSegment which must be on the same line)
      * @param  {element} startSegment The first segment to modify
      * @param  {element} endSegment   The last segment to modify (must be in the
@@ -2256,23 +2260,23 @@ module.exports = class CNeditor
 
     ###* -----------------------------------------------------------------------
      * Walk through a line div in order to :
-     *   * Concatenate successive similar segments. Similar == same nodeName, 
+     *   * Concatenate successive similar segments. Similar == same nodeName,
      *     class and if required href.
      *   * Remove empty segments.
      * @param  {element} lineDiv     the DIV containing the line
-     * @param  {Array} breakPoints [{cont,offset}...] array of respectively the 
-     *                              container and offset of the breakpoint to 
-     *                              update if cont is in a segment modified by 
-     *                              the fusion. 
-     *                              /!\ The breakpoint must be normalized, ie 
+     * @param  {Array} breakPoints [{cont,offset}...] array of respectively the
+     *                              container and offset of the breakpoint to
+     *                              update if cont is in a segment modified by
+     *                              the fusion.
+     *                              /!\ The breakpoint must be normalized, ie
      *                              containers must be in textnodes.
      *                              If the contener of a bp is deleted, then it
      *                              is put before the deleted segment. At the
-     *                              bp might be between segments, ie NOT 
+     *                              bp might be between segments, ie NOT
      *                              normalized since not in a textNode.
      * @return {Array}             A reference to the updated breakpoint.
     ###
-    _fusionSimilarSegments : (lineDiv, breakPoints) -> 
+    _fusionSimilarSegments : (lineDiv, breakPoints) ->
         segment     = lineDiv.firstChild
         nextSegment = segment.nextSibling
         # case of a line with only one segment : nothing to do
@@ -2280,12 +2284,12 @@ module.exports = class CNeditor
             return breakPoints
 
         while nextSegment.nodeName != 'BR'
-            
+
 
             if !selection.isSegment(segment)
                 segment     = nextSegment
                 nextSegment = nextSegment.nextSibling
-                                
+
 
             # case of an empty segment (for instance after a suppr or backspace)
             # => remove segment
@@ -2293,7 +2297,7 @@ module.exports = class CNeditor
                 segment     = @_removeSegment(segment, breakPoints)
                 selection.normalizeBPs(breakPoints)
                 nextSegment = segment.nextSibling
-                
+
             # case of a non empty segment followed by a segment with same meta
             # => fusion segments
             else if @_haveSameMeta(segment, nextSegment)
@@ -2314,14 +2318,14 @@ module.exports = class CNeditor
         return breakPoints
 
     ###* -----------------------------------------------------------------------
-     * Removes a segment and returns a reference to previous sibling or, 
+     * Removes a segment and returns a reference to previous sibling or,
      * if doesn't exist, to the next sibling.
      * @param  {element} segment     The segment to remove. Must be in a line.
      * @param  {Array} breakPoints An Array of breakpoint to preserve : if its
      *                             is deleted, the bp is put before the deleted
      *                             segment (it is NOT normalized, since not in a
      *                             textNode)
-     * @return {element}       A reference to the previous sibling or, 
+     * @return {element}       A reference to the previous sibling or,
      *                         if doesn't exist, to the next sibling.
     ###
     _removeSegment : (segment,breakPoints) ->
@@ -2350,11 +2354,11 @@ module.exports = class CNeditor
      * Imports the content of segment2 in segment1 and updates the breakpoint if
      * this on is  inside segment2
      * @param  {element} segment1    the segment in which the fusion operates
-     * @param  {element} segment2    the segement that will be imported in 
+     * @param  {element} segment2    the segement that will be imported in
      *                               segment1
-     * @param  {Array} breakPoints [{con,offset}...] array of respectively the 
-     *                              container and offset of the breakpoint to 
-     *                              update if cont is in segment2. /!\ The 
+     * @param  {Array} breakPoints [{con,offset}...] array of respectively the
+     *                              container and offset of the breakpoint to
+     *                              update if cont is in segment2. /!\ The
      *                              breakpoint must be normalized, ie containers
      *                              must be in textnodes.
     ###
@@ -2366,7 +2370,7 @@ module.exports = class CNeditor
         txtNode1 = segment1.firstChild
         txtNode2 = txtNode1.nextSibling
         while txtNode2 != null
-            if txtNode1.nodeName == '#text' == txtNode2.nodeName 
+            if txtNode1.nodeName == '#text' == txtNode2.nodeName
                 for bp in breakPoints
                     if bp.cont == txtNode2
                         bp.cont = txtNode1
@@ -2391,7 +2395,7 @@ module.exports = class CNeditor
 
         list1 = segment1.classList
         list2 = segment2.classList
-        
+
         if list1.length != list2.length
             return false
 
@@ -2407,7 +2411,7 @@ module.exports = class CNeditor
 
     ### ------------------------------------------------------------------------
     #  _suppr :
-    # 
+    #
     # Manage deletions when suppr key is pressed
     ###
     _suppr : () ->
@@ -2423,7 +2427,7 @@ module.exports = class CNeditor
                 # a multiline deletion
                 if startLine.lineNext != null
                     if sel.startLineDiv.nextSibling.dataset.type == 'task'
-                        result = window.confirm('Do you want to remove 
+                        result = window.confirm('Do you want to remove
                             the task ?')
                         if result
                             @_turneTaskIntoLine(sel.startLineDiv.nextSibling)
@@ -2434,7 +2438,7 @@ module.exports = class CNeditor
                     sel.theoricalRange = sel.range
                     sel.endLine = startLine.lineNext
                     @_deleteMultiLinesSelections()
-                    
+
                 # if there is no next line :
                 # no modification, just prevent default action
                 else
@@ -2455,7 +2459,7 @@ module.exports = class CNeditor
                 txt = textNode.textContent
                 textNode.textContent = txt.substr(0,startOffset) +
                                        txt.substr(startOffset+1)
-                bp = 
+                bp =
                     cont   : textNode
                     offset : startOffset
                 # if new content is empty we remove the corresponding segment
@@ -2464,7 +2468,7 @@ module.exports = class CNeditor
                     @_fusionSimilarSegments(startLine.line$[0], [bp])
                 @_setCaret(bp.cont, bp.offset)
                 if sel.isStartInTask
-                    @_stackTaskChange(sel.startLineDiv.task,'modified') 
+                    @_stackTaskChange(sel.startLineDiv.task,'modified')
 
         # 2- Case of a selection contained in a line
         else if sel.endLine == startLine
@@ -2489,13 +2493,13 @@ module.exports = class CNeditor
 
     ### ------------------------------------------------------------------------
     #  _backspace
-    # 
+    #
     # Manage deletions when backspace key is pressed
     ###
     _backspace : () ->
 
         sel = @currentSel
-        
+
         startLine = sel.startLine
 
         # 1- Case of a caret "alone" (no selection)
@@ -2506,7 +2510,7 @@ module.exports = class CNeditor
                 # a multiline deletion
                 if startLine.linePrev != null
                     if sel.isStartInTask
-                        result = window.confirm('Do you want to remove the 
+                        result = window.confirm('Do you want to remove the
                                                  task ?')
                         if result
                             @_turneTaskIntoLine(sel.startLineDiv)
@@ -2525,7 +2529,7 @@ module.exports = class CNeditor
             # 1.2 caret is in the middle of the line : delete one caracter
             else
                 # console.log '_backspace 5 - deletion of one caracter'
-                # we consider that we are in a text node (selection has been 
+                # we consider that we are in a text node (selection has been
                 # normalized)
                 textNode = sel.range.startContainer
                 startOffset = sel.range.startOffset
@@ -2536,10 +2540,10 @@ module.exports = class CNeditor
                     startOffset = bp.offset
                 # delete one caracter in the textNode
                 txt = textNode.textContent
-                
+
                 textNode.textContent = txt.substr(0,startOffset-1) +
                                        txt.substr(startOffset)
-                bp = 
+                bp =
                     cont   : textNode
                     offset : startOffset-1
                 # if new content is empty we remove the corresponding segment
@@ -2552,10 +2556,13 @@ module.exports = class CNeditor
 
         # 2- Case of a selection contained in a line
         else if sel.endLine == startLine
-                # console.log '_backspace 6 - test ok'
+            # console.log '_backspace 6 - test ok'
+            # check if there are tags that will be deleted
+            @Tags.removeFromRange(sel.theoricalRange)
             # sel can be safely deleted thanks to normalization that have set
-            # the selection correctly within the line.
+            # the selection correctly within the line in text nodes.
             sel.range.deleteContents()
+
             bp =
                 cont   : sel.range.startContainer
                 offset : sel.range.startOffset
@@ -2566,6 +2573,8 @@ module.exports = class CNeditor
 
         # 3- Case of a multi lines selection
         else
+            # check if there are tags that will be deleted
+            @Tags.removeFromRange(sel.theoricalRange)
             @_deleteMultiLinesSelections()
 
         return true
@@ -2590,16 +2599,16 @@ module.exports = class CNeditor
         else
             range = @getEditorSelection().getRangeAt(0)
             startDiv = selection.getLineDiv(
-                    range.startContainer, 
+                    range.startContainer,
                     range.startOffset
                 )
             endDiv = selection.getLineDiv(
-                    range.endContainer, 
+                    range.endContainer,
                     range.endOffset
                 )
             startDivID =  startDiv.id
             endLineID = endDiv.id
-            
+
         # 2- loop on each line between the first and last line selected
         # TODO : deal the case of a multi range (multi selections).
         line = @_lines[startDivID]
@@ -2620,7 +2629,7 @@ module.exports = class CNeditor
 
 
     ###* -----------------------------------------------------------------------
-     * Turn selected lines or the one given in parameter in a 
+     * Turn selected lines or the one given in parameter in a
      * Marker List line (Tu)
      * @param  {Line} l [optional] The line to turn in to a Tu
     ###
@@ -2638,16 +2647,16 @@ module.exports = class CNeditor
         else
             range = @getEditorSelection().getRangeAt(0)
             startDiv = selection.getLineDiv(
-                    range.startContainer, 
+                    range.startContainer,
                     range.startOffset
                 )
             endDiv = selection.getLineDiv(
-                    range.endContainer, 
+                    range.endContainer,
                     range.endOffset
                 )
             startDivID =  startDiv.id
             endLineID = endDiv.id
-            
+
         # 2- loop on each line between the first and last line selected
         # TODO : deal the case of a multi range (multi selections).
         line = @_lines[startDivID]
@@ -2667,12 +2676,12 @@ module.exports = class CNeditor
 
     ### ------------------------------------------------------------------------
     #  _findDepthRel
-    # 
+    #
     # Calculates the relative depth of the line
     #   usage   : cycle : Tu => To => Lx => Th
     #   param   : line : the line we want to find the relative depth
     #   returns : a number
-    # 
+    #
     ###
     _findDepthRel : (line) ->
         if line.lineDepthAbs == 1
@@ -2706,16 +2715,16 @@ module.exports = class CNeditor
         # 1- Variables
         sel   = @getEditorSelection()
         range = sel.getRangeAt(0)
-        
+
         startDiv = selection.getLineDiv range.startContainer, range.startOffset
         endDiv = selection.getLineDiv range.endContainer, range.endOffset
-                
+
         # 2- find first and last div corresponding to the 1rst and
         #    last selected lines
         endLineID = endDiv.id
 
         # 3- loop on each line between the first and last line selected
-        # TODO : deal the case of a multi range (multi selections). 
+        # TODO : deal the case of a multi range (multi selections).
         #        Currently only the first range is taken into account.
         line = @_lines[startDiv.id]
         depthIsTreated = {}
@@ -2733,11 +2742,11 @@ module.exports = class CNeditor
                 currentDepth = line.lineDepthAbs
             else
                 currentDepth = line.lineDepthAbs
-                
+
 
     _toggleLineType : (line) ->
         switch line.lineType
-            
+
             when 'Tu'
                 lineTypeTarget = 'Th'
                 # transform all its next siblings and lines in Th or Lh
@@ -2809,7 +2818,7 @@ module.exports = class CNeditor
 
 
     ###* -----------------------------------------------------------------------
-     * Indent selection. History is incremented. 
+     * Indent selection. History is incremented.
      * @param  {[type]} l [description]
      * @return {[type]}   [description]
     ###
@@ -2829,18 +2838,18 @@ module.exports = class CNeditor
             range = sel.getRangeAt(0)
 
             startDiv = selection.getLineDiv(
-                    range.startContainer, 
+                    range.startContainer,
                     range.startOffset
                 )
             endDiv = selection.getLineDiv(
-                    range.endContainer, 
+                    range.endContainer,
                     range.endOffset
                 )
-        
+
         endLineID = endDiv.id
 
         # 2- loop on each line between the first and last line selected
-        # TODO : deal the case of a multi range (multi selections). 
+        # TODO : deal the case of a multi range (multi selections).
         #        Currently only the first range is taken into account.
         line = @_lines[startDiv.id]
         loop
@@ -2854,7 +2863,7 @@ module.exports = class CNeditor
     _tabLine : (line) ->
         switch line.lineType
             when 'Tu','Th','To'
-                # find previous sibling to check if a tab is possible 
+                # find previous sibling to check if a tab is possible
                 # (no tab if no previous sibling)
                 prevSibling = @_findPrevSiblingT(line)
                 if prevSibling == null
@@ -2879,7 +2888,7 @@ module.exports = class CNeditor
                 prevSibType = if prevSib == null then null else prevSib.lineType
 
                 typeTarget = @_chooseTypeTarget(prevSibType,nextSibType)
-                
+
                 if typeTarget == 'Th'
                     line.lineDepthAbs += 1
                     line.lineDepthRel  = 0
@@ -2926,12 +2935,12 @@ module.exports = class CNeditor
         unless range?
             sel   = @getEditorSelection()
             range = sel.getRangeAt(0)
-            
+
         startDiv = selection.getLineDiv range.startContainer, range.startOffset
         endDiv = selection.getLineDiv range.endContainer, range.endOffset
-        
+
         endLineID = endDiv.id
-        
+
         # 2- loop on each line between the first and last line selected
         line = @_lines[startDiv.id]
         loop
@@ -2960,7 +2969,7 @@ module.exports = class CNeditor
                     return
 
                 # if lineNext is a Lx of line, then it must be turned in a Tx
-                if line.lineNext? and 
+                if line.lineNext? and
                   line.lineNext.lineType[0] == 'L' and
                   line.lineNext.lineDepthAbs == line.lineDepthAbs
                     nextL = line.lineNext
@@ -2985,7 +2994,7 @@ module.exports = class CNeditor
                 # find next sibling
                 nextSib = @_findNextSibling(line, depthAbsTarget)
                 nextSibType = if nextSib == null then null else nextSib.lineType
-                
+
                 # find previous sibling
                 prevSib = @_findPrevSiblingT(line, depthAbsTarget)
                 prevSibType = if prevSib == null then null else prevSib.lineType
@@ -3009,7 +3018,7 @@ module.exports = class CNeditor
 
 
     ###* -----------------------------------------------------------------------
-     * Return on the carret position. Selection must be normalized but not 
+     * Return on the carret position. Selection must be normalized but not
      * necessarily collapsed.
     ###
     _return : () ->
@@ -3024,7 +3033,7 @@ module.exports = class CNeditor
 
         # 1- Delete the selections so that the selection is collapsed
         if currSel.range.collapsed
-        
+
         else if endLine == startLine
             rg.deleteContents()
             bp1 = selection.normalizeBP(rg.startContainer, rg.startOffset)
@@ -3036,7 +3045,7 @@ module.exports = class CNeditor
             @_deleteMultiLinesSelections()
             currSel   = @updateCurrentSelIsStartIsEnd()
             startLine = currSel.startLine
-       
+
         # 2- Caret is at the end of the line
         if currSel.rangeIsEndLine
             newLine = @_insertLineAfter (
@@ -3108,7 +3117,7 @@ module.exports = class CNeditor
 
     ### ------------------------------------------------------------------------
     #  _findParent1stSibling
-    # 
+    #
     # find the sibling line of the parent of line that is the first of the list
     # ex :
     #   . Sibling1 <= _findParent1stSibling(line)
@@ -3148,7 +3157,7 @@ module.exports = class CNeditor
             depth = line.lineDepthAbs
 
         nextSib = line.lineNext
-        loop    
+        loop
             if nextSib == null or nextSib.lineDepthAbs < depth
                 nextSib = null
                 break
@@ -3173,7 +3182,7 @@ module.exports = class CNeditor
             depth = line.lineDepthAbs
 
         prevSib = line.linePrev
-        loop    
+        loop
             if prevSib == null or prevSib.lineDepthAbs < depth
                 prevSib = null
                 break
@@ -3198,7 +3207,7 @@ module.exports = class CNeditor
             depth = line.lineDepthAbs
 
         prevSib = line.linePrev
-        loop    
+        loop
             if prevSib == null or prevSib.lineDepthAbs < depth
                 prevSib = null
                 break
@@ -3213,22 +3222,22 @@ module.exports = class CNeditor
      * Delete the user multi line selection :
      *   * The 2 lines (selected or given in param) must be distinct
      *   * If no params :
-     *       - @currentSel.theoricalRange will the range used to find the  
-     *         lines to delete. 
+     *       - @currentSel.theoricalRange will the range used to find the
+     *         lines to delete.
      *       - Only the range is deleted, not the beginning of startline nor the
      *         end of endLine
      *       - the caret is positionned at the firts break point of range.
      *   * if startLine and endLine is given
      *      - the whole lines from start and endLine are deleted, both included.
      *      - the caret position is not updated by this function.
-     * @param  {[line]} startLine [optional] if exists, the whole line will be 
+     * @param  {[line]} startLine [optional] if exists, the whole line will be
      *                                       deleted
-     * @param  {[line]} endLine   [optional] if exists, the whole line will be 
+     * @param  {[line]} endLine   [optional] if exists, the whole line will be
      *                                       deleted
      * @return {[none]}           [nothing]
     ###
     _deleteMultiLinesSelections : (startLine, endLine) ->
-        
+
         # TODO  BJA : to remove when _moveLinesDown and _moveLinesUp will be
         # debugged
         if startLine == null or endLine == null
@@ -3252,7 +3261,7 @@ module.exports = class CNeditor
             startLine      = @currentSel.startLine
             endLine        = @currentSel.endLine
             replaceCaret = true
-            
+
         # Calculate depth for start and end line
         endLineDepth   = endLine.lineDepthAbs
 
@@ -3283,7 +3292,7 @@ module.exports = class CNeditor
         @_removeEndLine(startLine, endLine)
 
         # Adapt depth & type
-        
+
         # Calculate depth for start and end line
         startLineDepth = startLine.lineDepthAbs
         # endLineDepth   = endLine.lineDepthAbs
@@ -3302,7 +3311,7 @@ module.exports = class CNeditor
 
         # Fusion similar segments and place caret if required
         if replaceCaret
-            bp = 
+            bp =
                 cont   : startContainer
                 offset : startOffset
             @_fusionSimilarSegments(startLine.line$[0], [bp])
@@ -3317,7 +3326,7 @@ module.exports = class CNeditor
     #    the depth of all the children and siblings of endLine.
     #
     #  Then adapt the type of the first line after the children and siblings of
-    #    end line. Its previous sibling or parent might have been deleted, 
+    #    end line. Its previous sibling or parent might have been deleted,
     #    we then must find its new one in order to adapt its type.
     ###* -----------------------------------------------------------------------
      * After an insertion or deletion of a bloc of lines, the lines following
@@ -3325,12 +3334,12 @@ module.exports = class CNeditor
      * This function goes throught these lines to correct their depth.
      * @param  {Line} startLine     The first line after the bloc of inserted or
      *                              deleted lines
-     * @param  {Number} deltaInserted Delta of depth between the first line of 
+     * @param  {Number} deltaInserted Delta of depth between the first line of
      *                                the block and its last one.
-     * @param  {number} currentDelta  Delta of depth between the last line of 
+     * @param  {number} currentDelta  Delta of depth between the last line of
      *                                the block (startLine) and the following.
-     * @param  {Number} minDepth      The depth under wich (this one included) 
-     *                                we are sure the structure is valid and 
+     * @param  {Number} minDepth      The depth under wich (this one included)
+     *                                we are sure the structure is valid and
      *                                there is no need to check.
     ###
     _adaptDepth: (startLine, deltaInserted, currentDelta, minDepth) ->
@@ -3357,13 +3366,13 @@ module.exports = class CNeditor
             if prev == null
                 if lineIt.lineType[0] != 'T'
                     lineIt.setType('T'+lineIt.lineType[1])
-            else if prev.lineType[1] != lineIt.lineType[1] 
+            else if prev.lineType[1] != lineIt.lineType[1]
                 # ex : Lu and Th : Th => Tu
                 lineIt.setType(lineIt.lineType[0]+prev.lineType[1])
             lineIt = lineIt.lineNext
-        
+
         return true
-            
+
 
 
     _unIndentBlock: (firstLine,delta) ->
@@ -3399,12 +3408,12 @@ module.exports = class CNeditor
         if lineEl.lastChild is null
             node = document.createElement('span')
             lineEl.insertBefore(node,lineEl.firstChild)
-        
+
         if lineEl.lastChild.nodeName is 'BR'
             lineEl.removeChild(lineEl.lastChild)
         lastNode = lineEl.lastChild
 
-        if startFrag.tagName == lastNode.tagName == 'SPAN' and 
+        if startFrag.tagName == lastNode.tagName == 'SPAN' and
            startFrag.className == lastNode.className
             startOffset = lastNode.textContent.length
             newText = lastNode.textContent + startFrag.textContent
@@ -3424,7 +3433,7 @@ module.exports = class CNeditor
         delete @_lines[endLine.lineID]
 
 
-    # adapt the type of endLine and of its children to startLine 
+    # adapt the type of endLine and of its children to startLine
     # the only useful case is when endLine must be changed from Th to Tu or To
     _adaptEndLineType : (startLine, endLine, endLineDepthAbs) ->
         endType    = endLine.lineType
@@ -3441,7 +3450,7 @@ module.exports = class CNeditor
                     line.setDepthAbs(newDepth)
                     line = line.lineNext
         # Tu => Lu : nothing ok
-        
+
         # TU => Lh : nothing ok
 
         # Th => Tu : Toggle
@@ -3465,12 +3474,12 @@ module.exports = class CNeditor
 
         # Th => Lu : nothing ok
         # Th => Lh : nothing ok
-        # 
+        #
         # Lh => Tu : nothing ok
         # Lh => Th : nothing ok
         # Lh => Lu : nothing ok
         # Lh => Lh : nothing ok
-         
+
         # Lu => Tu : Toggle
         # Lu => Th : nothing
         # Lu => Lu : Toggle
@@ -3481,14 +3490,14 @@ module.exports = class CNeditor
         #         endLine.setType('T' + endType[1])
         #     @markerList endLine
 
- 
+
     ###* -----------------------------------------------------------------------
-     * Put caret at given position. The break point will be normalized (ie put 
+     * Put caret at given position. The break point will be normalized (ie put
      * in the closest text node).
      * @param {element} startContainer Container of the break point
      * @param {number} startOffset    Offset of the break point
-     * @param  {boolean} preferNext [optional] if true, in case BP8, we will 
-     *                              choose to go in next sibling - if exists - 
+     * @param  {boolean} preferNext [optional] if true, in case BP8, we will
+     *                              choose to go in next sibling - if exists -
      *                              rather than in the previous one.
      * @return {Object} {cont,offset} the normalized break point
     ###
@@ -3501,7 +3510,7 @@ module.exports = class CNeditor
         sel.removeAllRanges()
         sel.addRange(range)
         return bp
-    
+
     _setCaretAfter : (elemt) ->
         nextEl = elemt
         while nextEl.nextSibling == null
@@ -3558,11 +3567,11 @@ module.exports = class CNeditor
 
     ### ------------------------------------------------------------------------
     #  _insertLineAfter
-    # 
+    #
     # Insert a line after a source line
-    # The line will be inserted in the parent of the source line (which can be 
+    # The line will be inserted in the parent of the source line (which can be
     # the editor or a fragment in the case of the paste for instance)
-    # p = 
+    # p =
     #     sourceLine         : line after which the line will be added
     #     fragment           : [optionnal] - an html fragment that will be added
     #                          in the div of the line.
@@ -3588,9 +3597,9 @@ module.exports = class CNeditor
 
     ### ------------------------------------------------------------------------
     #  _insertLineBefore
-    # 
+    #
     # Insert a line before a source line
-    # p = 
+    # p =
     #     sourceLine         : Line before which a line will be added
     #     fragment           : [optionnal] - an html fragment that will be added
     #                          the fragment is not supposed to end with a <br>
@@ -3613,7 +3622,7 @@ module.exports = class CNeditor
 
     ###  -----------------------------------------------------------------------
     #   _readHtml
-    # 
+    #
     # Parse a raw html inserted in the iframe in order to update the controller
     ###
     _readHtml: () ->
@@ -3625,6 +3634,7 @@ module.exports = class CNeditor
         @_lines      = {}
         linePrev     = null
         lineNext     = null
+
         for htmlLine in linesDiv$
             htmlLine$ = $(htmlLine)
             lineClass = htmlLine$.attr('class') ? ""
@@ -3632,7 +3642,7 @@ module.exports = class CNeditor
             lineType  = lineClass[0]
             if lineType != ""
                 lineDepthAbs_old = lineDepthAbs
-                # hypothesis : _readHtml is called only on an html where 
+                # hypothesis : _readHtml is called only on an html where
                 #              class="Tu-xx" where xx is the absolute depth
                 lineDepthAbs     = +lineClass[1]
                 deltaDepthAbs    = lineDepthAbs - lineDepthAbs_old
@@ -3655,12 +3665,12 @@ module.exports = class CNeditor
                 if linePrev != null then linePrev.lineNext = lineNew
                 linePrev = lineNew
                 @_lines[lineID_st] = lineNew
-                # if some lines are empty, add the text node 
+                # if some lines are empty, add the text node
                 if htmlLine.textContent == ''
                     if htmlLine.firstChild.childNodes.length == 0
                         txt = document.createTextNode('')
                         htmlLine.firstChild.appendChild(txt)
-            
+
             if htmlLine.dataset.type == 'task'
                 if @isChromeOrSafari
                     htmlLine.firstChild.textContent = ' '
@@ -3670,13 +3680,20 @@ module.exports = class CNeditor
                     # text = this.document.createTextNode('\u00a0')
                 @_setTaskToLine(htmlLine)
 
+            # loop on spans of the line to check the tags
+            seg = htmlLine.firstChild
+            while seg.nodeName == 'SPAN'
+                if seg.dataset.type
+                    @Tags._tagList.push(seg) # not clean, but perf...
+                seg = seg.nextSibling
+
         @_highestId = lineID
 
 
 
     ### ------------------------------------------------------------------------
     # LINES MOTION MANAGEMENT
-    # 
+    #
     # Functions to perform the motion of an entire block of lines
     # BUG : when doubleclicking on an end of line then moving this line
     #       down, selection does not behave as expected :-)
@@ -3685,7 +3702,7 @@ module.exports = class CNeditor
     # TODO: improve re-insertion of the line swapped with the block
     ####
 
-    
+
     ### ------------------------------------------------------------------------
     # _moveLinesDown:
     #
@@ -3707,41 +3724,41 @@ module.exports = class CNeditor
     #      and untab it until it is ok
     ###
     _moveLinesDown : () ->
-        
+
         # 0 - Set variables with informations on the selected lines
         sel   = @getEditorSelection()
         range = sel.getRangeAt(0)
-        
+
         # TODO BJA : use findlines ?
         startDiv = selection.getLineDiv range.startContainer, range.startOffset
         endDiv = selection.getLineDiv range.endContainer, range.endOffset
-        
+
         # Find first and last div corresponding to the first and last
         # selected lines
         startLineID = startDiv.id
         endLineID = endDiv.id
-        
+
         lineStart = @_lines[startLineID]
         lineEnd   = @_lines[endLineID]
         linePrev  = lineStart.linePrev
         lineNext  = lineEnd.lineNext
-            
+
         # if the last selected line (lineEnd) isnt the very last line
         if lineNext != null
-            
+
             # 1 - save lineNext
             cloneLine = Line.clone(lineNext)
-                
+
             # 2 - Delete lineNext content then restore initial selection
             # TODO BJA : ensure this call don't pass a null param
             @_deleteMultiLinesSelections(lineEnd, lineNext)
-            
+
             # rangy.restoreSelection(savedSel)
-            
+
             # 3 - Restore lineNext before the first selected line (lineStart)
             lineNext = cloneLine
             @_lines[lineNext.lineID] = lineNext
-            
+
             # 4 - Modify the order of linking :
             #        linePrev--lineNext--lineStart--lineEnd
             lineNext.linePrev  = linePrev
@@ -3752,15 +3769,15 @@ module.exports = class CNeditor
             lineNext.lineNext = lineStart
             if linePrev != null
                 linePrev.lineNext = lineNext
-            
+
             # 5 - Replace the lineNext line in the DOM
             lineStart.line$.before(lineNext.line$)
-            
+
             # 6 - Re-insert lineNext after the end of the moved block.
             #     2 different configs of indentation may occur :
-            
+
             if linePrev == null then return
-                
+
             # 6.1 - The swapped line (lineNext) is less indented than
             #       the block's prev line (linePrev)
             if lineNext.lineDepthAbs <= linePrev.lineDepthAbs
@@ -3785,11 +3802,11 @@ module.exports = class CNeditor
                     # if linePrev is a 'L' and a 'T' follows, one untab more
                     else
                         numOfUntab += 1
-                
+
                 while numOfUntab >= 0
                     @shiftTab(myRange)
                     numOfUntab -= 1
-                    
+
             # 6.2 - The swapped line (lineNext) is more indented than
             #       the block's prev line (linePrev)
             else
@@ -3798,7 +3815,7 @@ module.exports = class CNeditor
                 myRange.setStart(lineNext.line$[0], 0)
                 myRange.setEnd(lineNext.line$[0], 0)
                 numOfUntab = lineNext.lineDepthAbs - linePrev.lineDepthAbs
-                
+
                 if lineStart.lineType[0]=='T'
                     # if lineEnd is a 'T' and a 'T' follows, one untab less
                     if linePrev.lineType[0]=='T'
@@ -3806,7 +3823,7 @@ module.exports = class CNeditor
                     # if lineEnd is a 'L' and a 'T' follows, one untab more
                     else
                         numOfUntab += 1
-                
+
                 while numOfUntab >= 0
                     @shiftTab(myRange)
                     numOfUntab -= 1
@@ -3833,11 +3850,11 @@ module.exports = class CNeditor
     #      and untab it until it is ok
     ###
     _moveLinesUp : () ->
-        
+
         # 0 - Set variables with informations on the selected lines
         sel   = @getEditorSelection()
         range = sel.getRangeAt(0)
-        
+
         # TODO BJA : use findlines ?
         startDiv = selection.getLineDiv range.startContainer, range.startOffset
         endDiv = selection.getLineDiv range.endContainer, range.endOffset
@@ -3846,25 +3863,25 @@ module.exports = class CNeditor
         # selected lines
         startLineID = startDiv.id
         endLineID = endDiv.id
-        
+
         lineStart = @_lines[startLineID]
         lineEnd   = @_lines[endLineID]
         linePrev  = lineStart.linePrev
         lineNext  = lineEnd.lineNext
- 
+
         # if the first line selected (lineStart) isnt the very first line
         if linePrev != null
-            
+
             # 0 - set boolean indicating if we are treating the second line
             isSecondLine = (linePrev.linePrev == null)
-                        
+
             # 1 - save linePrev
             cloneLine = Line.clone(linePrev)
-            
+
             # 2 - Delete linePrev content then restore initial selection
             # TODO BJA : ensure this call don't pass a null param
             @_deleteMultiLinesSelections(linePrev.linePrev, linePrev)
-            
+
             # 3 - Restore linePrev below the last selected line (lineEnd )
             # 3.1 - if isSecondLine, line objects must be fixed
             if isSecondLine
@@ -3875,12 +3892,12 @@ module.exports = class CNeditor
                 lineStart.line$ = linePrev.line$
                 lineStart.line$.attr('id', lineStart.lineID)
                 @_lines[lineStart.lineID] = lineStart
-                
+
             # 4 - Modify the order of linking:
             #        lineStart--lineEnd--linePrev--lineNext
             linePrev = cloneLine
             @_lines[linePrev.lineID] = linePrev
-            
+
             linePrev.lineNext = lineNext
             lineEnd.lineNext  = linePrev
             if linePrev.linePrev != null
@@ -3889,7 +3906,7 @@ module.exports = class CNeditor
             linePrev.linePrev  = lineEnd
             if lineNext != null
                 lineNext.linePrev = linePrev
-                
+
             # 5 - Replace the linePrev line in the DOM
             lineEnd.line$.after(linePrev.line$)
 
@@ -3919,11 +3936,11 @@ module.exports = class CNeditor
                     # if linePrev is a 'L' and a 'T' follows, one untab more
                     else
                         numOfUntab += 1
-                
+
                 while numOfUntab >= 0
                     @shiftTab(myRange)
                     numOfUntab -= 1
-                    
+
             # 6.2 - The swapped line (linePrev) is more indented than
             #       the block's last line (lineEnd)
             else
@@ -3932,7 +3949,7 @@ module.exports = class CNeditor
                 myRange.setStart(linePrev.line$[0], 0)
                 myRange.setEnd(linePrev.line$[0], 0)
                 numOfUntab = linePrev.lineDepthAbs - lineEnd.lineDepthAbs
-                
+
                 if linePrev.lineType[0] == 'T'
                     # if lineEnd is a 'T' and a 'T' follows, one untab less
                     if lineEnd.lineType[0] == 'T'
@@ -3940,7 +3957,7 @@ module.exports = class CNeditor
                     # if lineEnd is a 'L' and a 'T' follows, one untab more
                     else
                         numOfUntab += 1
-                
+
                 while numOfUntab >= 0
                     @shiftTab(myRange)
                     numOfUntab -= 1
@@ -3967,7 +3984,7 @@ module.exports = class CNeditor
     ###
     _addHistory : () ->
         # console.log '_addHistory' , @_history.historyPos.length
-        # do nothing if urlpopover is on, otherwise its html will also be 
+        # do nothing if urlpopover is on, otherwise its html will also be
         # serialized in the history.
         if @isUrlPopoverOn or @_hotString.isPreparing
             return
@@ -3989,19 +4006,19 @@ module.exports = class CNeditor
         # 2- save selection
         savedSel = @saveEditorSelection()
         @_history.historySelect.push savedSel
-        
+
         # 3- save scrollbar position
         savedScroll =
             xcoord: @linesDiv.scrollTop
             ycoord: @linesDiv.scrollLeft
         @_history.historyScroll.push savedScroll
-        
+
         # 4- save newPosition flag
         @_history.historyPos.push @newPosition
-        
+
         # 5- add the html content with markers to the history
         @_history.history.push @linesDiv.innerHTML
-        
+
         # 6- update the index
         @_history.index = @HISTORY_SIZE - 1
 
@@ -4102,7 +4119,7 @@ module.exports = class CNeditor
     # Redo a undo-ed action
     ###
     reDo : () ->
-        
+
         # if there is an action to redo
         if @redoPossible() and @isEnabled
 
@@ -4177,7 +4194,7 @@ module.exports = class CNeditor
             parentCont = startCont
             startCont = startCont.childNodes[ startPath[i] ]
         offset = parseInt(startPath[i], 10)
-        # it happens that an empty text node has been removed : in this case, 
+        # it happens that an empty text node has been removed : in this case,
         # startCont is null and offset == 0. In this case insert a text node.
         if !startCont and offset == 0
             startCont = document.createTextNode('')
@@ -4191,7 +4208,7 @@ module.exports = class CNeditor
             parentCont = endCont
             endCont = endCont.childNodes[ endPath[i] ]
         offset = parseInt(endPath[i], 10)
-        # it happens that an empty text node has been removed : in this case, 
+        # it happens that an empty text node has been removed : in this case,
         # startCont is null and offset == 0. In this case insert a text node.
         if !endCont and offset == 0
             endCont = document.createTextNode('')
@@ -4201,7 +4218,7 @@ module.exports = class CNeditor
         return range
 
     ###* -----------------------------------------------------------------------
-     * Serialize a range. 
+     * Serialize a range.
      * The breakpoint are 2 strings separated by a comma.
      * Structure of a serialized bp : {offset}{/index}*
      * Global struct : {startOffset}{/index}*,{endOffset}{/index}*
@@ -4210,7 +4227,7 @@ module.exports = class CNeditor
      *                            If none, we use the body of the ownerDocument
      *                            of range.startContainer
      * @return {String}          The string, exemple : "10/0/2/1,3/1", or false
-     *                           if the rootNode is not a parent of one of the 
+     *                           if the rootNode is not a parent of one of the
      *                           range's break point.
     ###
     serializeRange : (range, rootNode) ->
@@ -4231,7 +4248,7 @@ module.exports = class CNeditor
 
         if node == null
             return false
-            
+
         # serialise end breakpoint
         res += ',' + range.endOffset
         node = range.endContainer
@@ -4246,7 +4263,7 @@ module.exports = class CNeditor
 
         if node == null
             return false
-            
+
         return res
 
     serializeSel : () ->
@@ -4263,7 +4280,7 @@ module.exports = class CNeditor
 
     ### ------------------------------------------------------------------------
     # EXTENSION  :  auto-summary management and upkeep
-    # 
+    #
     # initialization
     # TODO: avoid updating the summary too often
     #       it would be best to make the update faster (rather than reading
@@ -4276,7 +4293,7 @@ module.exports = class CNeditor
             summary.attr('id', 'navi')
             summary.prependTo @editorBody$
         return summary
-        
+
     # Summary upkeep
     _buildSummary : () ->
         summary = @initSummary()
@@ -4293,7 +4310,7 @@ module.exports = class CNeditor
     #  TODO
     ###
 
-    
+
     ### ------------------------------------------------------------------------
     #  PASTE MANAGEMENT
     # 0 - save selection
@@ -4304,7 +4321,7 @@ module.exports = class CNeditor
     # 5 - insert cleaned content is behind the cursor position
     ###
     paste : (event) ->
-        # init the div where the paste will actualy accur. 
+        # init the div where the paste will actualy accur.
         mySandBox = @clipboard
         # save current selection in this.currentSel
         @updateCurrentSelIsStartIsEnd()
@@ -4321,7 +4338,7 @@ module.exports = class CNeditor
             #         2 - put data in the sandbox
             #         3 - clean the sandbox
             #         4 - cancel event (otherwise it pastes twice)
-            
+
             if event.clipboardData.types == "text/html"
                 mySandBox.innerHTML = event.clipboardData.getData('text/html')
             else if event.clipboardData.types == "text/plain"
@@ -4373,7 +4390,7 @@ module.exports = class CNeditor
      * Function that will call itself until the browser has pasted data in the
      * clipboar div
      * @param  {element} sandbox      the div where the browser will paste data
-     * @param  {function} processpaste the function to call back whan paste 
+     * @param  {function} processpaste the function to call back whan paste
      * is ok
     ###
     _waitForPasteData : =>
@@ -4386,23 +4403,23 @@ module.exports = class CNeditor
 
 
     ###* -----------------------------------------------------------------------
-     * Called when the browser has pasted data in the clipboard div. 
+     * Called when the browser has pasted data in the clipboard div.
      * Its role is to insert the content of the clipboard into the editor.
     ###
     _processPaste : () =>
         sandbox = @.clipboard
         currSel = @currentSel
-        
-        # 1- Sanitize clipboard content with node-validator 
+
+        # 1- Sanitize clipboard content with node-validator
         # (https://github.com/chriso/node-validator)
         # may be improved with google caja sanitizer :
         # http://code.google.com/p/google-caja/wiki/JsHtmlSanitizer
         sandbox.innerHTML = sanitize(sandbox.innerHTML).xss()
-        
+
         # 2- Prepare a fragment where the lines (<div id="CNID_xx" ... </div>)
         # will be prepared before to be inserted in the editor.
-        # _insertLineAfter() will work to insert new lines in the frag and 
-        # will correctly update the editor. For that we insert a dummyLine 
+        # _insertLineAfter() will work to insert new lines in the frag and
+        # will correctly update the editor. For that we insert a dummyLine
         # at the beginning so that the first insertLineAfter works.
         frag = document.createDocumentFragment()
         dummyLine =
@@ -4414,7 +4431,7 @@ module.exports = class CNeditor
         # 3- _domWalk will parse the clipboard in order to insert lines in frag.
         # Each line will be prepared in its own fragment before being inserted
         # into frag.
-        # _domWalk is recursive and the variables of the context of the parse 
+        # _domWalk is recursive and the variables of the context of the parse
         # are stored in the parameter "domWalkContext" that is transmited at
         # each recursion.
         currentLineFrag = document.createDocumentFragment()
@@ -4433,19 +4450,19 @@ module.exports = class CNeditor
             currentLineEl      : currentLineFrag,
             # Absolute depth of the current explored node of clip board
             absDepth           : absDepth,
-            # Level of the Previous  <hx> element (ex : if last title parsed 
+            # Level of the Previous  <hx> element (ex : if last title parsed
             # was h3 => prevHxLevel==3)
             prevHxLevel        : null,
-            # Previous Cozy Note Line Abs Depth, used for the insertion of 
+            # Previous Cozy Note Line Abs Depth, used for the insertion of
             # internal lines with  _clipBoard_Insert_InternalLine()
             prevCNLineAbsDepth : null,
-            # Boolean wether currentLineFrag has already had an 
+            # Boolean wether currentLineFrag has already had an
             # element appended.
             isCurrentLineBeingPopulated : false
 
         # go for the walk !
         htmlStr = @_domWalk sandbox, domWalkContext
-        
+
         # empty the clipboard div
         sandbox.innerHTML = ""
         # delete dummy line from the fragment
@@ -4475,7 +4492,7 @@ module.exports = class CNeditor
             selection.normalize(currSel.range)
         else
             @_deleteMultiLinesSelections()
-            selection.normalize(currSel.range) 
+            selection.normalize(currSel.range)
             @newPosition = true # in order to force normalization
             currSel = @updateCurrentSelIsStartIsEnd()
             @newPosition = false
@@ -4485,17 +4502,17 @@ module.exports = class CNeditor
         # We assume that the structure of lines in frag and in the editor are :
         #   <div><span>(TextNode)</span><br></div>
         # what will be incorrect when styles will be taken into account.
-        # 
+        #
         ###
         # a text node because of selection.normalize()
-        targetNode   = currSel.theoricalRange.startContainer 
+        targetNode   = currSel.theoricalRange.startContainer
         startOffset  = currSel.theoricalRange.startOffset
         # the break point to update in order to be able to positionate the caret
         # at the end
-        bp = 
+        bp =
             cont   : targetNode
             offset : startOffset
-        
+
         # prepare lineElements of the first line
         if frag.childNodes.length > 0
             lineElements = Array.prototype.slice.call(
@@ -4595,11 +4612,11 @@ module.exports = class CNeditor
 
 
     ###* -----------------------------------------------------------------------
-     * Insert segment at the position of the breakpoint. 
+     * Insert segment at the position of the breakpoint.
      * /!\ The bp is updated but not normalized. The break point will between 2
      * segments if the insertion splits a segment in two. This is normal. If you
      * want to have a break point normalized (ie in a text node), then you have
-     * to do it afterwards. 
+     * to do it afterwards.
      * /!\ If the inserted segment should be fusionned with its similar sibling,
      * you have to run _fusionSimilarSegments() over the whole line after the
      * insertion.
@@ -4613,7 +4630,7 @@ module.exports = class CNeditor
         targetNode = bp.cont
         targetSeg  = selection.getSegment(targetNode)
         # If targetSeg & newSeg have the same meta data => concatenate
-        
+
         if targetSeg.nodeName == 'DIV'
             targetSeg.insertBefore(newSeg,targetSeg.children[bp.offset])
             bp.offset++
@@ -4745,23 +4762,23 @@ module.exports = class CNeditor
     ###* -----------------------------------------------------------------------
      * Walks thoug an html tree in order to convert it in a strutured content
      * that fit to a note structure.
-     * @param  {html element} nodeToParse   Reference to an html element to 
+     * @param  {html element} nodeToParse   Reference to an html element to
      *                        be parsed
-     * @param  {object} context __domWalk is recursive and its context of 
-     *                          execution is kept in this param instead of 
-     *                          using the editor context (faster and better 
+     * @param  {object} context __domWalk is recursive and its context of
+     *                          execution is kept in this param instead of
+     *                          using the editor context (faster and better
      *                          isolation)
     ###
     __domWalk : (nodeToParse, context) ->
         absDepth    = context.absDepth
         prevHxLevel = context.prevHxLevel
-        
+
         # loop on the child nodes of the parsed node
         for child in nodeToParse.childNodes
             switch child.nodeName
 
                 when '#text'
-                    # text nodes are inserted in the current populated 
+                    # text nodes are inserted in the current populated
                     # element if its a "textual" element
                     if context.currentLineEl.nodeName in ['SPAN','A']
                         context.currentLineEl.textContent += child.textContent
@@ -4771,7 +4788,7 @@ module.exports = class CNeditor
                         spanEl = document.createElement('span')
                         spanEl.appendChild txtNode
                         context.currentLineEl.appendChild spanEl
-                    
+
                     context.isCurrentLineBeingPopulated = true
 
                 when 'P', 'UL', 'OL'
@@ -4803,7 +4820,7 @@ module.exports = class CNeditor
                     #     context.absDepth     = absDepth
                     #     prevHxLevel          = newHxLevel
                     #     context.prevHxLevel  = newHxLevel
-                    # else 
+                    # else
                     #     absDepth             = absDepth+deltaHxLevel+1 # TODO put a min
                     #     context.absDepth     = absDepth
                     #     prevHxLevel          = newHxLevel
@@ -4831,7 +4848,7 @@ module.exports = class CNeditor
                     # append the line that was being populated to the frag (even
                     # if this one had not yet been populated by any element)
                     @_appendCurrentLineFrag(context,absDepth,absDepth)
-                
+
                 when 'A'
                     # without <a> element :
                     # lastInsertedEl = context.currentLineEl.lastChild
@@ -4842,7 +4859,7 @@ module.exports = class CNeditor
                     #     spanNode.textContent = child.textContent + ' [[' + child.href+']] '
                     #     context.currentLineEl.appendChild(spanNode)
                     # context.isCurrentLineBeingPopulated = true
-                    
+
                     # with <a> element :
                     aNode = document.createElement('a')
                     aNode.textContent = child.textContent
@@ -4858,7 +4875,7 @@ module.exports = class CNeditor
                     #     spanEl = document.createElement('span')
                     #     spanEl.appendChild txtNode
                     #     context.currentLineEl.appendChild spanEl
-                    
+
                     # context.isCurrentLineBeingPopulated = true
 
 
@@ -4953,7 +4970,7 @@ module.exports = class CNeditor
 
     ###* -----------------------------------------------------------------------
      * Insert in the editor a line that was copied in a cozy note editor
-     * @param  {Element} elemt A div 
+     * @param  {Element} elemt A div
      *                         ex : <div id="CNID_7" class="Lu-3"> ... </div>
      * @return {Line}          A ref to the line object
     ###
@@ -4961,7 +4978,7 @@ module.exports = class CNeditor
         lineClass = elemt.className.split('-')
         lineDepthAbs = +lineClass[1]
         lineClass = lineClass[0]
-        
+
         if !context.prevCNLineAbsDepth
             context.prevCNLineAbsDepth = lineDepthAbs
         deltaDepth = lineDepthAbs - context.prevCNLineAbsDepth
@@ -4975,9 +4992,9 @@ module.exports = class CNeditor
         elemtFrag = document.createDocumentFragment()
         n = elemt.childNodes.length
         i = 0
-        while i < n 
+        while i < n
             seg = elemt.childNodes[0]
-            # sometimes, the paste of the browser removes span and leave only a 
+            # sometimes, the paste of the browser removes span and leave only a
             # text node : then we have to add the span.
             if seg.nodeName == '#text'
                 span = document.createElement('SPAN')
@@ -4996,16 +5013,16 @@ module.exports = class CNeditor
 
 
     ###*
-     * Called by the hotString controler when return is hit or when an item of 
+     * Called by the hotString controler when return is hit or when an item of
      * the auto complete is clicked.
      * @param  {Object} autoItem {text:'value', type:'reminder'|'contact'|...}
     ###
     doHotStringAction : (autoItem) ->
-            
+
         hs = @_hotString
 
         if !autoItem
-            hs.reset(true)
+            hs.reset('end')
             return true
 
         switch autoItem.type
@@ -5046,7 +5063,7 @@ module.exports = class CNeditor
                 hs._forceUserHotString(autoItem.text, [])
                 hs._hsSegment.classList.add('CNE_contact')
                 hs._hsSegment.dataset.type = 'contact'
-                @_tagList.push(hs._hsSegment)
+                @Tags._tagList.push(hs._hsSegment) # not clean but perf...
                 hs._hsSegment.classList.remove('CNE_hot_string')
                 bp = @.insertSpaceAfterSeg(hs._hsSegment)
                 @_setCaret(bp.cont,1)
@@ -5059,7 +5076,7 @@ module.exports = class CNeditor
                 hs._forceUserHotString(autoItem.text, [])
                 hs._hsSegment.classList.add('CNE_htag')
                 hs._hsSegment.dataset.type = 'htag'
-                @_tagList.push(hs._hsSegment)
+                @Tags._tagList.push(hs._hsSegment) # not clean but perf...
                 hs._hsSegment.classList.remove('CNE_hot_string')
                 bp = @.insertSpaceAfterSeg(hs._hsSegment)
                 @_setCaret(bp.cont,1)
@@ -5068,7 +5085,7 @@ module.exports = class CNeditor
                 return true
 
             when 'reminder'
-                
+
                 format = (n)->
                     if n.toString().length == 1
                         return '0' + n
@@ -5086,64 +5103,34 @@ module.exports = class CNeditor
                 hs._hsSegment.classList.add('CNE_reminder')
                 hs._hsSegment.classList.remove('CNE_hot_string')
                 hs._hsSegment.dataset.type = 'reminder'
-                @_tagList.push(hs._hsSegment)
+                @Tags._tagList.push(hs._hsSegment) # not clean but perf...
                 hs._hsSegment.dataset.value = date.format()
-                
+
                 bp = @.insertSpaceAfterSeg(hs._hsSegment)
                 @_setCaret(bp.cont,1)
-                
+
                 hs._auto.hide()
                 hs._reInit()
                 @editorTarget$.trigger jQuery.Event('onChange')
 
                 return true
 
+        hs.reset('end')
         @editorTarget$.trigger jQuery.Event('onChange')
-        @_auto.hide() 
         return false
 
 
-    ###*
-     * The selection within tags is difficult. The idea is to have selection 
-     * whether in a tag, or fully outside any tag. To deal the different pb,
-     * here is the logic choosen :
-     * tags are usually "editable" (= contentEditable = true) except :
-     *   - when shift key is pressed (keydown) outside a tag : then turn all
-     *     tags un-editable. If the user modify the selection with keyboard 
-     *     (shift + arrow or alike) then the browser will not let selection go
-     *     into a tag.
-     *   - when mousedown outside of a tag : then turn all tag un-editable so 
-     *     that selection can not end in one of them.
-     *   - when mouseup or keyup : let all tags be editable agin and check if 
-     *     the selection has an end in a tag and not the other (possible if the 
-     *     change of the selection started within a tag in edition), then modify
-     *     the selection to be fully in the tag.
-     * 
-    ###
-    setTagEditable : () ->
-        # console.log 'set tags EDITABLE'
-        if !@_areTagsEditable
-            for tag in @_tagList
-                tag.contentEditable = true
-            @_areTagsEditable = true
 
 
-    setTagUnEditable : () ->
-        # console.log 'set tags UN-EDITABLE'
-        if @_areTagsEditable
-            for tag in @_tagList
-                tag.contentEditable = false
-            @_areTagsEditable = false
 
-  
     ### ------------------------------------------------------------------------
     # EXTENSION  :  cleaned up HTML parsing
     #
     #  (TODO)
-    # 
+    #
     # We suppose the html treated here has already been sanitized so the DOM
     #  structure is coherent and not twisted
-    # 
+    #
     # _parseHtml:
     #  Parse an html string and return the matching html in the editor's format
     # We try to restitute the very structure the initial fragment :
@@ -5154,7 +5141,7 @@ module.exports = class CNeditor
     #   > textuals enhancements (bold, underlined, italic)
     #   > titles
     #   > line return
-    # 
+    #
     # Ideas to do that :
     #  0- textContent is always kept
     #  1- A, IMG keep their specific attributes
@@ -5168,9 +5155,9 @@ module.exports = class CNeditor
     #  7- any other elt is turned into a simple SPAN with a textContent
     #  8- IFRAME, FRAME, SCRIPT are ignored
     ####
-    
+
     # _parseHtml : (htmlFrag) ->
-        
+
         # result = ''
 
         # specific attributes of IMG and A are copied
@@ -5187,11 +5174,11 @@ module.exports = class CNeditor
                     # if attr?
                         # attributes += " #{attr}=#{elt.getAttribute(attr)}"
                 # return "<a #{attributes}>#{elt.textContent}</a>"
-                
+
 
         # read recursively through the dom tree and turn the html fragment into
         # a correct bit of html for the editor with the same specific attributes
-        
+
         # leafReader = (tree) ->
             # if the element is an A or IMG --> produce an editor A or IMG
             # if tree.nodeName == "A" || tree.nodeName == "IMG"
@@ -5211,7 +5198,7 @@ module.exports = class CNeditor
                     # sibling = sibling.nextSibling
             # if the element
                 # src = "src=#{tree.getAttribute('src')}"
-            
+
             # if the element has children
             # child = tree.firstChild
             # if child != null
@@ -5219,7 +5206,7 @@ module.exports = class CNeditor
                     # result += leafReader(child)
                     # child = child.nextSibling
             # else
-                
+
                 # return tree.innerHTML || tree.textContent
 
         # leafReader(htmlFrag)
