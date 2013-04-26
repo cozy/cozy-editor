@@ -2469,9 +2469,11 @@ module.exports = class CNeditor
 
         # 2- Case of a selection contained in a line
         else if sel.endLine == startLine
+            # console.log '_suppr 4 - test '
+            # check if there are tags that will be deleted
+            @Tags.removeFromRange(sel.theoricalRange)
             # sel can be safely deleted thanks to normalization that have set
             # the selection correctly within the line.
-            # console.log '_suppr 4 - test '
             sel.range.deleteContents()
             bp =
                 cont   : sel.range.startContainer
@@ -2570,8 +2572,6 @@ module.exports = class CNeditor
 
         # 3- Case of a multi lines selection
         else
-            # check if there are tags that will be deleted
-            @Tags.removeFromRange(sel.theoricalRange)
             @_deleteMultiLinesSelections()
 
         return true
@@ -3244,7 +3244,6 @@ module.exports = class CNeditor
 
         # Get start and end positions of the selection.
         if startLine?
-            # range = rangy.createRange()
             range = this.document.createRange()
             selection.cleanSelection(startLine, endLine, range)
             replaceCaret = false
@@ -3258,6 +3257,9 @@ module.exports = class CNeditor
             startLine      = @currentSel.startLine
             endLine        = @currentSel.endLine
             replaceCaret = true
+
+        # check if there are tags that will be deleted
+        @Tags.removeFromRange(range)
 
         # Calculate depth for start and end line
         endLineDepth   = endLine.lineDepthAbs

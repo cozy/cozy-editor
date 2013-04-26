@@ -3,10 +3,10 @@ require('./bootstrap-timepicker')
 
 # Exports a single task
 class AutoComplete
-    
+
 
     constructor : (container, editor, hotString) ->
-        
+
         @container  = container
         @editor     = editor
         @hotString  = hotString
@@ -16,7 +16,7 @@ class AutoComplete
         @contactsDiv = document.createElement('DIV')
         @reminderDiv = document.createElement('DIV')
         @htagDiv     = document.createElement('DIV')
-        reminderHTML = 
+        reminderHTML =
         """
             <div class="reminder-title">Add a reminder</div>
             <div class="date" data-date="12-02-2012" data-date-format="dd-mm-yyyy">
@@ -45,13 +45,13 @@ class AutoComplete
             showSeconds  : true
             showMeridian : false
         )
-        
+
         # listener for the title click
         reminderTitle = @reminderDiv.querySelector('.reminder-title')
         reminderTitle.addEventListener 'click', () =>
             @hotString.validate()
             console.log 't'
-        
+
 
         # .timepicker().on('changeTime.timepicker', (e) ->
         #     console.log e.time
@@ -181,7 +181,7 @@ class AutoComplete
         @_position(seg)
         @container.appendChild(@el)
 
-                
+
 
     setAllowedModes : (modes) ->
         @_modes = modes
@@ -191,7 +191,7 @@ class AutoComplete
                 if ttag.value == m
                     ttag.isInMode = true
                     break
-            
+
         # if modes[0] != @_currentMode
         #     return @setMode(modes[0])
 
@@ -246,18 +246,20 @@ class AutoComplete
 
 
     update : (typedTxt) ->
-        
+
         if !@isVisible
             return
 
+        nbrOfSuggestions = 0
 
         switch @_currentMode
             when 'contact'
                 # check the ttags to show
                 for ttag in @tTags
                     if ttag.isInMode && @_shouldDisp(ttag,typedTxt)
+                        nbrOfSuggestions += 1
                         ttag.line.style.display = 'block'
-                    else 
+                    else
                         ttag.line.style.display = 'none'
                 items = @contacts
             when 'htag'
@@ -295,12 +297,15 @@ class AutoComplete
         # check the items to show
         for it in items
             if @_shouldDisp(it,typedTxt)
+                nbrOfSuggestions += 1
                 it.line.style.display = 'block'
-            else 
+            else
                 it.line.style.display = 'none'
 
         # sort items to show
         @_sortItems()
+
+        @nbrOfSuggestions = nbrOfSuggestions
 
         return true
 
@@ -392,7 +397,7 @@ class AutoComplete
         @isVisible = false
 
         item = @getSelectedItem()
-        
+
         return item
 
 
@@ -433,7 +438,7 @@ class AutoComplete
             c = typedCar.shift()
             spans = item.line.childNodes
             i = 0
-            l = spans.length 
+            l = spans.length
             if item.line.lastChild.className == 'SUGG_mention'
                 l -= 1
             while i < l
@@ -454,7 +459,14 @@ class AutoComplete
 
 
 
+    ###*
+     * select previous suggestion in auto complete. Behaviour depends on the
+     * mode (reminder is different from contact for instance)
+    ###
     up : () ->
+
+        if  @nbrOfSuggestions == 0
+            return
 
         if !@_selectedLine
             @_selectedLine = @el.lastChild.lastChild
@@ -478,8 +490,15 @@ class AutoComplete
         return true
 
 
-
+    ###*
+     * select next suggestion in auto complete. Behaviour depends on the mode
+     * (reminder is different from contact for instance)
+    ###
     down : () ->
+
+        if  @nbrOfSuggestions == 0
+            return
+
         if !@_selectedLine
             @_selectedLine = @el.firstChild.firstChild
 
