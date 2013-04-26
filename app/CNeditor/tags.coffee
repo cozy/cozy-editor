@@ -61,6 +61,8 @@ module.exports = class Tags
                 # if end of line, go to next line
                 if seg.nodeName == 'BR'
                     seg = seg.parentElement.nextSibling.firstChild
+                    if seg == endSeg
+                        break
                 # if a tag, remove it
                 if seg.dataset.type
                     console.log ' before removing', @_tagList
