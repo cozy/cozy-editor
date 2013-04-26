@@ -4,7 +4,7 @@ request = require("./request")
 module.exports = class Alarm extends Backbone.Model
 
     # A remplir par Joseph
-    urlRoot: "/apps/alarms/alarms"
+    urlRoot: "/apps/agenda/alarms"
 
     @dateFormat = "{Dow} {Mon} {dd} {yyyy} {HH}:{mm}:00"
 
@@ -45,7 +45,7 @@ module.exports = class Alarm extends Backbone.Model
 
     # Private static methods
     noCallback = ->
-    isAlarm = (app) -> app.name is 'todos'
+    isAlarm = (app) -> app.name is 'agenda'
     getApps = -> request.get '/api/applications', noCallback
     checkAlarmInstalled = (apps) ->
         return true if apps.rows.some isAlarm
