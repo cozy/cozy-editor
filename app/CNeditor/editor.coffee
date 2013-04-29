@@ -26,10 +26,9 @@ Task         = require('./task')
 HotString    = require('./hot-string')
 Tags         = require('./tags')
 Line         = require('./line')
-try
-    realtimer= require('./realtimer')
-catch e
-    realtimer = watch : () ->
+
+realtimer    = require('./realtimer')
+
 
 
 module.exports = class CNeditor
@@ -486,7 +485,7 @@ module.exports = class CNeditor
             t.fetch(silent:true)
             .done () =>
                 console.log "editor : t.fetch.done()",t.id
-                realtimer.watch(t)
+                realtimer.watchOne t
                 @_updateTaskLine(t) #task may have change when note was not open
 
             t.on 'change', (t)=>
@@ -548,10 +547,11 @@ module.exports = class CNeditor
                         description :  l.textContent.slice(1)
                        },
                        {
+                        ignoreMySocketNotification: true
                         silent  : true
                         success : (t) =>
                             console.log "editor t.save.done()",t.id
-                            realtimer.watch(t)
+                            realtimer.watchOne t
                             t.lineDiv.dataset.id = t.id
                             @editorTarget$.trigger jQuery.Event('onChange')
 
@@ -573,7 +573,10 @@ module.exports = class CNeditor
                 t.save({
                         done        : (l.dataset.state == 'done')
                         description :  l.textContent.slice(1)
-                    },{silent:true}
+                    },{
+                        ignoreMySocketNotification: true
+                        silent: true
+                    }
                 )
 
         @_tasksModifStacks = {}

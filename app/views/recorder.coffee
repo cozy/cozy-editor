@@ -3,9 +3,9 @@ selection  = require('CNeditor/selection').selection
 
 class exports.Recorder
 
-    constructor: (@editor, 
-                  @editorBody$, 
-                  @serializerDisplay, 
+    constructor: (@editor,
+                  @editorBody$,
+                  @serializerDisplay,
                   @recordList,
                   @continuousCheckOff,
                   @recordStop,
@@ -37,7 +37,7 @@ class exports.Recorder
             finalState   : @.finalState
         $.ajax
             type: "POST"
-            url: "/editor/records/"
+            url: "records/"
             data: JSON.stringify(record)
             dataType:'json'
             contentType : "application/json"
@@ -49,7 +49,7 @@ class exports.Recorder
 
 
     load : ->
-        $.get '/editor/records/', (data) =>
+        $.get 'records/', (data) =>
             data = JSON.parse(data)
             data.sort (a,b) ->
                 if Number(a.id) < Number(b.id)
@@ -59,7 +59,7 @@ class exports.Recorder
             for record in data
                 @._prependRecordElement record
             return true
-        $.get '/editor/pastes/', (data) =>
+        $.get 'pastes/', (data) =>
             data = JSON.parse(data)
             @pasteDataArray = []
             for record in data
@@ -76,7 +76,7 @@ class exports.Recorder
         @._recordingPasteSession = []
         _recordingPasteSession = @._recordingPasteSession
         @editor._processPaste = () ->
-            action = 
+            action =
                 pasteHtml : @clipboard.innerHTML
             _recordingPasteSession.push @clipboard.innerHTML
             originalProcessPaste.call(this)
@@ -85,7 +85,7 @@ class exports.Recorder
         @editor._processPaste = @originalProcessPaste
         $.ajax
             type: "POST"
-            url: "/editor/pastes/"
+            url: "pastes/"
             data: JSON.stringify(@._recordingPasteSession)
             dataType:'json'
             contentType : "application/json"
@@ -97,23 +97,23 @@ class exports.Recorder
     startRecordSession : () ->
         @._recordingSession = []
         @.serializerDisplay.val null
-        
+
         # re number lines id so that final state will have same ids after played
-        @editor._readHtml() 
+        @editor._readHtml()
         @initialState = @getState()
-        
+
         # listen events on bubbling phase so that the editor reacts before ( the
         # editor listen the capturing phase which takes place before)
         @editor.linesDiv.addEventListener('mouseup', @selectionRecorder, false)
         @editor.linesDiv.addEventListener('keydown', @keyboardRecorder, false)
         @editor.linesDiv.addEventListener('keyup', @keyboardMoveRecorder, false)
-        
+
         # Record paste events
         @originalProcessPaste = @editor._processPaste
         originalProcessPaste  = @originalProcessPaste
         _recordingSession = @._recordingSession
         @editor._processPaste = () ->
-            action = 
+            action =
                 paste : @clipboard.innerHTML
             originalProcessPaste.call(this)
             action.html = this.linesDiv.innerHTML
@@ -141,7 +141,7 @@ class exports.Recorder
 
 
     ### Listeners ###
-    
+
     selectionRecorder : =>
         # sel = @editor.serializeSel()
         # serializedSelection = rangy.serializeSelection sel, true, @editorBody$[0]
@@ -166,7 +166,7 @@ class exports.Recorder
 
         # don't insert caracters during recording since the recorder is not
         # able to play them.
-        # This test doesn't fit all the insertions, but 80% cases, it's 
+        # This test doesn't fit all the insertions, but 80% cases, it's
         # enougth
         if shortCut == '-other'
             alert 'No insertion during recording'
@@ -175,7 +175,7 @@ class exports.Recorder
         # don't record if only a meta is stroken
         else if metaKeyCode != '' and keyCode == 'other'
             return
-        
+
         # Ctrl-V : do not record the key action. It is directly recorded by
         # startRecording()
         else if shortCut == 'Ctrl-V'
@@ -187,16 +187,16 @@ class exports.Recorder
         #     console.log 'keyboardRecorder detect a keyboard move : ' + keyCode + ' ' + serializedSelection
         #     action.selection = serializedSelection
         else
-            action = 
+            action =
                 keyboard :
                     altKey   : event.altKey
                     shiftKey : event.shiftKey
                     ctrlKey  : event.ctrlKey
                     keyCode  : event.which
                     which    : event.which
-                # html : @.editorBody$.find('#editor-lines').html() 
+                # html : @.editorBody$.find('#editor-lines').html()
                 html : @editor.linesDiv.innerHTML
-            
+
 
             @_recordingSession.push action
 
@@ -270,7 +270,7 @@ class exports.Recorder
             else
                 recordResult = false
                 actionsInError.push(i)
-            2 # for a clear compiled js 
+            2 # for a clear compiled js
         el.removeClass('resultActionOK'  )
         el.removeClass('resultActionNOK' )
         el.removeClass('finalHTMLNOK'    )
@@ -281,7 +281,7 @@ class exports.Recorder
         else
             el.text('ERROR in actions : ' + actionsInError)
             el.addClass('resultActionNOK')
-                
+
 
     ###*
      * Play the current step of the record. This function is called as a method
@@ -378,21 +378,21 @@ class exports.Recorder
                 @._remove(record)
                 $.ajax
                     type: "PUT"
-                    url: "/editor/records/"
+                    url: "records/"
                     data:
                         fileName: record.fileName
-        
+
         @recordList.prepend element
 
 
 
     _playAction : (action) ->
-        
+
         if action.result? and !action.result
-            ### 
+            ###
             A break point is here because this action has already been played
             and leads to an error...
-            Good debug ! :-) 
+            Good debug ! :-)
             ###
             sel = @.editor.getEditorSelection()
             rg  = sel.getRangeAt(0)
@@ -434,7 +434,7 @@ class exports.Recorder
         res = true
         if action.html
             res = this.editor.linesDiv.innerHTML == action.html
-        
+
         return action.result = res && @checker.checkLines(@editor)
 
     ###*
@@ -446,10 +446,10 @@ class exports.Recorder
     ###
     __triggerKeyboardEvent : (el, keyboard) ->
         eventObj = if document.createEventObject? then document.createEventObject() else document.createEvent("Events")
-      
+
         if eventObj.initEvent
           eventObj.initEvent("keydown", true, true)
-        
+
         eventObj.keyCode  = keyboard.keyCode
         eventObj.which    = keyboard.keyCode
         eventObj.ctrlKey  = keyboard.ctrlKey
@@ -565,10 +565,10 @@ class exports.Recorder
             # if the number of line is too small, open a new content
             if @editor.linesDiv.children.length < 5
                 @_initEditorForMadMonkey()
-            
+
             # create a random action
             actionType = @_randomChoice(@actionTypes)
-            try 
+            try
                 action = @_generateRandomAction(actionType.type)
             catch e
                 if e.message == 'no range to choose'
@@ -587,7 +587,7 @@ class exports.Recorder
                 htmlBeforeAction : htmlBeforeAction
                 action           : action
                 fullType         : fullType
-            
+
             # play action
             res = res && @_playAction(action)
             if fullType == 'bold'
@@ -599,7 +599,7 @@ class exports.Recorder
                 historySummary[fullType] += 1
             else
                 historySummary[fullType] = 1
-            
+
             # check action result
             if !res
                 break
@@ -611,7 +611,7 @@ class exports.Recorder
 
 
         if res
-            checkLog += '\n random test successfull\n' 
+            checkLog += '\n random test successfull\n'
             checkLog += JSON.stringify(historySummary)
             checkLog += '\nduration : ' + (end-start)/1000 +'s (' + (end-start)/10000 +'ms/action)'
 
@@ -639,7 +639,7 @@ class exports.Recorder
             debugger
 
         return true
-    
+
     _initEditorForMadMonkey : () ->
         # content = require('views/templates/content-shortlines-large')
         content = require('views/templates/content-for-mad-monkey')
@@ -659,7 +659,7 @@ class exports.Recorder
             action = step.action
             delete action.result
             @_recordingSession.push(action)
-        @initialState = 
+        @initialState =
             html      : history[nmin].htmlBeforeAction
             selection : history[nmin].selBeforeAction
         @finalState =
@@ -821,18 +821,18 @@ class exports.Recorder
 
     _generateRandomAction : (actionType)->
         switch actionType
-            
+
             when 'keyEvent'
                 action = keyboard : @_randomChoice(@keyEventTypes).keyboard
-            
+
             when 'selection'
                 action = selection : @_randomSelection()
-            
+
             when 'paste'
                 action = @_randomPaste()
 
             when 'bold'
-                action = 
+                action =
                         keyboard :
                             altKey   : false
                             shiftKey : false
@@ -867,14 +867,14 @@ class exports.Recorder
 
             when "startFirstLine"
                 startBP = @_getRandomStartLine(@editor.linesDiv.firstChild)
-                
+
             when 'collapsed'
                 l       = @_selectRandomLine()
                 startBP = @_selectRandomBP(l)
-                
+
             when "rangeMonoLine"
                 # find any range inside a line
-                if !onlyNonEmptyRange 
+                if !onlyNonEmptyRange
                     l = @_selectRandomLine()
                     startBP = @_selectRandomBP(l)
                     endBP   = @_selectRandomBP(l)
@@ -913,11 +913,11 @@ class exports.Recorder
                 startBP = @_selectRandomBP(l1)
                 endBP   = @_selectRandomBP(l2)
 
-                # if !onlyNonEmptyRange 
+                # if !onlyNonEmptyRange
                 # # If onlyNonEmptyRange then :
                 # #  - check that startBP is not at the end of the line
                 # #  - check that endBP is not at the beginning of the line
-                # # The reason is that for meta data (bold), only the selected 
+                # # The reason is that for meta data (bold), only the selected
                 # # part of the 1st line will be taken into.
                 # else
                 #     # impossible if less than thwo lines are not empty
@@ -936,8 +936,8 @@ class exports.Recorder
                 #         ar = @_selectRandomTwoLines()
                 #         l1 = ar[0]
                 #         l2 = ar[1]
-                        
-                #     # Choose a breakoint in each, but not at the end of start 
+
+                #     # Choose a breakoint in each, but not at the end of start
                 #     # line nor at the beginning of endLine.
                 #     startBP = @_selectRandomBP(l1)
                 #     endBP   = @_selectRandomBP(l2)
@@ -963,19 +963,19 @@ class exports.Recorder
             if rg.startContainer != startBP.cont         \
               or rg.startOffset  != startBP.offset       \
               or rg.endContainer != endBP.cont           \
-              or rg.endOffset    != endBP.offset 
+              or rg.endOffset    != endBP.offset
                 rg.setStart(endBP.cont,endBP.offset)
                 rg.setEnd(startBP.cont,startBP.offset)
 
         else
             rg.collapse(true)
-        
+
         return @editor.serializeRange(rg)
 
-                
+
 
     ###*
-     * Returns an array of 2 random lines. The probability of a couple is as 
+     * Returns an array of 2 random lines. The probability of a couple is as
      * small as its distance between the 2 lines is high.
     ###
     _selectRandomTwoLines : () ->
@@ -985,7 +985,7 @@ class exports.Recorder
             return [ lines[0], lines[0] ]
 
         distance = @_randomChoice(@linesDistance)
-        
+
         while distance.val >= linesNumber
             distance = @_randomChoice(@linesDistance)
         i = @_getRandomNum(0,lines.length - 1 - distance.val)
@@ -995,13 +995,13 @@ class exports.Recorder
 
     ###*
      * Choose a random line except the first and last ones.
-     * 
+     *
      * @return {element} The div of the choosen line
     ###
     _selectRandomLine : () ->
         lines = @editor.linesDiv.childNodes
         n = lines.length
-        # i between 0 and n-1 (we don't choose neither the first line 
+        # i between 0 and n-1 (we don't choose neither the first line
         # nor the last one)
         i = @_getRandomNum(0,n-1)
         line = lines[i]
@@ -1010,7 +1010,7 @@ class exports.Recorder
 
     _selectRandomBP : (line) ->
         # the number of possible breakpoints is at the beginning of line
-        # + 3 possible posistions 
+        # + 3 possible posistions
         bpType = @_randomChoice(@breakpointTypes)
         switch bpType.type
             when 'start'
@@ -1059,7 +1059,7 @@ class exports.Recorder
             children = cont.childNodes
             n = 0
             # a non empty element
-            if children.length != 0 
+            if children.length != 0
                 for child in children
                     bp = @_getMiddleBP(child,ntarget)
                     if bp
@@ -1069,7 +1069,7 @@ class exports.Recorder
                     if ntarget == @nAlreadySeen
                         return cont:cont, offset:n
             # a text node : 2 possible breakpoints (middle and end)
-            else if cont.length 
+            else if cont.length
                 @nAlreadySeen += 1
                 if ntarget == @nAlreadySeen
                     return cont:cont, offset:1

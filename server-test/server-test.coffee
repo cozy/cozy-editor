@@ -11,15 +11,15 @@
 ###
 
 fs = require('fs')
+http = require('http')
 express = require('express')
 app = express()
 
 app.use(express.bodyParser())
 app.use(express.methodOverride())
 app.use(app.router)
-app.use("/editor/", express.static(__dirname + '/../public'))
 app.use("/", express.static(__dirname + '/../public'))
-# app.use("/", express.static(__dirname + '/../public'))
+
 
 testDirPath  = '../test/test-cases/'
 pasteDirPath = '../test/paste-data-exemples/'
@@ -34,7 +34,7 @@ getAllRecords = (req, res) ->
             filePath   : filePath
             fileName   : fileName
             recordStrg : fs.readFileSync(filePath, 'utf8')
-    
+
     fileList.sort (a,b)->
         return a.fileName > b.fileName
 
@@ -84,9 +84,9 @@ savePastesToFile = (req, res) ->
     console.log req.body
     for html in req.body
         content += '\n\n Paste data stringified :\n' + JSON.stringify(html)
-    
+
     fs.writeFileSync(path, content)
-    
+
     res.send
         id          : newFileNum
         fileName    : fileName
@@ -120,11 +120,23 @@ newFilledArray = (length, val) ->
         i++
     return array
 
-app.put  '/editor/records/' , deleteRecord
-app.get  '/editor/records/' , getAllRecords
-app.post '/editor/records/' , saveToFile
-app.post '/editor/pastes/' ,  savePastesToFile
-app.get  '/editor/pastes/' ,  getPasteData
+# app.put  '/editor/records/' , deleteRecord
+# app.get  '/editor/records/' , getAllRecords
+# app.post '/editor/records/' , saveToFile
+# app.post '/editor/pastes/' ,  savePastesToFile
+# app.get  '/editor/pastes/' ,  getPasteData
+
+app.put  '/records/' , deleteRecord
+app.get  '/records/' , getAllRecords
+app.post '/records/' , saveToFile
+app.post '/pastes/' ,  savePastesToFile
+app.get  '/pastes/' ,  getPasteData
 port = 3000
-app.listen port
+server = http.createServer(app)
+
+initializer = require 'cozy-realtime-adapter'
+initializer server: server, ['task.update', 'task.delete', 'alarm.update', 'alarm.delete']
+
+
+server.listen port
 console.log "editor listing on port " + port

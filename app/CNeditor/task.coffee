@@ -1,68 +1,51 @@
 request = require("./request")
 
 # Model that describes a single task
-Task = class Task extends Backbone.Model
+module.exports = class Task extends Backbone.Model
 
     url: ->
       if @isNew() then "/apps/todos/todolists/#{Task.todolistId}/tasks"
-      else "/apps/todos/todolists/#{Task.todolistId}/tasks/#{@id}"
+      else "/apps/todos/tasks/#{@id}"
 
     defaults: ->
         done:false
-        nextTask:null       #needed ?
-        previousTask:null   #needed ?
 
-    parse : (data) ->
-        if data.rows?
-            return data.rows[0]
-        else
-            return data
+    parse: (data) -> if data.rows then data.rows[0] else data
 
     # Private static methods
-    doNothing = ->
+    noCallback = ->
     isTodo = (app) -> app.name is 'todos'
-    isFromNote = (todolist) -> todolist.title is 'from notes'
+    isFromNote = (todolist) -> todolist.title is 'Inbox'
 
-    
-    todoIsInstalled = (callback) ->
-        request.get '/api/applications', (err, apps) ->
-            if not err and apps.rows.some isTodo
-                callback(true)
-            else
-                callback(false)
+    getApps = -> request.get '/api/applications', noCallback
 
-    findInboxTodoList = (callback) ->
-        request.get '/apps/todos/todolists', (err, lists) ->
-            if err
-                callback(null)
-            else
-                inboxList = _.find lists.rows, isFromNote
-                callback(inboxList)
+    checkTodoInstalled = (apps) ->
+        return true if apps.rows.some isTodo
+        return $.Deferred().reject()
 
-    createInboxTodoList = (callback) ->
-        todolist = title:'from notes', parent_id:'tree-node-all'
-        request.post '/apps/todos/todolists', todolist, (err, inboxList) ->
-            if err
-                callback(null)
-            else
-                callback(inboxList)
+    getLists = -> request.get '/apps/todos/todolists', noCallback
+
+    inboxExists = (lists) ->
+        inbox = _.find lists.rows, isFromNote
+        return inbox if inbox
+        return $.Deferred().reject('noinbox')
+
+    createInbox = (err) ->
+        return err if err isnt 'noinbox'
+        todolist = title: 'Inbox', parent_id:'tree-node-all'
+        request.post '/apps/todos/todolists', todolist, noCallback
 
     # Static methods
-    @initialize = (callback=doNothing) ->
-        todoIsInstalled (installed) ->
-            if not installed
-                callback(Task.canBeUsed = false)
-            else
-                findInboxTodoList (list) ->
-                    if list
-                        Task.todolistId = list.id
-                        callback(Task.canBeUsed = true)
-                    else
-                        createInboxTodoList (list) ->
-                            if list
-                                Task.todolistId = list.id
-                                callback(Task.canBeUsed = true)
-                            else
-                                callback(Task.canBeUsed = false)
-
-module.exports = Task
+    @initialize = (callback) ->
+        getApps()
+        .then(checkTodoInstalled)
+        .then(getLists)
+        .then(inboxExists)
+        .then(null, createInbox) # if doesn't exist, create
+        .done((inbox) ->
+            Task.todolistId = inbox.id
+            Task.canBeUsed = true
+            callback true)
+        .fail((err) ->
+            Task.canBeUsed = false
+            callback false)
