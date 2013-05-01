@@ -1153,11 +1153,15 @@ module.exports = class CNeditor
             if @_hotString.isPreparing and startSeg != @_hotString._hsSegment
                 @_hotString.reset('current')
 
-        # D/ if a hot string is preparing, check selection is still in it.
+        # D/ If a hot string is preparing, check selection is still in it.
+        #    If yes, update the hotstring, otherwise cancel hotstring.
         if @_hotString.isPreparing
-            # if a selection is on progress (a left, right,up, down,begin,end,
+            # if autoToBeShowed then showAutoAndHighLight
+            if @_hotString._autoToBeShowed
+                @_hotString.showAutoAndHighLight()
+            # else if a selection is on progress (a left, right,up, down,begin,end,
             # pageup,pagedwn & ctrl while shift key is pressed) then do nothing.
-            if !(e.shiftKey and e.keyCode in [17,37,38,36,33,40,39,34,35])
+            else if !(e.shiftKey and e.keyCode in [17,37,38,36,33,40,39,34,35])
                 if startSeg == @_hotString._hsSegment
                     @_hotString.updateHs()
                 else
@@ -1200,7 +1204,9 @@ module.exports = class CNeditor
                 t = node.textContent
                 if node.previousSibling
                     if node.previousSibling.nodeName in ['SPAN','A']
-                        node.previousSibling.textContent += t
+                        prevSib = node.previousSibling
+                        prevSib.textContent += t
+                        @_setCaret(prevSib,prevSib.childNodes.length)
                     else
                         throw new Error('A line should be constituted of
                             only <span> and <a>')
@@ -1220,8 +1226,7 @@ module.exports = class CNeditor
                         throw new Error('A line should be constituted of
                             only <span> and <a>')
                 else
-                    throw new Error('A line should be constituted of a final
-                            <br/>')
+                    throw new Error('A line should have a final <br/>')
                 line.removeChild(node)
                 l -= 1
             else

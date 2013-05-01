@@ -1,8 +1,8 @@
 AutoComplete = require('./autocomplete').AutoComplete
 selection    = require('./selection').selection
 
-module.exports = class HotString 
-    
+module.exports = class HotString
+
 
 
     constructor : (editor) ->
@@ -12,7 +12,7 @@ module.exports = class HotString
         @_auto     = new AutoComplete(editor.linesDiv, editor, this)
         # @_auto       = editor._auto
         @_hsTypes  = ['@', '@@', '#']
-        @_modes    = 
+        @_modes    =
             '@'  : 'contact'
             '@@' : 'reminder'
             '#'  : 'htag'
@@ -22,31 +22,33 @@ module.exports = class HotString
         @_hsLeft      = ''
         @_hsString    = ''
         @_currentMode = ''
-        # ex 1 : 
-        #     typed    = ' @zorro' 
+        # ex 1 :
+        #     typed    = ' @zorro'
         #     @_hsType = '@'
         #     @_hsString = 'zorro'
-        # ex 2 : 
-        #     typed    = ' @@23/12/2014 23:33' 
+        # ex 2 :
+        #     typed    = ' @@23/12/2014 23:33'
         #     @_hsType = '@@'
         #     @_hsString = '23/12/2014 23:33'
-        # ex 3 : 
-        #     typed    = ' #factures' 
+        # ex 3 :
+        #     typed    = ' #factures'
         #     @_hsType = '#'
         #     @_hsString = 'factures'
         @_getShortCut = editor.getShortCut
-        # flag set by newTypedChar (fired by keypress event) when a hot string 
-        # has begun to be typed. The aim is to hightlight the hotstring in the 
+        # flag set by newTypedChar (fired by keypress event) when a hot string
+        # has begun to be typed. The aim is to hightlight the hotstring in the
         # editor when keyup will occur. It can not be done on keypress because
         # the caracter is not yet inserted and the editor can not set a metadata
         # to an empty range.
         @_autoToBeShowed = false
-        @container.addEventListener('keyup', @_tryHighlight)
+        # @container.addEventListener('keyup', @_tryHighlight)
 
 
 
     ###* -----------------------------------------------------------------------
-     * Called by the editor keydown call back.
+     * Called by the editor keydown call back, in charge of taking into account
+     * "special" keys suche as return, arrows, space etc...
+     * The detection of the start of a hotstring is done by keypresseCb()
      * @param  {Object} shortcut cf editor.getShortcut(e)
      * @return {Boolean}          True if keydown should be preventDefaulted
     ###
@@ -68,9 +70,9 @@ module.exports = class HotString
                 preventDefault = true
 
             # when '-left'
-            
+
             # when '-right'
-            
+
             when '-pgUp', '-pgDwn', '-end', '-home'
                 @reset(false)
                 preventDefault = false
@@ -94,22 +96,17 @@ module.exports = class HotString
 
 
 
-    printHotString : () ->
-        console.log '_hsType = "'  + @_hsType  + '"' ,
-                    '_hsLeft = "'  + @_hsLeft  + '"' ,
-                    '_hsRight = "' + @_hsRight + '"'
-
-
-
     ###* -----------------------------------------------------------------------
-     * Update the current "hotString" typed by the user. This function is called
-     * by editor._keypressCb(), and detects keys such as '@' and "normal 
-     * caracters". 
-     * Actions (Arrows, return, baskspace etc...) are managed in newShortCut()
+     * Detection on keypress if the user is starting a new hotstring.
+     * A hotstring is a "#" or "@" inserted as a word start (no characters
+     * before).
+     * Actions - Arrows, return, baskspace etc - are managed in newShortCut()
+     * If a hotString is already preparing, the editor must call updateHs() when
+     * the content of the segment containing the hotstring is changed.
      * @param  {Event} e The keyboard event
     ###
     keypressCb : (e) ->
-        # console.log  'hotstring.keypressCb()'
+        # console.log  '== hotstring.keypressCb()'
         charCode = e.which
 
         if @isPreparing
@@ -134,11 +131,7 @@ module.exports = class HotString
                     @_currentMode = 'htag'
                     @_auto.setMode('htag')
                     @_autoToBeShowed = mode:'insertion'
-        # else if charCode == 37 # left
-        #     if selection.
 
-
-        # @printHotString()
         return true
 
 
@@ -214,7 +207,7 @@ module.exports = class HotString
                 segClass   = 'CNE_htag'
 
 
-        @_editedItem = 
+        @_editedItem =
             text : seg.textContent
             type : seg.dataset.type
             id   : seg.dataset.id
@@ -230,13 +223,13 @@ module.exports = class HotString
         seg.dataset.type = ''
         @editor.setSelection(seg.firstChild, startOffset ,
                              seg.firstChild, endOffset
-        ) 
+        )
         modes = @editor.getCurrentAllowedInsertions()
         @_auto.setAllowedModes(modes)
         @_currentMode = type
         @_auto.setMode(type)
         @_autoToBeShowed = mode:'edit',segment:seg
-        @_tryHighlight()
+        @showAutoAndHighLight()
 
         # while false
         #     d = d
@@ -257,13 +250,19 @@ module.exports = class HotString
 
 
     ###*
-     * In charge of diplaying the hotstring segment and the auto completion div
+     * In charge of diplaying the hotString segment and the auto completion div
      * when a creation or edition begins.
+     * This must be called only when the hsSegment is not empty, that's why the
+     * key event that calls it must be editor._keyupCb() and not keyPress (would
+     * have been too easy :-).
+     * edit() also calls this method (edit is called by editor._mouseupCb() and
+     * again editor._keyupCb() )
+     *
     ###
-    _tryHighlight : () =>
+    showAutoAndHighLight : () =>
 
-        if !@_autoToBeShowed
-            return true
+        # if !@_autoToBeShowed
+        #     return true
 
         switch @_autoToBeShowed.mode
             when 'edit'
@@ -273,13 +272,13 @@ module.exports = class HotString
                 @_hsSegment.dataset.type = 'hotString'
                 @_autoToBeShowed = false
                 @_auto.show(@_hsSegment , @_hsString)
-                
+
             when 'insertion'
                 rg = @editor.getEditorSelection().getRangeAt(0)
                 @editor.setSelection(
-                    rg.startContainer                    , 
+                    rg.startContainer                    ,
                     rg.startOffset - @_hsType.length     ,
-                    rg.endContainer                      , 
+                    rg.endContainer                      ,
                     rg.endOffset
                 )
                 rg = @editor._applyMetaDataOnSelection('CNE_hot_string')
@@ -289,7 +288,7 @@ module.exports = class HotString
                 @editor._setCaret(@_hsSegment, @_hsSegment.childNodes.length)
                 @_autoToBeShowed = false
                 @_auto.show(@_hsSegment , '')
-        
+
         return true
 
 
@@ -302,7 +301,7 @@ module.exports = class HotString
             @_hsTextNode = null
             @_hsSegment  = null
         return true
-            
+
 
 
     _forceUserHotString : (newHotString, bps) ->
@@ -322,22 +321,22 @@ module.exports = class HotString
 
 
     ###* -----------------------------------------------------------------------
-     * Reset hot string : the segment is removed and autocomplete hidden. In 
+     * Reset hot string : the segment is removed and autocomplete hidden. In
      * case where it was not a creation of a meta but a modification, then the
      * initial value of the meta is restored. If the hsType ('@', '#' or '@@')
      * has been deleted then the meta data segment is also removed if editing.
-     * @param  {String} dealCaret  3 values : 1/ 'current'the current caret 
-     *                  position is saved and restored after. 2/ 'end' : the 
+     * @param  {String} dealCaret  3 values : 1/ 'current'the current caret
+     *                  position is saved and restored after. 2/ 'end' : the
      *                  caret will be set at the end of the segment. 3/ false :
      *                  the carret is not managed here.
     ###
     reset : (dealCaret, hardReset) ->
         # console.log 'hotString.reset()'
-        
+
         if !@isPreparing
             return true
 
-        # if we are editing an already existing segment with meta data and that 
+        # if we are editing an already existing segment with meta data and that
         # the edition is canceled (but reset not forced)
         if @_isEdit and !hardReset
             if dealCaret == 'current'
@@ -370,7 +369,7 @@ module.exports = class HotString
 
         @_reInit()
         @_auto.hide()
-        
+
         if dealCaret
             @editor._setCaret(bp.cont, bp.offset)
 
@@ -410,12 +409,12 @@ module.exports = class HotString
 
 
     mouseUpInAutoCb : (e) ->
-            
+
         # if click in reminder, let the components deal actions.
         if @_currentMode == 'reminder'
             return true
-        
-        # else 
+
+        # else
         selectedLine = e.target
         while selectedLine && selectedLine.tagName != ('LI')
             selectedLine = selectedLine.parentElement
@@ -425,6 +424,16 @@ module.exports = class HotString
             @reset('end')
 
 
-        
+
     isInAuto : (elt) ->
         return elt == @el or $(elt).parents('#CNE_autocomplete').length != 0
+
+
+
+    ###*
+     * Helper for debug purpose, prints the current hotstring.
+    ###
+    printHotString : () ->
+        console.log '_hsType = "'  + @_hsType  + '"' ,
+                    '_hsLeft = "'  + @_hsLeft  + '"' ,
+                    '_hsRight = "' + @_hsRight + '"'
