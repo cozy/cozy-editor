@@ -45,15 +45,14 @@ module.exports = class Tags
         @_tagList = _.without(@_tagList, seg)
 
     ###*
-     * Find and removes all tags within a range (strictly included in a
-     * line, normalize it for precaution).
+     * Find and removes all tags within a range (normalize it for precaution).
      * @param  {Range} rg The range in which the tags to remove are.
     ###
     removeFromRange : (rg) ->
         startSeg = selection.getSegment(rg.startContainer,0)
         endSeg   = selection.getSegment(rg.endContainer  ,0)
         console.log '_tagList at beginning', @_tagList
-        # if equal, means we are inside a tag or oustide, not tag will be
+        # if equal, means we are inside a tag or oustide, no tag will be
         # deleted
         if startSeg != endSeg
             seg = startSeg.nextSibling

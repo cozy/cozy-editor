@@ -2440,7 +2440,8 @@ module.exports = class CNeditor
                             return
                     sel.range.setEndBefore(
                         startLine.lineNext.line$[0].firstChild)
-                    sel.theoricalRange = sel.range
+                    selection.normalize(sel.range)
+                    sel.theoricalRange = sel.range.cloneRange()
                     sel.endLine = startLine.lineNext
                     @_deleteMultiLinesSelections()
 

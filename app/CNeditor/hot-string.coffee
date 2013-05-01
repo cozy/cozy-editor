@@ -257,7 +257,6 @@ module.exports = class HotString
      * have been too easy :-).
      * edit() also calls this method (edit is called by editor._mouseupCb() and
      * again editor._keyupCb() )
-     *
     ###
     showAutoAndHighLight : () =>
 

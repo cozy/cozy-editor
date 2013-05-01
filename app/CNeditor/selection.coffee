@@ -4,7 +4,7 @@
 ### ------------------------------------------------------------------------
 # UTILITY FUNCTIONS
 # used to set ranges and help normalize selection
-# 
+#
 # parameters: elt  :  a dom object with only textNode children
 #
 # note: with google chrome, it seems that non visible elements
@@ -13,7 +13,7 @@
 
 
 ###*
- * Called only once from the editor - TODO : role to be verified 
+ * Called only once from the editor - TODO : role to be verified
 ###
 µ.cleanSelection = (startLine, endLine, range) ->
     if startLine is null
@@ -39,7 +39,7 @@
 
 
 ###*
- * Called only once from the editor - TODO : role to be verified 
+ * Called only once from the editor - TODO : role to be verified
 ###
 µ.cloneEndFragment = (range, endLine) ->
     range4fragment = rangy.createRangyRange()
@@ -50,16 +50,16 @@
 
 ### ------------------------------------------------------------------------
 #  normalize(range)
-# 
+#
 #  Modify 'range' containers and offsets so it represent a clean selection
 #  that starts and ends inside a textNode.
 #
 #  Set the flag isEmptyLine to true if an empty line is being normalized
 #  so further suppr ~ backspace work properly.
-# 
+#
 #  All possible breakpoints :
     - <span>|<nodeText>|Text |node content|</nodeText>|<any>...</nodeText>|</span>
-           BP1        BP2   BP3          BP4         BP5             BP6 
+           BP1        BP2   BP3          BP4         BP5             BP6
 
     - <div>|<span>...</span>|<any>...</span>|</br>|</div>
           BP7              BP8             BP9    BP10
@@ -69,7 +69,7 @@
 
 
     BP1 : <span>|<nodeText>
-             
+
         |     test    |               action              |
         |-------------|-----------------------------------|
         | cont = span | if cont.length = 0                |
@@ -81,33 +81,33 @@
         |             | * error                           |
 
     BP2 : <nodeText>|Text node content</nodeText>
-                
+
         |       test      |  action |
         |-----------------|---------|
         | cont = nodeText | nothing |
         | offset = 0      |         |
-        
+
     BP3 : <nodeText>Text |node content</nodeText>
 
         |         test         |  action |
         |----------------------|---------|
         | cont = nodeText      | nothing |
         | 0<offset<cont.length |         |
-        
+
     BP4 : <nodeText>Text node content|</nodeText>
 
         |         test         |  action |
         |----------------------|---------|
         | cont = nodeText      | nothing |
         | offset = cont.length |         |
-        
+
     BP5 & BP6 : </nodeText>|<any>
         |               test              |            action           |
         |---------------------------------|-----------------------------|
         | cont != nodeText                | bpEnd(cont.child(offset-1)) |
         | offset > 0                      |                             |
         | cont.child(offset-1) = nodeText |                             |
-        
+
     BP7 : <div>|<span>...
         |    test    |          action          |
         |------------|--------------------------|
@@ -171,7 +171,7 @@
  * @param  {element} cont   the container of the break point
  * @param  {number} offset offset of the break point
  * @param  {boolean} preferNext [optional] if true, in case BP8, we will choose
- *                              to go in next sibling - if it exists - rather 
+ *                              to go in next sibling - if it exists - rather
  *                              than in the previous one.
  * @return {object} the suggested break point : {cont:newCont,offset:newOffset}
 ###
@@ -238,7 +238,7 @@
             newCont   = cont.lastChild
             newOffset = newCont.childNodes.length
             res       = µ.normalizeBP(newCont, newOffset)
-        # if bp is in the middle of container, put bp at end of the node 
+        # if bp is in the middle of container, put bp at end of the node
         # before current bp
         else
             newCont   = cont.children[offset-1]
@@ -260,7 +260,7 @@
  * Normalize an array of breakpoints.
  * @param  {Array} bps   An array of break points to normalize
  * @param  {boolean} preferNext [optional] if true, in case BP8, we will choose
- *                              to go in next sibling - if it exists - rather 
+ *                              to go in next sibling - if it exists - rather
  *                              than in the previous one.
  * @return {Array} A ref to the array of normalized bp.
 ###
@@ -280,14 +280,14 @@
  * @return {object}        {div[element], isStart[bool], isEnd[bool]}
 ###
 µ.getLineDivIsStartIsEnd = (cont, offset)->
-    
+
 
     # 1- Check offset position in its container. If we are already in the line
     # div, directly return the result.
     if (       cont.nodeName == 'DIV'                                          \
            and cont.id?                                                        \
            and cont.id.substr(0,5) == 'CNID_'  )
-        
+
         if cont.textContent == '' # case : <div><xx></xx>...</br></div>
             return div:cont, isStart:true, isEnd:true
 
@@ -304,7 +304,7 @@
             isStart = (offset==0)
             isEnd   = (offset==cont.childNodes.length)
 
-    # 2- walk throught each parent of the container until reaching the div. 
+    # 2- walk throught each parent of the container until reaching the div.
     # Check the index of each parent to know if it is at the end or beginning.
 
     parent  = cont.parentNode
@@ -325,7 +325,7 @@
     n     = parent.childNodes.length
     isStart = isStart && (segmentI==0)
     isEnd   = isEnd && ((nodeI==n-1) or (nodeI==n-2))
-    
+
     return div:parent, isStart:isStart, isEnd:isEnd
 
     # # 1- walk trew each parent of the container until reaching the div.
@@ -385,7 +385,7 @@
         blank = document.createTextNode " "
         elt.appendChild blank
         range.setStart blank, 0
- 
+
 
 # BJA : usage qu'interne, à voir.
 µ.putEndOnStart = (range, elt) ->
@@ -407,7 +407,7 @@
  * @return {element}        The DIV of the line where the break point is.
 ###
 µ.getLineDiv = (cont,offset) ->
-    if cont.nodeName == 'DIV' 
+    if cont.nodeName == 'DIV'
         if cont.id == 'editor-lines'
             startDiv = cont.children[offset]
         else
@@ -430,16 +430,16 @@
     return parent
 
 ###*
- * Returns the segment (span or a or lineDiv) of the line where the break 
+ * Returns the segment (span or a or lineDiv) of the line where the break
  * point is. If the break point is not in a segment, ie in the line div or even
  * in editor-lines, then it is the line div that will be returned.
  * @param  {element} cont   The contener of the break point
- * @param  {number} offset  Offset of the break point. Optional if cont is a 
+ * @param  {number} offset  Offset of the break point. Optional if cont is a
  *                          text node
  * @return {element}        The DIV of the line where the break point is.
 ###
 µ.getSegment = (cont,offset) ->
-    if cont.nodeName == 'DIV' 
+    if cont.nodeName == 'DIV'
         if cont.id == 'editor-lines'
             startDiv = cont.children[Math.min(offset, cont.children.length-1)]
         else if cont.id? and cont.id.substr(0,5) == 'CNID_'
