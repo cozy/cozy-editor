@@ -296,6 +296,7 @@ module.exports = class HotString
         seg = @_hsSegment
         if seg.parentElement # seg might have already been removed of the line
             seg.classList.remove('CNE_hot_string')
+            seg.dataset.type = ''
             @editor._fusionSimilarSegments(seg.parentElement, bps)
             @_hsTextNode = null
             @_hsSegment  = null
