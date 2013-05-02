@@ -75,7 +75,6 @@ module.exports = class CNeditor
             cssLink += 'href="stylesheets/CNeditor.css" rel="stylesheet">'
             editor_head$.html(cssLink)
 
-
         # preparation of the div
         else
             @editorBody$ = @editorTarget$
@@ -105,9 +104,6 @@ module.exports = class CNeditor
         # init clipboard div and url popover
         @_initClipBoard()
         @_initUrlPopover()
-
-        # init autocomplete
-        # @_auto = new AutoComplete(linesDiv, this)
 
         # initialisation of the hot sting manager
         @_hotString = new HotString(this)
@@ -147,6 +143,9 @@ module.exports = class CNeditor
         @isChromeOrSafari = @isChrome or @isSafari
 
         # initialize event listeners
+        @linesDiv.addEventListener('drop', (e)->
+            e.preventDefault()
+        )
         @enable()
 
         # callback
@@ -355,9 +354,7 @@ module.exports = class CNeditor
 
     _turnIntoTask : (lineDiv) ->
         if !lineDiv
-            currSel = @updateCurrentSel()
-            lineDiv  = currSel.startLine.line$[0]
-
+            lineDiv = @updateCurrentSel().startLineDiv
         return @_turneLineIntoTask(lineDiv)
 
 
@@ -400,15 +397,16 @@ module.exports = class CNeditor
         @_stackTaskChange(taskDiv.task,'removed')
 
         # taskDiv attibutes
-        taskDiv.task = null
-        taskDiv.dataset.type = ''
+        taskDiv.task          = null
+        taskDiv.dataset.type  = ''
         taskDiv.dataset.state = ''
-        taskDiv.dataset.id   = ''
+        taskDiv.dataset.id    = ''
 
 
 
     _toggleTaskCB : (e) =>
-        lineDiv = @_getSelectedLineDiv()
+        # lineDiv = @_getSelectedLineDiv()
+        lineDiv = selection.getLineDiv(e.target)
         btn = lineDiv.firstChild
         if lineDiv.dataset.state == 'done'
             lineDiv.dataset.state = 'undone'
@@ -418,6 +416,8 @@ module.exports = class CNeditor
             lineDiv.dataset.state = 'done'
             @_setCaret(btn.nextSibling,0)
             @_stackTaskChange(lineDiv.task,'done')
+
+        @editorTarget$.trigger jQuery.Event('onChange')
 
         return lineDiv
 
@@ -477,6 +477,7 @@ module.exports = class CNeditor
         if id.slice(0,12) == 'CNE_task_id_'
             @_createTaskForLine(lineDiv)
             @editorTarget$.trigger jQuery.Event('onChange')
+
         else
             # console.log 'fetch requested with id', id
             t = new Task(id:id)
@@ -494,9 +495,17 @@ module.exports = class CNeditor
                 t.previous('description')
                 @_updateTaskLine(t)
 
+            t.on 'destroy', (t)=>
+                console.log ' editor : destroy from fetch detected !', t.id
+                @_updateTaskLine(t)
+
             @_taskList.push(t)
 
-        return null
+        # Add btn listener
+        btn = lineDiv.firstChild
+        btn.addEventListener('click', @_toggleTaskCB)
+
+        return true
 
 
     _updateTaskLine : (t) ->
@@ -1175,6 +1184,7 @@ module.exports = class CNeditor
         @editorTarget$.trigger jQuery.Event("onKeyUp")
 
         return true
+
 
 
 
@@ -3679,13 +3689,12 @@ module.exports = class CNeditor
                         txt = document.createTextNode('')
                         htmlLine.firstChild.appendChild(txt)
 
+            # If line is a task, init the task
             if htmlLine.dataset.type == 'task'
                 if @isChromeOrSafari
                     htmlLine.firstChild.textContent = ' '
-                    # text = this.document.createTextNode(' ')
                 else
                     htmlLine.firstChild.textContent = '\u00a0'
-                    # text = this.document.createTextNode('\u00a0')
                 @_setTaskToLine(htmlLine)
 
             # loop on spans of the line to check the tags

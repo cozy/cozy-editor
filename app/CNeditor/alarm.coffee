@@ -32,7 +32,7 @@ module.exports = class Alarm extends Backbone.Model
             errors.push
                 field: 'triggdate'
                 value: "The date or time format might be invalid. " + \
-                        "It must be dd/mm/yyyy and hh:mm."
+                        "It must be \"dd/mm/yyyy hh:mm\"."
 
         if errors.length > 0
             return errors
