@@ -478,6 +478,12 @@
     return seg
 
 
+
+###*
+ * returns previous segment if one, none otherwise
+ * @param  {Element} seg The source segment
+ * @return {element}     Returns previous segment if one, none otherwise
+###
 µ.getPrevSegment = (seg) ->
     seg = seg.previousSibling
     while seg and !µ.isSegment(seg)

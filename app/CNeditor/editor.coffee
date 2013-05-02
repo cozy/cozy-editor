@@ -196,7 +196,7 @@ module.exports = class CNeditor
         else if endSeg.dataset.type == 'taskBtn'
             @_setCaret(endSeg.nextSibling,0)
 
-        # 2- if selection has an end which is a tag (hoString, reminder,
+        # 2- if selection has an end which is a tag (hotString, reminder,
         # contact...) but not the other, then put all the selection within the
         # tag.
         if (startSeg.dataset.type && !endSeg.dataset.type)
@@ -457,7 +457,11 @@ module.exports = class CNeditor
         return true
 
 
-
+    ###*
+     * When a line is turned in a task, creates a task model, saves it and link
+     * it wiht the line.
+     * @param {Element} lineDiv The lineDiv turned into a task.
+    ###
     _setTaskToLine : (lineDiv) ->
         # console.log '=== _setTaskToLine'
         id = lineDiv.dataset.id
@@ -483,22 +487,38 @@ module.exports = class CNeditor
             t.lineDiv = lineDiv
             t.fetch(silent:true)
             .done () =>
-                console.log "editor : t.fetch.done()",t.id
+                # console.log "editor : t.fetch.done()",t.id
                 realtimer.watchOne t
                 @_updateTaskLine(t) #task may have change when note was not open
 
-            .fail () =>
-                console.log "editor : t.fetch.fail()",t.id
-                @_turneTaskIntoLine(t.lineDiv)
+            .fail (resp) =>
+                # console.log "editor : t.fetch.fail()",t.id
+                # fetch was not possible, there are 2 possible causes :
+                #   1/ the task has been deleted in the meanwhile turn lineDiv
+                #   in a line
+                if resp.status == 404
+                    @_turneTaskIntoLine(t.lineDiv)
+                #   2/ the todo server is not responding, store task state in
+                #   the model so that a reverse can be done if task is modified
+                #   by the user and the todo server still doesn't answer.
+                else
+                    t.set(  \
+                        {
+                            done       :t.lineDiv.dataset.state == 'done' ,
+                            description:t.lineDiv.firstChild.nextSibling.textContent
+                        }
+                    ,
+                        {silent:true}
+                    )
 
             t.on 'change', (t)=>
-                console.log ' editor : change from fetch detected !', t.id
+                # console.log ' editor : change from fetch detected !', t.id
                 console.log t.changedAttributes()
                 t.previous('description')
                 @_updateTaskLine(t)
 
             t.on 'destroy', (t)=>
-                console.log ' editor : destroy from fetch detected !', t.id
+                # console.log ' editor : destroy from fetch detected !', t.id
                 @_turneTaskIntoLine(t.lineDiv)
 
             @_taskList.push(t)
@@ -510,18 +530,29 @@ module.exports = class CNeditor
         return true
 
 
-
-    _updateTaskLine : (t) ->
-            if @_isTaskUnchanged(t)
-                return
-            t.lineDiv.firstChild.nextSibling.textContent = t.get('description')
-            currentTaskState = t.lineDiv.dataset.state == 'done'
-            if t.get('done')
-                newState = 'done'
-            else
-                newState = 'undone'
-            if currentTaskState != newState
-                t.lineDiv.dataset.state = newState
+    ###*
+     * update a line div of a task with the attributes values of a model.
+     * It uses the model previous attributes values if isRevert == true
+     * @param  {Model}  t        A task backbone model
+     * @param  {Boolean} isRevert If True, it will use previous attributes
+     *                            values instead of its current values.
+    ###
+    _updateTaskLine : (t, isRevert) ->
+        # if @_isTaskUnchanged(t)
+        #     return
+        if isRevert
+            attrib = t.previousAttributes()
+        else
+            attrib = t.attributes
+        t.lineDiv.firstChild.nextSibling.textContent = attrib.description
+        currentTaskState = t.lineDiv.dataset.state == 'done'
+        if attrib.done
+            newState = 'done'
+        else
+            newState = 'undone'
+        if currentTaskState != newState
+            t.lineDiv.dataset.state = newState
+        return true
 
 
 
@@ -550,7 +581,7 @@ module.exports = class CNeditor
 
     saveTasks : () ->
         for id,t of @_tasksModifStacks
-            console.log 'saveTask, action', t.a, id, t
+            # console.log 'saveTask, action', t.a, id, t
 
             if t.a == 'create'
                 t = t.t
@@ -563,7 +594,7 @@ module.exports = class CNeditor
                         ignoreMySocketNotification: true
                         silent  : true
                         success : (t) =>
-                            console.log "editor t.save.done()",t.id
+                            # console.log "editor t.save.done()",t.id
                             realtimer.watchOne t
                             t.lineDiv.dataset.id = t.id
                             @editorTarget$.trigger jQuery.Event('onChange')
@@ -573,13 +604,17 @@ module.exports = class CNeditor
                             # saved with silent=true so that this call back is
                             # not fired whereas ui is uptodate
                             t.on 'change', () =>
-                                console.log "onchange from save", t.id
-                                console.log t.changedAttributes()
+                                # console.log "onchange from save", t.id
+                                # console.log t.changedAttributes()
                                 @_updateTaskLine(t)
                             t.on 'destroy', (t) =>
-                                console.log ' editor : destroy from save', t.id
+                                # console.log ' editor : destroy from save', t.id
                                 @_turneTaskIntoLine(t.lineDiv)
-
+                        error : (t) =>
+                            window.alert('Cozy Todo is not responding, save ' +\
+                                'of tasks is not possible so we cancel '      +\
+                                'the task creation.')
+                            @_turneTaskIntoLine(t.lineDiv)
                         }
                 )
 
@@ -592,6 +627,12 @@ module.exports = class CNeditor
                     },{
                         ignoreMySocketNotification: true
                         silent: true
+                        error : (t) =>
+                            window.alert('Cozy Todo is not responding, save ' +\
+                                'of tasks is not possible so we cancel '      +\
+                                'modifications.')
+                            @_updateTaskLine(t, true)
+                            # @_turneTaskIntoLine(t.lineDiv)
                     }
                 )
 
@@ -696,6 +737,7 @@ module.exports = class CNeditor
             @_cancelUrlPopover(false)
 
         @linesDiv.innerHTML = htmlString
+        @_taskList = []
         @_readHtml()
         @_setCaret(@linesDiv.firstChild.firstChild, 0, true)
         @newPosition = true
@@ -1215,44 +1257,51 @@ module.exports = class CNeditor
         nodes  = line.childNodes
         l = nodes.length
         i = 0
-        while i < l
-            node = nodes[i]
-            if node.nodeName == '#text'
-                t = node.textContent
-                if node.previousSibling
-                    if node.previousSibling.nodeName in ['SPAN','A']
-                        prevSib = node.previousSibling
-                        prevSib.textContent += t
-                        @_setCaret(prevSib,prevSib.childNodes.length)
-                    else
-                        throw new Error('A line should be constituted of
-                            only <span> and <a>')
-                else if node.nextSibling
-                    if node.nextSibling.nodeName in ['SPAN','A']
-                        node.nextSibling.textContent = t +
-                            node.nextSibling.textContent
-                        # TODO : position of carret should be at the end of
-                        # string "t"
-                    else if node.nextSibling.nodeName in ['BR']
-                        newSpan = document.createElement('span')
-                        newSpan.textContent = t
-                        line.replaceChild(newSpan,node)
-                        l += 1
-                        i += 1
-                    else
-                        throw new Error('A line should be constituted of
-                            only <span> and <a>')
-                else
-                    throw new Error('A line should have a final <br/>')
-                line.removeChild(node)
-                l -= 1
-            else
-                i += 1
-
         # the final <br/> may be deleted by chrome : if so : add it.
         if nodes[l-1].nodeName != 'BR'
             brNode = document.createElement('br')
             line.appendChild(brNode)
+        # loop on line's children to find the possible '#text'
+        while i < l
+            node = nodes[i]
+            if node.nodeName == '#text'
+                t = node.textContent
+                prevSeg = selection.getPrevSegment(node)
+                if prevSeg
+                    if prevSeg.nodeName in ['SPAN','A']
+                        prevSeg.textContent += t
+                        @_setCaret(prevSeg,prevSeg.childNodes.length)
+                        line.removeChild(node)
+                        l -= 1
+                    else
+                        throw new Error('A line should be constituted of
+                            only <span> and <a>')
+                else
+                    nextSeg = selection.getNextSegment(node)
+                    if nextSeg
+                        if nextSeg.nodeName in ['SPAN','A', '#text']
+                            nextSeg.textContent = t + nextSeg.textContent
+                            @_setCaret(nextSeg.firstChild,t.length)
+                            line.removeChild(node)
+                            l -= 1
+                        else if nextSeg.nodeName in ['#text']
+                            nextSeg.textContent = t + nextSeg.textContent
+                            @_setCaret(nextSeg,t.length)
+                            line.removeChild(node)
+                            l -= 1
+                        else
+                            throw new Error('A line should be constituted of
+                                only <span> and <a>')
+                    else # if there is no nextSeg, create one.
+                        newSpan = document.createElement('span')
+                        newSpan.textContent = t
+                        line.replaceChild(newSpan,node)
+                        @_setCaret(newSpan.firstChild,t.length)
+                        i += 1
+            else
+                i += 1
+
+        return true
 
 
 
