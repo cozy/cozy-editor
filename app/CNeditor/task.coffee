@@ -17,35 +17,51 @@ module.exports = class Task extends Backbone.Model
     isTodo = (app) -> app.name is 'todos'
     isFromNote = (todolist) -> todolist.title is 'Inbox'
 
-    getApps = -> request.get '/api/applications', noCallback
+    getApps = (callback) -> request.get '/api/applications', callback
 
-    checkTodoInstalled = (apps) ->
-        return true if apps.rows.some isTodo
-        return $.Deferred().reject()
+    checkTodoInstalled = (apps, callback) ->
+        if apps.rows.some isTodo then callback null, true
+        else callback 'notinstalled', false
 
-    getLists = -> request.get '/apps/todos/todolists', noCallback
+    getLists = (callback) ->
+        request.get '/apps/todos/todolists', callback
 
-    inboxExists = (lists) ->
+    checkInboxExists = (lists, callback) ->
         inbox = _.find lists.rows, isFromNote
-        return inbox if inbox
-        return $.Deferred().reject('noinbox')
+        if inbox then callback null, inbox
+        else callback 'noinbox'
 
-    createInbox = (err) ->
-        return err if err isnt 'noinbox'
+    createInbox = (callback) ->
         todolist = title: 'Inbox', parent_id:'tree-node-all'
-        request.post '/apps/todos/todolists', todolist, noCallback
+        request.post '/apps/todos/todolists', todolist, callback
 
     # Static methods
     @initialize = (callback) ->
-        getApps()
-        .then(checkTodoInstalled)
-        .then(getLists)
-        .then(inboxExists)
-        .then(null, createInbox) # if doesn't exist, create
-        .done((inbox) ->
+
+        fail = (err) ->
+            Task.canBeUsed = false
+            Task.error = err
+            callback false if typeof callback is 'function'
+
+        success = (inbox) ->
             Task.todolistId = inbox.id
             Task.canBeUsed = true
-            callback true)
-        .fail((err) ->
-            Task.canBeUsed = false
-            callback false)
+            callback true if typeof callback is 'function'
+
+
+        getApps (err, apps) ->
+            return fail err if err
+
+            checkTodoInstalled apps, (err, isInstalled) ->
+                return fail err if err
+
+                getLists (err, lists) ->
+                    return fail err if err
+
+                    checkInboxExists lists, (err, inbox) ->
+                        return success inbox if inbox
+                        return fail err if err isnt 'noinbox'
+
+                        createInbox (err, inbox) ->
+                            return fail err if err
+                            success inbox

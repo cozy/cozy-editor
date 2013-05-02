@@ -46,18 +46,26 @@ module.exports = class Alarm extends Backbone.Model
     # Private static methods
     noCallback = ->
     isAlarm = (app) -> app.name is 'agenda'
-    getApps = -> request.get '/api/applications', noCallback
-    checkAlarmInstalled = (apps) ->
-        return true if apps.rows.some isAlarm
-        return $.Deferred().reject()
+    getApps = (callback) -> request.get '/api/applications', callback
+    checkAlarmInstalled = (apps, callback) ->
+        if apps.rows.some isAlarm then callback null, true
+        else callback 'notinstalled'
 
     # Static methods
     @initialize = (callback) ->
-        getApps()
-        .then(checkAlarmInstalled)
-        .then((inbox) ->
-            Alarm.canBeUsed = true
-            callback true)
-        .fail((err) ->
+
+        fail = (err) ->
             Alarm.canBeUsed = false
-            callback false)
+            Alarm.error = err
+            callback false if typeof callback is 'function'
+
+        success = () ->
+            Alarm.canBeUsed = true
+            callback true if typeof callback is 'function'
+
+        getApps (err, apps) ->
+            return fail err if err
+
+            checkAlarmInstalled apps, (err) ->
+                if err then fail err
+                else success()
