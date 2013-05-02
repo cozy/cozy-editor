@@ -436,6 +436,7 @@ module.exports = class CNeditor
         return true
 
 
+
     ###* -----------------------------------------------------------------------
      * When a line is a task (its div has dataset.type = task) and we don't have
      * the corresponding model of task, we then create this Task.
@@ -456,6 +457,7 @@ module.exports = class CNeditor
         return true
 
 
+
     _setTaskToLine : (lineDiv) ->
         # console.log '=== _setTaskToLine'
         id = lineDiv.dataset.id
@@ -463,6 +465,7 @@ module.exports = class CNeditor
             if t.id == id or t.internalId == id
                 lineDiv.task = t
                 t.lineDiv = lineDiv
+                @_updateTaskLine(t)
                 return true
 
         # if the id stored in the hmtml line is a temporary id and that there is
@@ -484,6 +487,10 @@ module.exports = class CNeditor
                 realtimer.watchOne t
                 @_updateTaskLine(t) #task may have change when note was not open
 
+            .fail () =>
+                console.log "editor : t.fetch.fail()",t.id
+                @_turneTaskIntoLine(t.lineDiv)
+
             t.on 'change', (t)=>
                 console.log ' editor : change from fetch detected !', t.id
                 console.log t.changedAttributes()
@@ -503,6 +510,7 @@ module.exports = class CNeditor
         return true
 
 
+
     _updateTaskLine : (t) ->
             if @_isTaskUnchanged(t)
                 return
@@ -514,6 +522,7 @@ module.exports = class CNeditor
                 newState = 'undone'
             if currentTaskState != newState
                 t.lineDiv.dataset.state = newState
+
 
 
     _stackTaskChange : (task,action) ->
