@@ -225,7 +225,8 @@
           });
         case 'delete':
           if (model = this.singlemodels.get(id)) {
-            model.trigger('destroy');
+            // model.trigger('destroy', model, model.collection, {});
+            _this.onRemoteDelete(model, this.singlemodels);
           }
           return this.collections.forEach(function(collection) {
             if (!(model = collection.get(id))) {

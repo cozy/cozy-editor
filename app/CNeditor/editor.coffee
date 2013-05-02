@@ -449,11 +449,6 @@ module.exports = class CNeditor
         @_internalTaskCounter += 1
         t.internalId = 'CNE_task_id_' + @_internalTaskCounter
         @_stackTaskChange(t,'create')
-        # t.save({},silent:true)
-        # .done () ->
-        #     console.log " t.save.done()",t.id
-        #     realtimer.watch(t)
-        #     lineDiv.dataset.id = t.id
         lineDiv.dataset.id = t.internalId # set a temporary id
         t.lineDiv = lineDiv
         @_taskList.push(t)
@@ -497,7 +492,7 @@ module.exports = class CNeditor
 
             t.on 'destroy', (t)=>
                 console.log ' editor : destroy from fetch detected !', t.id
-                @_updateTaskLine(t)
+                @_turneTaskIntoLine(t.lineDiv)
 
             @_taskList.push(t)
 
@@ -572,6 +567,9 @@ module.exports = class CNeditor
                                 console.log "onchange from save", t.id
                                 console.log t.changedAttributes()
                                 @_updateTaskLine(t)
+                            t.on 'destroy', (t) =>
+                                console.log ' editor : destroy from save', t.id
+                                @_turneTaskIntoLine(t.lineDiv)
 
                         }
                 )

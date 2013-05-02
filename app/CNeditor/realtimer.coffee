@@ -9,6 +9,6 @@ class SocketListener extends CozySocketListener
          'task.update', 'task.delete']
 
     onRemoteDelete: (model) ->
-        model.trigger 'destroy'
+        model.trigger 'destroy', model, model.collection, {}
 
 module.exports = new SocketListener()
