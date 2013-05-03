@@ -322,13 +322,19 @@ module.exports = class HotString
 
     ###* -----------------------------------------------------------------------
      * Reset hot string : the segment is removed and autocomplete hidden. In
-     * case where it was not a creation of a meta but a modification, then the
-     * initial value of the meta is restored. If the hsType ('@', '#' or '@@')
-     * has been deleted then the meta data segment is also removed if editing.
+     * case where it was not a creation of a meta but a modification, then :
+     *   - the initial value of the meta is restored,
+     *   - except if hardReset is true .
+     * If the hsType ('@', '#' or '@@') has been deleted then the meta data
+     * segment is also removed if editing.
      * @param  {String} dealCaret  3 values : 1/ 'current'the current caret
      *                  position is saved and restored after. 2/ 'end' : the
      *                  caret will be set at the end of the segment. 3/ false :
      *                  the carret is not managed here.
+     * @param {Boolean} hardReset In the case of a meta edition, if false the
+     *                            initial value of the meta is restored, content
+     *                            of hotString segment is not modified
+     *                            otherwise.
     ###
     reset : (dealCaret, hardReset) ->
         # console.log 'hotString.reset()'

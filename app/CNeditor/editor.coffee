@@ -436,7 +436,6 @@ module.exports = class CNeditor
         return true
 
 
-
     ###* -----------------------------------------------------------------------
      * When a line is a task (its div has dataset.type = task) and we don't have
      * the corresponding model of task, we then create this Task.
@@ -446,10 +445,9 @@ module.exports = class CNeditor
     _createTaskForLine : (lineDiv) ->
         t = new Task(description:lineDiv.textContent)
         lineDiv.task = t
-        console.log 'create task  ' , t
         @_internalTaskCounter += 1
         t.internalId = 'CNE_task_id_' + @_internalTaskCounter
-        @_stackTaskChange(t,'create')
+        @_stackTaskChange(t,'created')
         lineDiv.dataset.id = t.internalId # set a temporary id
         t.lineDiv = lineDiv
         @_taskList.push(t)
@@ -457,7 +455,7 @@ module.exports = class CNeditor
         return true
 
 
-    ###*
+    ###* -----------------------------------------------------------------------
      * When a line is turned in a task, creates a task model, saves it and link
      * it wiht the line.
      * @param {Element} lineDiv The lineDiv turned into a task.
@@ -513,7 +511,7 @@ module.exports = class CNeditor
 
             t.on 'change', (t)=>
                 # console.log ' editor : change from fetch detected !', t.id
-                console.log t.changedAttributes()
+                # console.log t.changedAttributes()
                 t.previous('description')
                 @_updateTaskLine(t)
 
@@ -530,7 +528,7 @@ module.exports = class CNeditor
         return true
 
 
-    ###*
+    ###* -----------------------------------------------------------------------
      * update a line div of a task with the attributes values of a model.
      * It uses the model previous attributes values if isRevert == true
      * @param  {Model}  t        A task backbone model
@@ -558,21 +556,23 @@ module.exports = class CNeditor
 
     _stackTaskChange : (task,action) ->
         # action in : done, undone, modified, removed
-        console.log 'editor : A task has been ' + action, task.id
+        # console.log 'editor : A task has been ' + action, task.id
         switch action
 
-            when 'done'
-                @_tasksModifStacks[task.internalId] = t:task, a:action
-
-            when 'undone'
-                @_tasksModifStacks[task.internalId] = t:task, a:action
-
-            when 'modified'
+            when 'modified', 'done', 'undone'
                 if !@_tasksModifStacks[task.internalId]?
-                    @_tasksModifStacks[task.internalId]= t:task, a:action
+                    @_tasksModifStacks[task.internalId] = t:task, a:'modified'
 
-            when 'create'
-                @_tasksModifStacks[task.internalId] = t:task, a:action
+            when 'created'
+                @_tasksModifStacks[task.internalId] = t:task, a:'created'
+
+            when 'removed'
+                if @_tasksModifStacks[task.internalId]?
+                    taskInStack = @_tasksModifStacks[task.internalId]
+                    if taskInStack.a == 'created'
+                        delete @_tasksModifStacks[task.internalId]
+                    else
+                        taskInStack.a = 'removed'
 
             else
                 return
@@ -582,61 +582,66 @@ module.exports = class CNeditor
     saveTasks : () ->
         for id,t of @_tasksModifStacks
             # console.log 'saveTask, action', t.a, id, t
+            switch t.a
 
-            if t.a == 'create'
-                t = t.t
-                l = t.lineDiv
-                t.save({
-                        done        : (l.dataset.state == 'done')
-                        description :  l.textContent.slice(1)
-                       },
-                       {
-                        ignoreMySocketNotification: true
-                        silent  : true
-                        success : (t) =>
-                            # console.log "editor t.save.done()",t.id
-                            realtimer.watchOne t
-                            t.lineDiv.dataset.id = t.id
-                            @editorTarget$.trigger jQuery.Event('onChange')
+                when 'created'
+                    t = t.t
+                    l = t.lineDiv
+                    t.save({
+                            done        : (l.dataset.state == 'done')
+                            description :  l.textContent.slice(1)
+                           },
+                           {
+                            ignoreMySocketNotification: true
+                            silent  : true
+                            success : (t) =>
+                                # console.log "editor t.save.done()",t.id
+                                realtimer.watchOne t
+                                t.lineDiv.dataset.id = t.id
+                                @editorTarget$.trigger jQuery.Event('onChange')
 
-                            # will be called by modification on server side.
-                            # Modifications initiated on this client will be
-                            # saved with silent=true so that this call back is
-                            # not fired whereas ui is uptodate
-                            t.on 'change', () =>
-                                # console.log "onchange from save", t.id
-                                # console.log t.changedAttributes()
-                                @_updateTaskLine(t)
-                            t.on 'destroy', (t) =>
-                                # console.log ' editor : destroy from save', t.id
+                                # will be called by modification on server side.
+                                # Modifications initiated on this client will be
+                                # saved with silent=true so that this call back is
+                                # not fired whereas ui is uptodate
+                                t.on 'change', () =>
+                                    # console.log "onchange from save", t.id
+                                    # console.log t.changedAttributes()
+                                    @_updateTaskLine(t)
+                                t.on 'destroy', (t) =>
+                                    # console.log ' editor : destroy from save', t.id
+                                    @_turneTaskIntoLine(t.lineDiv)
+                            error : (t) =>
+                                window.alert('Cozy Todo is not responding, save ' +\
+                                    'of tasks is not possible so we cancel '      +\
+                                    'the task creation.')
                                 @_turneTaskIntoLine(t.lineDiv)
-                        error : (t) =>
-                            window.alert('Cozy Todo is not responding, save ' +\
-                                'of tasks is not possible so we cancel '      +\
-                                'the task creation.')
-                            @_turneTaskIntoLine(t.lineDiv)
-                        }
-                )
+                            }
+                    )
 
-            else
-                t = t.t
-                l = t.lineDiv
-                t.save({
-                        done        : (l.dataset.state == 'done')
-                        description :  l.textContent.slice(1)
-                    },{
-                        ignoreMySocketNotification: true
-                        silent: true
-                        error : (t) =>
-                            window.alert('Cozy Todo is not responding, save ' +\
-                                'of tasks is not possible so we cancel '      +\
-                                'modifications.')
-                            @_updateTaskLine(t, true)
-                            # @_turneTaskIntoLine(t.lineDiv)
-                    }
-                )
+                when 'modified'
+                    t = t.t
+                    l = t.lineDiv
+                    t.save({
+                            done        : (l.dataset.state == 'done')
+                            description :  l.textContent.slice(1)
+                        },{
+                            ignoreMySocketNotification: true
+                            silent: true
+                            error : (t) =>
+                                window.alert('Cozy Todo is not responding, save ' +\
+                                    'of tasks is not possible so we cancel '      +\
+                                    'modifications.')
+                                @_updateTaskLine(t, true)
+                                # @_turneTaskIntoLine(t.lineDiv)
+                        }
+                    )
+
+                when 'removed'
+                    null
 
         @_tasksModifStacks = {}
+
 
 
     _isTaskUnchanged : (task) ->
@@ -645,6 +650,7 @@ module.exports = class CNeditor
         res = res && task.get('done') == (line.dataset.state == 'done')
         res = res && task.get('description') == line.textContent.slice(1)
         return res
+
 
 
     _isStartingWord  : () ->
@@ -5126,9 +5132,10 @@ module.exports = class CNeditor
                     reg = new RegExp('^ *@?t?o?d?o? *$','i')
                     if txt.match(reg)
                         @._initTaskContent(taskDiv)
+                        hs.reset(false)
                     else
                         hs._forceUserHotString('', [])
-                    hs.reset(false)
+                        hs.reset('end')
                     @editorTarget$.trigger jQuery.Event('onChange')
                     return true
 

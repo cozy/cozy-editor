@@ -69,6 +69,7 @@ module.exports = class Tags
                     console.log ' after  removing', @_tagList
                     window.taglist = @_tagList
                 seg = seg.nextSibling
+
         console.log '_tagList at the end', @_tagList
         for seg in @_tagList
             if $(seg).parents('body').length == 0
