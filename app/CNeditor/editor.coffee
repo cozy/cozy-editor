@@ -351,7 +351,11 @@ module.exports = class CNeditor
         @_setSelectionOnNode(txt)
 
 
-
+    ###*
+     * Turns a lineDiv in a task, creates the model of the task and link it to
+     * the lineDiv
+     * @param  {Element} lineDiv The lineDiv
+    ###
     _turnIntoTask : (lineDiv) ->
         if !lineDiv
             lineDiv = @updateCurrentSel().startLineDiv
@@ -367,6 +371,7 @@ module.exports = class CNeditor
         btn = this.document.createElement('SPAN')
         btn.className = 'CNE_task_btn'
         btn.dataset.type = 'taskBtn'
+        @Tags._tagList.push(btn)
         if @isChromeOrSafari
             text = this.document.createTextNode(' ')
         else
@@ -391,6 +396,7 @@ module.exports = class CNeditor
         # remove button
         btn = taskDiv.firstChild
         btn.removeEventListener('click', @_toggleTaskCB)
+        @Tags.remove(btn)
         taskDiv.removeChild(btn)
 
         # remove model :
@@ -909,8 +915,8 @@ module.exports = class CNeditor
         try
             @_keyDownCb(e)
         catch error
-            alert('A bug occured, we prefer to undo your last action not to take
-                   any risk.\n\nMessage :\n' + error)
+            alert('A bug occured, we prefer to undo your last action not ' + \
+                  'to take any risk.\n\nMessage :\n' + error)
             e.preventDefault()
             @unDo()
 

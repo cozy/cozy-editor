@@ -1,7 +1,11 @@
 
 selection = require('./selection').selection
 
-
+###*
+ * Helpers for Tags
+ * Tag = a segment with a .dataset.type (reminder, a button of a task, a
+ * contact ...)
+###
 module.exports = class Tags
 
     constructor : () ->
@@ -13,7 +17,7 @@ module.exports = class Tags
      * The selection within tags is difficult. The idea is to have selection
      * whether in a tag, or fully outside any tag. To deal the different pb,
      * here is the logic choosen :
-     * tags are usually "editable" (= contentEditable = true) except :
+     * Tags are usually "editable" (= contentEditable = true) except :
      *   - when shift key is pressed (keydown) outside a tag : then turn all
      *     tags un-editable. If the user modify the selection with keyboard
      *     (shift + arrow or alike) then the browser will not let selection go
@@ -64,15 +68,7 @@ module.exports = class Tags
                         break
                 # if a tag, remove it
                 if seg.dataset.type
-                    console.log ' before removing', @_tagList
                     @_tagList = _.without(@_tagList, seg)
-                    console.log ' after  removing', @_tagList
-                    window.taglist = @_tagList
                 seg = seg.nextSibling
-
-        console.log '_tagList at the end', @_tagList
-        for seg in @_tagList
-            if $(seg).parents('body').length == 0
-                console.log 'pb !'
 
         return true
