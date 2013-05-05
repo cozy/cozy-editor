@@ -36,7 +36,7 @@ $("#col-wrap").layout
         drag.css("z-index","-1")
         resizeWellEditor()
 
-# we detect the start of resize with the on mousedown instead of 
+# we detect the start of resize with the on mousedown instead of
 # the onresize_start because this one happens a bit latter what may be a pb.
 $(".ui-layout-resizer").bind 'mousedown', (e)->
     drag.css("z-index","1")
@@ -57,8 +57,8 @@ $("#well-result").layout
 
 ###****************************************************
  * 1 - EDITOR CALL BACK
- * 
- * callback to execute after editor's initialization 
+ *
+ * callback to execute after editor's initialization
  * the contexte (this) inside the function is the editor
 ###
 
@@ -112,11 +112,11 @@ cb = () ->
         else
             editorIframe$.css('width','49%')
             editor2.replaceContent @.linesDiv.innerHTML
-    
+
     ed_2_ed2_Btn.on 'click', move_ed_2_ed2
 
     ed2_2_ed_Btn.on 'click', move_ed2_2_ed
-    
+
     #### -------------------------------------------------------------------
     ### initialize content of the editor
     this.replaceContent( require('views/templates/content-full') )
@@ -138,13 +138,13 @@ cb = () ->
     # beautify(editorBody$)
 
     # editorIframe$.css('width','49%')
-        
+
 
     #### -------------------------------------------------------------------
     # CHECK SYNTAX
-    # 
+    #
     # > tests the code structure
-    
+
     checkBtn = $ "#checkBtn"
 
     _checkEditor = (e) ->
@@ -193,7 +193,7 @@ cb = () ->
 
     #  > translate cozy code into markdown and markdown to cozy code
     #    Note: in the markdown code there should be two \n between each line
-    
+
     $("#getHtmlBtn").on  'click' , =>
         serializerDisplay.val beautify(@linesDiv.innerHTML)
 
@@ -246,7 +246,7 @@ cb = () ->
                 k++
         return myDivs
 
-        
+
     #### -------------------------------------------------------------------
     # Add class at beginning of lines
     addClassToLines = (mode) =>
@@ -313,16 +313,16 @@ cb = () ->
     editor3.editorBody$.on "paste", () ->
         __editorToCheck = editor3
         window.setTimeout(checkEditor, 400)
-        
-    
+
+
     #### -------------------------------------------------------------------
     # Recording stuff
-    
+
     recordStop = () ->
         if recordButton.hasClass "btn-warning"
             recordButton.removeClass "btn-warning"
             recorder.stopRecordSession()
-    
+
     ###*
      * Load the string in the second editor
      * @param  {string} strg An html or mark down string
@@ -339,10 +339,10 @@ cb = () ->
             serializerDisplay.val strg
 
     Recorder = require('./views/recorder').Recorder
-    recorder = new Recorder(editorCtrler, 
-                            editorBody$, 
-                            serializerDisplay, 
-                            recordList, 
+    recorder = new Recorder(editorCtrler,
+                            editorBody$,
+                            serializerDisplay,
+                            recordList,
                             continuousCheckOff,
                             recordStop,
                             editor2Display)
@@ -369,7 +369,7 @@ cb = () ->
 
 
     # Recorder buttons
-    
+
     playAllButton.click ->
         continuousCheckOff()
         recorder.playAll()
@@ -382,8 +382,8 @@ cb = () ->
 
     recordSaveInput.on 'keypress', (e) ->
         if e.keyCode == 13
-            saveCurrentRecordedTest()            
-    
+            saveCurrentRecordedTest()
+
     playRandomButton.click ->
         this.classList.add('btn-warning')
         recorder.launchMadMonkey(5)
@@ -410,7 +410,7 @@ checkEditor = (editor) ->
     if !editor
         editor = __editorToCheck
     # console.log 'checkEditor()', editor.editorTarget.id
-    res  = checker.checkLines(editor) 
+    res  = checker.checkLines(editor)
     date = new Date()
     h = date.getHours() + ''
     h = if h.length == 1 then '0'+h else h
@@ -428,11 +428,11 @@ checkEditor = (editor) ->
             ed = 'editor3'
 
     if res
-        checkLog += st + 'Syntax test success  (' + ed + ')\n' 
+        checkLog += st + 'Syntax test success  (' + ed + ')\n'
         serializerDisplay.val(checkLog)
         $('#well-editor').css('background-color','')
     else
-        checkLog += st + ' !!! Syntax test FAILLURE : cf console  !!!   (' + ed + ')\n' 
+        checkLog += st + ' !!! Syntax test FAILLURE : cf console  !!!   (' + ed + ')\n'
         serializerDisplay.val(checkLog)
         $('#well-editor').css('background-color','#c10000')
 
@@ -452,7 +452,7 @@ doWhenEditorsAreReady = () ->
     window.ed2 = editor2
     window.ed3 = editor3
 
-    
+
     editorCtrler = editor1
 
     window._history = () ->
@@ -565,15 +565,15 @@ doWhenEditorsAreReady = () ->
     $("#undoBtn").on "click", () ->
         editorCtrler.unDo()
         editorCtrler.setFocus()
-        
+
     $("#redoBtn").on "click", () ->
         editorCtrler.reDo()
         editorCtrler.setFocus()
 
     $('#saveBtn').on 'click', () ->
-        # editorCtrler.saveTasks()        
-        editor3.saveTasks()        
-        
+        # editorCtrler.saveTasks()
+        editorCtrler.saveTasks()
+
 
 ###****************************************************
  * 3 - CREATION OF THE EDITOR
@@ -589,11 +589,11 @@ $ ->
     $('#ed1').button('toggle')
 
     editor2 = new CNeditor( document.querySelector('#editorIframe2'), () ->
-        
+
         @registerKeyDownCbForTest()
-        
-        editor1 = new CNeditor document.querySelector('#editorIframe'), cb 
-        
+
+        editor1 = new CNeditor document.querySelector('#editorIframe'), cb
+
         editor3 = new CNeditor( document.querySelector('#editorDiv3'), () ->
             @registerKeyDownCbForTest()
             # content = require('views/templates/content-shortlines-large')
@@ -601,5 +601,13 @@ $ ->
             @replaceContent content()
             doWhenEditorsAreReady()
         )
+
+        $('#editorIframe').on 'saveRequest', () ->
+            editor1.saveTasks()
+        $('#editorIframe2').on 'saveRequest', () ->
+            editor2.saveTasks()
+        $('#editorDiv3').on 'saveRequest', () ->
+            editor3.saveTasks()
+
     )
 

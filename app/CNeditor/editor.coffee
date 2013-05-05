@@ -40,19 +40,28 @@ module.exports = class CNeditor
     #                      is set to the editorCtrl (callBack.call(this))
     ###
     constructor : (editorTarget, callBack) ->
+
+        # 1- var
         @editorTarget  = editorTarget
         @editorTarget$ = $(@editorTarget)
         @callBack = callBack
 
-        # Initialisation of the Tasks
+        # 2- Initialisation of the Tasks -
+        # Counter for temporary tasks id waiting
+        # to receive their id from server.
         @_internalTaskCounter = 0
-        @_taskList = []     # all tasks created or loaded since the load of page
-        @_tasksModifStacks = {} # a list of tasks waiting to be sent to server.
+        # all tasks created or loaded since the load of page
+        @_taskList = []
+        # a list of tasks waiting to be sent to server.
+        @_tasksModifStacks = {}
+        # a list of tasks modified since last addHistory()
+        @_tasksModifSinceLastHistory = {}
+        # init the socketio connection
         Task.initialize () =>
             @taskCanBeUsed = Task.canBeUsed
 
-        # launch loard editor in synchrone or async whether the editor is in a
-        # div or an iframe.
+        # 3- launch loard editor in synchrone or async whether the editor is in
+        # a div or an iframe.
         if @editorTarget.nodeName == "IFRAME"
             @isInIframe = true
             @editorTarget$.on 'load', @loadEditor
@@ -123,11 +132,13 @@ module.exports = class CNeditor
         HISTORY_SIZE  = 100
         @HISTORY_SIZE = HISTORY_SIZE
         @_history     =               # for history management
-            index        : HISTORY_SIZE - 1
-            history      : new Array(HISTORY_SIZE)
-            historySelect: new Array(HISTORY_SIZE)
-            historyScroll: new Array(HISTORY_SIZE)
-            historyPos   : new Array(HISTORY_SIZE)
+            index         : HISTORY_SIZE - 1
+            history       : new Array(HISTORY_SIZE)
+            historySelect : new Array(HISTORY_SIZE)
+            historyScroll : new Array(HISTORY_SIZE)
+            historyPos    : new Array(HISTORY_SIZE)
+            modifiedTask  : new Array(HISTORY_SIZE)
+
         @_lastKey     = null      # last pressed key (avoid duplication)
 
         # get a reference on the selection object of the editor
@@ -412,6 +423,7 @@ module.exports = class CNeditor
 
     _toggleTaskCB : (e) =>
         # lineDiv = @_getSelectedLineDiv()
+        @_addHistory()
         lineDiv = selection.getLineDiv(e.target)
         btn = lineDiv.firstChild
         if lineDiv.dataset.state == 'done'
@@ -462,18 +474,26 @@ module.exports = class CNeditor
 
 
     ###* -----------------------------------------------------------------------
-     * When a line is turned in a task, creates a task model, saves it and link
-     * it wiht the line.
+     * Called only by readHtml() (called by setEditorContent() and undo/redo)
+     * When an html is loaded by readHtml(), if a line corresponds to a task, we
+     * must find if the model of the task line already exists. If yes, link it
+     * to the lineDiv, otherwiser fetch if from server.
      * @param {Element} lineDiv The lineDiv turned into a task.
     ###
     _setTaskToLine : (lineDiv) ->
         # console.log '=== _setTaskToLine'
+
+        # Add btn listener
+        btn = lineDiv.firstChild
+        btn.addEventListener('click', @_toggleTaskCB)
+
+        # try to find if a model already exists  for this task, what is highly
+        # especially possible when readHtml has been called during an undo()
         id = lineDiv.dataset.id
         for t in @_taskList
             if t.id == id or t.internalId == id
                 lineDiv.task = t
                 t.lineDiv = lineDiv
-                @_updateTaskLine(t)
                 return true
 
         # if the id stored in the hmtml line is a temporary id and that there is
@@ -487,6 +507,8 @@ module.exports = class CNeditor
         else
             # console.log 'fetch requested with id', id
             t = new Task(id:id)
+            @_internalTaskCounter += 1
+            t.internalId = 'CNE_task_id_' + @_internalTaskCounter
             lineDiv.task = t
             t.lineDiv = lineDiv
             t.fetch(silent:true)
@@ -527,10 +549,6 @@ module.exports = class CNeditor
 
             @_taskList.push(t)
 
-        # Add btn listener
-        btn = lineDiv.firstChild
-        btn.addEventListener('click', @_toggleTaskCB)
-
         return true
 
 
@@ -562,15 +580,20 @@ module.exports = class CNeditor
 
     _stackTaskChange : (task,action) ->
         # action in : done, undone, modified, removed
-        # console.log 'editor : A task has been ' + action, task.id
+        console.log 'editor._stackTaskChange() ' + action, task.id
         switch action
 
             when 'modified', 'done', 'undone'
                 if !@_tasksModifStacks[task.internalId]?
                     @_tasksModifStacks[task.internalId] = t:task, a:'modified'
+                    @_tasksModifSinceLastHistory[task.internalId] =
+                        t:task, a:'modified'
+                    console.log '  @_tasksModifSinceLastHistory', @_tasksModifSinceLastHistory
 
             when 'created'
                 @_tasksModifStacks[task.internalId] = t:task, a:'created'
+                @_tasksModifSinceLastHistory[task.internalId] =
+                    t:task, a:'created'
 
             when 'removed'
                 if @_tasksModifStacks[task.internalId]?
@@ -580,8 +603,7 @@ module.exports = class CNeditor
                     else
                         taskInStack.a = 'removed'
 
-            else
-                return
+        return true
 
 
 
@@ -643,8 +665,14 @@ module.exports = class CNeditor
                         }
                     )
 
+                # means that the task has been removed of the editor but still
+                # exists in the datasystem
                 when 'removed'
                     null
+
+                when 'deleted'
+                    t.t.destroy(silent: true)
+
 
         @_tasksModifStacks = {}
 
@@ -3706,10 +3734,9 @@ module.exports = class CNeditor
         return newLine
 
 
-    ###  -----------------------------------------------------------------------
-    #   _readHtml
-    #
-    # Parse a raw html inserted in the iframe in order to update the controller
+
+    ###* -----------------------------------------------------------------------
+     * Parse a raw html inserted in the iframe in order to update the controller
     ###
     _readHtml: () ->
         linesDiv$    = $(@linesDiv).children()  # linesDiv$= $[Div of lines]
@@ -4068,7 +4095,7 @@ module.exports = class CNeditor
      * No effect if the url popover is displayed
     ###
     _addHistory : () ->
-        # console.log '_addHistory' , @_history.historyPos.length
+        console.log '_addHistory()'
         # do nothing if urlpopover is on, otherwise its html will also be
         # serialized in the history.
         if @isUrlPopoverOn or @_hotString.isPreparing
@@ -4076,65 +4103,78 @@ module.exports = class CNeditor
 
         # 1- If some undo has been done, delete the steps forward (redo will
         # be then impossible)
-        if @_history.index < @HISTORY_SIZE - 1
-            i = @HISTORY_SIZE - 1 - @_history.index
+        h = @_history
+        if h.index < @HISTORY_SIZE - 1
+            i = @HISTORY_SIZE - 1 - h.index
             while i--
-                @_history.historySelect.pop()
-                @_history.historyScroll.pop()
-                @_history.historyPos.pop()
-                @_history.history.pop()
-                @_history.historySelect.unshift(undefined)
-                @_history.historyScroll.unshift(undefined)
-                @_history.historyPos.unshift(undefined)
-                @_history.history.unshift(undefined)
+                h.historySelect.pop()
+                h.historyScroll.pop()
+                h.historyPos.pop()
+                h.history.pop()
+                h.modifiedTask.pop()
+                h.historySelect.unshift(undefined)
+                h.historyScroll.unshift(undefined)
+                h.historyPos.unshift(undefined)
+                h.history.unshift(undefined)
+                h.modifiedTask.unshift(undefined)
 
         # 2- save selection
         savedSel = @saveEditorSelection()
-        @_history.historySelect.push savedSel
+        h.historySelect.push savedSel
 
         # 3- save scrollbar position
         savedScroll =
             xcoord: @linesDiv.scrollTop
             ycoord: @linesDiv.scrollLeft
-        @_history.historyScroll.push savedScroll
+        h.historyScroll.push savedScroll
 
         # 4- save newPosition flag
-        @_history.historyPos.push @newPosition
+        h.historyPos.push @newPosition
 
         # 5- add the html content with markers to the history
-        @_history.history.push @linesDiv.innerHTML
+        h.history.push @linesDiv.innerHTML
 
-        # 6- update the index
-        @_history.index = @HISTORY_SIZE - 1
+        # 6- add the list of task modified since last addHistory()
+        h.modifiedTask.push @_tasksModifSinceLastHistory
+        @_tasksModifSinceLastHistory = {}
+        console.log '  @_tasksModifSinceLastHistory', @_tasksModifSinceLastHistory
 
-        # 7- drop first position
-        @_history.historySelect.shift()
-        @_history.historyScroll.shift()
-        @_history.historyPos.shift()
-        @_history.history.shift()
+        # 7- update the index
+        h.index = @HISTORY_SIZE - 1
+
+        # 8- drop oldest history step
+        h.historySelect.shift()
+        h.historyScroll.shift()
+        h.historyPos.shift()
+        h.history.shift()
+        h.modifiedTask.shift()
 
         # @__printHistory('_addHistory')
 
 
-    _initHistory : () ->
-        HISTORY_SIZE  = @HISTORY_SIZE
-        h = @_history
-        h.history       = new Array(HISTORY_SIZE)
-        h.historySelect = new Array(HISTORY_SIZE)
-        h.historyScroll = new Array(HISTORY_SIZE)
-        h.historyPos    = new Array(HISTORY_SIZE)
-        @._addHistory()
+    # _initHistory : () ->
+    #     HISTORY_SIZE  = @HISTORY_SIZE
+    #     h = @_history
+    #     h.history       = new Array(HISTORY_SIZE)
+    #     h.historySelect = new Array(HISTORY_SIZE)
+    #     h.historyScroll = new Array(HISTORY_SIZE)
+    #     h.historyPos    = new Array(HISTORY_SIZE)
+    #     h.modifiedTask  = new Array(HISTORY_SIZE)
+    #     @._addHistory()
 
     _removeLastHistoryStep : () ->
-        @_history.historySelect.pop()
-        @_history.historyScroll.pop()
-        @_history.historyPos.pop()
-        @_history.history.pop()
-        @_history.historySelect.unshift(undefined)
-        @_history.historyScroll.unshift(undefined)
-        @_history.historyPos.unshift(undefined)
-        @_history.history.unshift(undefined)
-        @_history.index = @HISTORY_SIZE - 1
+        h = @_history
+        h.historySelect.pop()
+        h.historyScroll.pop()
+        h.historyPos.pop()
+        h.history.pop()
+        h.modifiedTask.pop()
+        h.historySelect.unshift(undefined)
+        h.historyScroll.unshift(undefined)
+        h.historyPos.unshift(undefined)
+        h.history.unshift(undefined)
+        h.modifiedTask.unshift(undefined)
+        h.index = @HISTORY_SIZE - 1
 
     ### ------------------------------------------------------------------------
     #  undoPossible
@@ -4163,38 +4203,47 @@ module.exports = class CNeditor
             @_forceUndo()
 
     _forceUndo : () ->
+        h = @_history
         # if we are in an unsaved state
-        if @_history.index == @_history.history.length-1
+        if h.index == h.history.length-1
             # save current state
             @_addHistory()
             # re-evaluate index
-            @_history.index -= 1
+            h.index -= 1
 
-        stepIndex = @_history.index
+        stepIndex = h.index
 
         # 1- restore newPosition
-        @newPosition = @_history.historyPos[stepIndex]
+        @newPosition = h.historyPos[stepIndex]
 
         # 2- restore html
         if @isUrlPopoverOn
             @_cancelUrlPopover(false)
-        @linesDiv.innerHTML = @_history.history[stepIndex]
+        @linesDiv.innerHTML = h.history[stepIndex]
 
         # 3- restore selection
-        savedSel = @_history.historySelect[stepIndex]
+        savedSel = h.historySelect[stepIndex]
         if savedSel
             @deSerializeSelection(savedSel)
 
         # 4- restore scrollbar position
-        savedScroll = @_history.historyScroll[stepIndex]
+        savedScroll = h.historyScroll[stepIndex]
         @linesDiv.scrollTop = savedScroll.xcoord
         @linesDiv.scrollLeft = savedScroll.ycoord
 
         # 5- restore the lines structure
         @_readHtml()
 
-        # 6- update the index
-        @_history.index -= 1
+        # 6- add the tasks modified between the 2 history steps to the stack of
+        # tasks to be saved
+        for id, t of h.modifiedTask[stepIndex+1]
+            if t.a == 'modified'
+                @_tasksModifStacks[id] = t:t.t, a:'modified'
+            else if t.a == 'created'
+                @_tasksModifStacks[id] = t:t.t, a:'deleted'
+
+        # 7- update the index
+        h.index -= 1
 
         # console.log 'undo', @_history.index
         # @__printHistory('unDo')
@@ -4204,38 +4253,43 @@ module.exports = class CNeditor
     # Redo a undo-ed action
     ###
     reDo : () ->
-
+        h = @_history
         # if there is an action to redo
         if @redoPossible() and @isEnabled
 
             # 0- update the index
-            index = (@_history.index += 1)
+            index = (h.index += 1)
             # i == index of stpe to redo
             i = index + 1
 
             # restore newPosition
-            @newPosition = @_history.historyPos[i]
+            @newPosition = h.historyPos[i]
 
             # 1- restore html
             if @isUrlPopoverOn
                 @_cancelUrlPopover(false)
-            @linesDiv.innerHTML = @_history.history[i]
+            @linesDiv.innerHTML = h.history[i]
 
             # 2- restore selection
-            savedSel = @_history.historySelect[i]
+            savedSel = h.historySelect[i]
             if savedSel
                 @deSerializeSelection(savedSel)
 
             # 3- restore scrollbar position
-            xcoord = @_history.historyScroll[i].xcoord
-            ycoord = @_history.historyScroll[i].ycoord
+            xcoord = h.historyScroll[i].xcoord
+            ycoord = h.historyScroll[i].ycoord
             @linesDiv.scrollTop = xcoord
             @linesDiv.scrollLeft = ycoord
 
             # 4 - restore lines structure
             @_readHtml()
 
-            # console.log 'reDo', @_history.index
+            # 5 - redo the task that has been deleted
+            for id, t of h.modifiedTask[stepIndex+1]
+                if t.a == 'created'
+                    @_tasksModifStacks[id] = t:t.t, a:'created'
+
+            # console.log 'reDo', h.index
             # @__printHistory('reDo')
 
 
