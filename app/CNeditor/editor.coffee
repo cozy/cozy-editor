@@ -53,7 +53,7 @@ module.exports = class CNeditor
         # all tasks created or loaded since the load of page
         @_taskList = []
         # a list of tasks waiting to be sent to server.
-        @_tasksModifStacks = {}
+        @_tasksModifStack = {}
         # a list of tasks modified since last addHistory()
         @_tasksModifSinceLastHistory = {}
         # init the socketio connection
@@ -460,17 +460,18 @@ module.exports = class CNeditor
      * It for instance happens when we create a task within the editor.
      * @param  {Element} lineDiv The line div we will attach the task to.
     ###
-    _createTaskForLine : (lineDiv) ->
-        t = new Task(description:lineDiv.textContent)
+    _createTaskForLine : (lineDiv, doNotStack) ->
+        t = new Task(description:lineDiv.textContent.slice(1))
         lineDiv.task = t
         @_internalTaskCounter += 1
         t.internalId = 'CNE_task_id_' + @_internalTaskCounter
-        @_stackTaskChange(t,'created')
-        lineDiv.dataset.id = t.internalId # set a temporary id
+        if !doNotStack
+            @_stackTaskChange(t,'created')
+        lineDiv.dataset.id = t.internalId
         t.lineDiv = lineDiv
         @_taskList.push(t)
 
-        return true
+        return t
 
 
     ###* -----------------------------------------------------------------------
@@ -491,7 +492,7 @@ module.exports = class CNeditor
         # especially possible when readHtml has been called during an undo()
         id = lineDiv.dataset.id
         for t in @_taskList
-            if t.id == id or t.internalId == id
+            if t.internalId == id
                 lineDiv.task = t
                 t.lineDiv = lineDiv
                 return true
@@ -510,6 +511,7 @@ module.exports = class CNeditor
             @_internalTaskCounter += 1
             t.internalId = 'CNE_task_id_' + @_internalTaskCounter
             lineDiv.task = t
+            lineDiv.dataset.id = t.internalId
             t.lineDiv = lineDiv
             t.fetch(silent:true)
             .done () =>
@@ -540,7 +542,6 @@ module.exports = class CNeditor
             t.on 'change', (t)=>
                 # console.log ' editor : change from fetch detected !', t.id
                 # console.log t.changedAttributes()
-                t.previous('description')
                 @_updateTaskLine(t)
 
             t.on 'destroy', (t)=>
@@ -580,103 +581,195 @@ module.exports = class CNeditor
 
     _stackTaskChange : (task,action) ->
         # action in : done, undone, modified, removed
-        console.log 'editor._stackTaskChange() ' + action, task.id
+        console.log '== editor._stackTaskChange() ' + action, task.internalId
+
+        @_stackTaskForSave(task.internalId, task, action)
+
         switch action
 
             when 'modified', 'done', 'undone'
-                if !@_tasksModifStacks[task.internalId]?
-                    @_tasksModifStacks[task.internalId] = t:task, a:'modified'
-                    @_tasksModifSinceLastHistory[task.internalId] =
-                        t:task, a:'modified'
-                    console.log '  @_tasksModifSinceLastHistory', @_tasksModifSinceLastHistory
+                @_tasksModifSinceLastHistory[task.internalId] =
+                    t:task, a:'modified'
+                # console.log '  @_tasksModifSinceLastHistory', @_tasksModifSinceLastHistory
 
             when 'created'
-                @_tasksModifStacks[task.internalId] = t:task, a:'created'
                 @_tasksModifSinceLastHistory[task.internalId] =
                     t:task, a:'created'
 
-            when 'removed'
-                if @_tasksModifStacks[task.internalId]?
-                    taskInStack = @_tasksModifStacks[task.internalId]
-                    if taskInStack.a == 'created'
-                        delete @_tasksModifStacks[task.internalId]
-                    else
-                        taskInStack.a = 'removed'
+            # when 'removed'
+            #   nothing
+
+        @__printTasksModifStacks()
 
         return true
 
 
 
+    _stackTaskForSave : (id, t, action) ->
+
+        modif = @_tasksModifStack[id]
+        if !@_tasksModifStack[id]
+            modif = t:t
+            @_tasksModifStack[id] = modif
+
+        switch action
+            when 'modified', 'done', 'undone'
+                modif.modified = true
+            when 'created'
+                if modif.deleted
+                    modif.deleted = false
+                    modif.created = false
+                    modif.modified = true
+                else
+                    modif.created = true
+            when 'deleted'
+                if modif.created
+                    modif.deleted = false
+                    modif.created = false
+                else
+                    modif.deleted = true
+            # when 'removed'
+            #     nothing
+
+
+
+    ###*
+     * Saves the creations/modification/deletion not yet saved.
+     * removed | 1 1 1 1 1 1 1 1 | 0 0 | 0 0 | 0 | 0 0 | 0
+     * created | 1 1 1 1 0 0 0 0 | 1 1 | 0 0 | 0 | 1 1 | 0
+     * modified| 1 1 0 0 1 1 0 0 | 1 0 | 1 0 | 1 | 1 0 | 0
+     * deleted | 1 0 1 0 1 0 1 0 | 1 1 | 1 1 | 0 | 0 0 | 0
+     * action  | N N N N N N N N | N N | D D | M | C C | N
+     * (N D C = Nothing, Create, Delete)
+     * @return {[type]} [description]
+    ###
     saveTasks : () ->
-        for id,t of @_tasksModifStacks
-            # console.log 'saveTask, action', t.a, id, t
-            switch t.a
+        console.log '== saveTasks()'
+        for id,modif of @_tasksModifStack
+            # console.log 'saveTask
+            if modif.removed
+                continue
 
-                when 'created'
-                    t = t.t
-                    l = t.lineDiv
-                    t.save({
-                            done        : (l.dataset.state == 'done')
-                            description :  l.textContent.slice(1)
-                           },
-                           {
-                            ignoreMySocketNotification: true
-                            silent  : true
-                            success : (t) =>
-                                # console.log "editor t.save.done()",t.id
-                                realtimer.watchOne t
-                                t.lineDiv.dataset.id = t.id
-                                @editorTarget$.trigger jQuery.Event('onChange')
+            else if modif.created && modif.deleted
+                continue
 
-                                # will be called by modification on server side.
-                                # Modifications initiated on this client will be
-                                # saved with silent=true so that this call back is
-                                # not fired whereas ui is uptodate
-                                t.on 'change', () =>
-                                    # console.log "onchange from save", t.id
-                                    # console.log t.changedAttributes()
-                                    @_updateTaskLine(t)
-                                t.on 'destroy', (t) =>
-                                    # console.log ' editor : destroy from save', t.id
-                                    @_turneTaskIntoLine(t.lineDiv)
-                            error : (t) =>
-                                window.alert('Cozy Todo is not responding, save ' +\
-                                    'of tasks is not possible so we cancel '      +\
-                                    'the task creation.')
-                                @_turneTaskIntoLine(t.lineDiv)
-                            }
-                    )
+            else if modif.deleted
+                modif.t.destroy(silent: true)
 
-                when 'modified'
-                    t = t.t
-                    l = t.lineDiv
-                    t.save({
-                            done        : (l.dataset.state == 'done')
-                            description :  l.textContent.slice(1)
-                        },{
-                            ignoreMySocketNotification: true
-                            silent: true
-                            error : (t) =>
-                                window.alert('Cozy Todo is not responding, save ' +\
-                                    'of tasks is not possible so we cancel '      +\
-                                    'modifications.')
-                                @_updateTaskLine(t, true)
-                                # @_turneTaskIntoLine(t.lineDiv)
-                        }
-                    )
+            else if modif.modified && !modif.created
+                t = modif.t
+                l = t.lineDiv
+                t.save({
+                        done        : (l.dataset.state == 'done')
+                        description :  l.textContent.slice(1)
+                    },{
+                        ignoreMySocketNotification: true
+                        silent: true
+                        error : (t) =>
+                            window.alert('Cozy Todo is not responding, save ' +\
+                                'of tasks is not possible so we cancel '      +\
+                                'modifications.')
+                            @_updateTaskLine(t, true)
+                    }
+                )
 
-                # means that the task has been removed of the editor but still
-                # exists in the datasystem
-                when 'removed'
-                    null
+            else if modif.created && !modif.t.id
 
-                when 'deleted'
-                    t.t.destroy(silent: true)
+                # t = modif.t
+                @_saveTaskCreation(modif.t)
+                # l = t.lineDiv
+                # t.save({
+                #         done        : (l.dataset.state == 'done')
+                #         description :  l.textContent.slice(1)
+                #        },
+                #        {
+                #         ignoreMySocketNotification: true
+                #         silent  : true
+                #         success : (t) =>
+                #             # console.log "editor t.save.done()",t.id
+                #             realtimer.watchOne t
+                #             t.lineDiv.dataset.id = t.id
+                #             @editorTarget$.trigger jQuery.Event('onChange')
+
+                #             # will be called by modification on server side.
+                #             # Modifications initiated on this client will be
+                #             # saved with silent=true so that this call back is
+                #             # not fired whereas ui is uptodate
+                #             t.on 'change', () =>
+                #                 # console.log "onchange from save", t.id
+                #                 # console.log t.changedAttributes()
+                #                 @_updateTaskLine(t)
+                #             t.on 'destroy', (t) =>
+                #                 # console.log ' editor : destroy from save',t.id
+                #                 @_turneTaskIntoLine(t.lineDiv)
+                #         error : (t) =>
+                #             window.alert('Cozy Todo is not responding, save ' +\
+                #                 'of tasks is not possible so we cancel '      +\
+                #                 'the task creation.')
+                #             @_turneTaskIntoLine(t.lineDiv)
+                #         }
+                # )
+
+            # case a task re-created by an undo
+            else if modif.created && modif.t.id
+                lineDiv = @linesDiv.querySelectorAll(
+                    "div[data-id='#{modif.t.internalId}']")[0]
+                t = @_createTaskForLine(lineDiv,true)
+                # preserve its internalId
+                @_internalTaskCounter--
+                t.internalId = modif.t.internalId
+
+                modif.t = t
+                @_replaceInTaskHistory(t)
+                @_saveTaskCreation(t)
+
+                # oldTask = modif.t
+                # lineDiv = oldTask.lineDiv
+                # t = new Task(description:oldTask.get('description'))
+                # lineDiv.task = t
+                # @_internalTaskCounter += 1
+                # t.internalId = 'CNE_task_id_' + @_internalTaskCounter
+                # lineDiv.dataset.id = t.internalId # set a temporary id
+                # t.lineDiv = lineDiv
+                # @_taskList.push(t)
+
+        @_tasksModifStack = {}
 
 
-        @_tasksModifStacks = {}
 
+    _saveTaskCreation : (t) ->
+        l = t.lineDiv
+        t.save({
+                done        : (l.dataset.state == 'done')
+                description :  l.textContent.slice(1)
+               },
+               {
+                ignoreMySocketNotification: true
+                silent  : true
+                success : (t) =>
+                    # console.log "editor t.save.done()",t.id
+                    realtimer.watchOne t
+                    # t.lineDiv.dataset.id = t.internalId
+                    @editorTarget$.trigger jQuery.Event('onChange')
 
+                    # will be called by modification on server side.
+                    # Modifications initiated on this client will be
+                    # saved with silent=true so that this call back is
+                    # not fired whereas ui is uptodate
+                    t.on 'change', () =>
+                        # console.log "onchange from save", t.id
+                        # console.log t.changedAttributes()
+                        @_updateTaskLine(t)
+                    t.on 'destroy', (t) =>
+                        # console.log ' editor : destroy from save',t.id
+                        @_turneTaskIntoLine(t.lineDiv)
+                error : (t) =>
+                    window.alert('Cozy Todo is not responding, save ' +\
+                        'of tasks is not possible so we cancel '      +\
+                        'the task creation.')
+                    @_turneTaskIntoLine(t.lineDiv)
+                }
+        )
 
     _isTaskUnchanged : (task) ->
         res = true
@@ -919,7 +1012,7 @@ module.exports = class CNeditor
         shortcut = metaKey + '-' + key
 
         # a,s,v,y,z alone are simple characters
-        if metaKey == '' && key in
+        if metaKey in ['', 'Shift'] && key in
              ['A', 'B', 'U', 'K', 'L', 'S', 'V', 'Y', 'Z']
             key = 'other'
 
@@ -1001,13 +1094,22 @@ module.exports = class CNeditor
         # This means that in case of multiple return, only the first one is in
         # history. A letter such as 'a' doesn't increase the history.
 
+        console.log '== keyDownCb() : shortcut', shortcut, '_lastKey', @_lastKey, 'isAction', @_shortcut.isAction, 'newPosition', @newPosition
         if @_lastKey != shortcut and \
                shortcut in ['-return', '-backspace', '-suppr',
                             'CtrlShift-down', 'CtrlShift-up',
                             'CtrlShift-left', 'CtrlShift-right',
-                            'Ctrl-V', '-space', '-other']
+                            'Ctrl-V']
+            console.log 'cas1'
             @_addHistory()
 
+        else if @_lastKey == '-space' && shortcut != '-space'
+            console.log 'cas2'
+            @_addHistory()
+
+        else if @newPosition and !@_shortcut.isAction and shortcut != 'Ctrl-Y' and shortcut != 'Ctrl-Z'
+            console.log 'cas3'
+            @_addHistory()
 
         @_lastKey = shortcut
 
@@ -4095,7 +4197,7 @@ module.exports = class CNeditor
      * No effect if the url popover is displayed
     ###
     _addHistory : () ->
-        console.log '_addHistory()'
+        console.log '== _addHistory()'
         # do nothing if urlpopover is on, otherwise its html will also be
         # serialized in the history.
         if @isUrlPopoverOn or @_hotString.isPreparing
@@ -4136,8 +4238,8 @@ module.exports = class CNeditor
 
         # 6- add the list of task modified since last addHistory()
         h.modifiedTask.push @_tasksModifSinceLastHistory
+        # console.log '  last h.modifiedTask', h.modifiedTask[@HISTORY_SIZE]
         @_tasksModifSinceLastHistory = {}
-        console.log '  @_tasksModifSinceLastHistory', @_tasksModifSinceLastHistory
 
         # 7- update the index
         h.index = @HISTORY_SIZE - 1
@@ -4201,8 +4303,11 @@ module.exports = class CNeditor
             if @_hotString.isPreparing
                 @_hotString.reset(false)
             @_forceUndo()
+            @newPosition = true
+            # @_lastKey = null # to force addhistory on next action
 
     _forceUndo : () ->
+        console.log "\n== UNDO :"
         h = @_history
         # if we are in an unsaved state
         if h.index == h.history.length-1
@@ -4234,25 +4339,60 @@ module.exports = class CNeditor
         # 5- restore the lines structure
         @_readHtml()
 
-        # 6- add the tasks modified between the 2 history steps to the stack of
-        # tasks to be saved
-        for id, t of h.modifiedTask[stepIndex+1]
-            if t.a == 'modified'
-                @_tasksModifStacks[id] = t:t.t, a:'modified'
-            else if t.a == 'created'
-                @_tasksModifStacks[id] = t:t.t, a:'deleted'
+        # 6 - stack the tasks that have been impacted by undo so that
+        # saveTasks() take them into account.
+        for id, modif of h.modifiedTask[stepIndex+1]
+            switch modif.a
+                when 'modified'
+                    @_stackTaskForSave(id, modif.t, 'modified')
+                when 'deleted'
+                    @_stackTaskForSave(id, modif.t, 'created')
+                else
+                    @_stackTaskForSave(id, modif.t, 'deleted')
+            # if modif.a == 'modified'
+            #     if !@_tasksModifStack[id]
+            #         @_tasksModifStack[id] = t:modif.t
+            #     @_tasksModifStack[id].modified = true
 
-        # 7- update the index
+            # else if modif.a == 'created'
+            #     if !@_tasksModifStack[id]
+            #         @_tasksModifStack[id] = t:modif.t
+            #     @_tasksModifStack[id].deleted = true
+
+        # 7- Restore the tasks that that were not impacted by the undo &
+            # redo (because the task might have changed on the server side and
+            # ctrl-Z / ctrl-y should not modify those tasks)
+        for t in @_taskList
+            # check the task is not modified by one of the step of history that
+            # have been backward
+            i = stepIndex + 1
+            isInHistory = false
+            while @HISTORY_SIZE - i
+                modifs = h.modifiedTask[i]
+                i++
+                for id of modifs
+                    if id == t.internalId
+                        i = @HISTORY_SIZE
+                        isInHistory = true
+                        break
+            if !isInHistory
+                @_updateTaskLine(t)
+
+        @__printTasksModifStacks()
+
+        # 8- update the index
         h.index -= 1
 
         # console.log 'undo', @_history.index
         # @__printHistory('unDo')
 
-    ### ------------------------------------------------------------------------
-    #  reDo :
-    # Redo a undo-ed action
+
+
+    ###* -----------------------------------------------------------------------
+     * Redo a undo-ed action
     ###
     reDo : () ->
+        console.log "\n== REDO :"
         h = @_history
         # if there is an action to redo
         if @redoPossible() and @isEnabled
@@ -4284,13 +4424,61 @@ module.exports = class CNeditor
             # 4 - restore lines structure
             @_readHtml()
 
-            # 5 - redo the task that has been deleted
-            for id, t of h.modifiedTask[stepIndex+1]
-                if t.a == 'created'
-                    @_tasksModifStacks[id] = t:t.t, a:'created'
+            # 5 - stack the tasks that have been impacted by redo so that
+            # saveTasks() take them into account.
+            for id, modif of h.modifiedTask[index+1]
+                @_stackTaskForSave(id, modif.t, modif.a)
+                # if t.a == 'modified'
+                #     if !@_tasksModifStack[id]
+                #         @_tasksModifStack[id] = t:t.t
+                #     @_tasksModifStack[id].modified = true
+
+                # else if t.a == 'created'
+                #     if !@_tasksModifStack[id]
+                #         @_tasksModifStack[id] = t:t.t
+                #     @_tasksModifStack[id].created = true
+                #     @_tasksModifStack[id].deleted = false
+
+            # 6- Restore the ui of tasks that that were not impacted by the undo
+            # &  redo (because the task might have changed on the server side
+            # and ctrl-Z / ctrl-y should not modify those tasks)
+            for t in @_taskList
+                # check the task is not modified by one of the step of history
+                # that have been backward
+                i = index + 1
+                isInHistory = false
+                while @HISTORY_SIZE - i
+                    modifs = h.modifiedTask[i]
+                    i++
+                    for id, modif of modifs
+                        if id == t.internalId
+                            i = @HISTORY_SIZE
+                            isInHistory = true
+                            break
+                if !isInHistory
+                    @_updateTaskLine(t)
+
+            # to force addhistory on next action
+            # @_lastKey = null
+            @newPosition = true
+
+
+            # @__printHistoryModifiedTask()
+            @__printTasksModifStacks()
 
             # console.log 'reDo', h.index
             # @__printHistory('reDo')
+
+
+
+    _replaceInTaskHistory : (task) ->
+        i = @HISTORY_SIZE
+        while i--
+            modif = @_history.modifiedTask[i]
+            if !modif
+                return
+            if modif[task.internalId]
+                modif[task.internalId].t = task
 
 
     ###* -----------------------------------------------------------------------
@@ -4309,6 +4497,31 @@ module.exports = class CNeditor
                 content = $(step).text()
                 content = '_' if content == ''
             console.log i, content , @._history.historySelect[i] , arrow
+        return true
+
+
+    ###* -----------------------------------------------------------------------
+     * A utility fuction for debugging
+     * @param  {string} txt A text to print in front of the log
+    ###
+    __printTasksModifStacks : (txt) ->
+        if ! txt
+            txt = ''
+        res =  '  _tasksModifStack : '
+        for id, modif of @._tasksModifStack
+            res += id + ':'
+            if modif.created
+                res += 'created-'
+            if modif.modified
+                res += 'modified-'
+            if modif.deleted
+                res += 'deleted-'
+            if modif.removed
+                res += 'removed-'
+            res = res.slice(0,-1)
+            res +=  ', '
+        res = res.slice(0,-2)
+        console.log res
         return true
 
 
@@ -5197,6 +5410,8 @@ module.exports = class CNeditor
                         hs._forceUserHotString('', [])
                         hs.reset('end')
                     @editorTarget$.trigger jQuery.Event('onChange')
+                    # to force addhistory on next action
+                    @newPosition = true
                     return true
 
             when 'contact'
@@ -5210,6 +5425,8 @@ module.exports = class CNeditor
                 hs._auto.hide()
                 hs._reInit()
                 @editorTarget$.trigger jQuery.Event('onChange')
+                # to force addhistory on next action
+                @newPosition = true
                 return true
 
             when 'htag'
@@ -5222,6 +5439,8 @@ module.exports = class CNeditor
                 @_setCaret(bp.cont,1)
                 hs._auto.hide()
                 @editorTarget$.trigger jQuery.Event('onChange')
+                # to force addhistory on next action
+                @newPosition = true
                 return true
 
             when 'reminder'
@@ -5252,7 +5471,8 @@ module.exports = class CNeditor
                 hs._auto.hide()
                 hs._reInit()
                 @editorTarget$.trigger jQuery.Event('onChange')
-
+                # to force addhistory on next action
+                @newPosition = true
                 return true
 
         hs.reset('end')
