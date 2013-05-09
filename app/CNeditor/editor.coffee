@@ -458,19 +458,21 @@ module.exports = class CNeditor
      * When a line is a task (its div has dataset.type = task) and we don't have
      * the corresponding model of task, we then create this Task.
      * It for instance happens when we create a task within the editor.
-     * @param  {Element} lineDiv The line div we will attach the task to.
+     * @param  {Element} lineDiv The line div we will attach the task to..
+     * @param {Boolean} isRedo True if the task is re-created by a reDo.
     ###
-    _createTaskForLine : (lineDiv, doNotStack) ->
+    _createTaskForLine : (lineDiv, isRedo) ->
         t = new Task(description:lineDiv.textContent.slice(1))
         lineDiv.task = t
-        @_internalTaskCounter += 1
-        t.internalId = 'CNE_task_id_' + @_internalTaskCounter
-        if !doNotStack
-            @_stackTaskChange(t,'created')
-        lineDiv.dataset.id = t.internalId
         t.lineDiv = lineDiv
         @_taskList.push(t)
-
+        if isRedo
+            t.internalId = lineDiv.dataset.id
+        else
+            @_internalTaskCounter += 1
+            t.internalId = 'CNE_task_id_' + @_internalTaskCounter
+            @_stackTaskChange(t,'created')
+            lineDiv.dataset.id = t.internalId
         return t
 
 
@@ -710,15 +712,18 @@ module.exports = class CNeditor
                 #         }
                 # )
 
-            # case a task re-created by an undo
+            # case of a task re-created by an undo
             else if modif.created && modif.t.id
+                # remove previou model from _taskList :
+                i = @_taskList
+                for t,i in @_taskList
+                    if t.internalId == id
+                        @_taskList.splice(i,1)
+                        break
+                # create the new task model :
                 lineDiv = @linesDiv.querySelectorAll(
                     "div[data-id='#{modif.t.internalId}']")[0]
                 t = @_createTaskForLine(lineDiv,true)
-                # preserve its internalId
-                @_internalTaskCounter--
-                t.internalId = modif.t.internalId
-
                 modif.t = t
                 @_replaceInTaskHistory(t)
                 @_saveTaskCreation(t)
@@ -1095,22 +1100,23 @@ module.exports = class CNeditor
         # history. A letter such as 'a' doesn't increase the history.
 
         console.log '== keyDownCb() : shortcut', shortcut, '_lastKey', @_lastKey, 'isAction', @_shortcut.isAction, 'newPosition', @newPosition
-        if @_lastKey != shortcut and \
-               shortcut in ['-return', '-backspace', '-suppr',
-                            'CtrlShift-down', 'CtrlShift-up',
-                            'CtrlShift-left', 'CtrlShift-right',
-                            'Ctrl-V']
-            console.log 'cas1'
-            @_addHistory()
+        # if @_lastKey != shortcut and \
+        #        shortcut in ['-return', '-backspace', '-suppr',
+        #                     'CtrlShift-down', 'CtrlShift-up',
+        #                     'CtrlShift-left', 'CtrlShift-right',
+        #                     'Ctrl-V']
+        #     console.log 'cas1'
+        #     @_addHistory()
 
-        else if @_lastKey == '-space' && shortcut != '-space'
-            console.log 'cas2'
-            @_addHistory()
+        # else if @_lastKey == '-space' && shortcut != '-space'
+        #     console.log 'cas2'
+        #     @_addHistory()
 
-        else if @newPosition and !@_shortcut.isAction and shortcut != 'Ctrl-Y' and shortcut != 'Ctrl-Z'
-            console.log 'cas3'
-            @_addHistory()
+        # else if @newPosition and !@_shortcut.isAction and shortcut != 'Ctrl-Y' and shortcut != 'Ctrl-Z'
+        #     console.log 'cas3'
+        #     @_addHistory()
 
+        lastShortcut = @_lastKey
         @_lastKey = shortcut
 
         @currentSel =
@@ -1155,12 +1161,19 @@ module.exports = class CNeditor
         # 6- Manage "simple keys" (letters, arrows & alike, with or without
         # shift but without alt and ctrl (CtrlSthift allowed for arrows & alike)
         switch @_shortcut.key
+
             when 'up', 'down', 'left', 'right', 'pgUp', 'pgDwn', 'end', 'home'
                 if !e.altKey && (e.shiftKey or (!e.shiftKey && !e.ctrlrlKey) )
                     @newPosition = true
                     return true
+
             when 'other', 'space'
                 if !e.ctrlrlKey && !e.altKey
+                    if @newPosition
+                        @_addHistory()
+                    else if lastShortcut == '-space' && shortcut != '-space'
+                        @_addHistory()
+
                     if @newPosition
                         sel = @updateCurrentSel()
                         if ! sel.theoricalRange.collapsed
@@ -1180,6 +1193,7 @@ module.exports = class CNeditor
         switch shortcut
 
             when '-return'
+                @_addHistory() if lastShortcut != shortcut
                 @updateCurrentSelIsStartIsEnd()
                 @_return()
                 @newPosition = false
@@ -1187,6 +1201,7 @@ module.exports = class CNeditor
                 @editorTarget$.trigger jQuery.Event('onChange')
 
             when '-backspace'
+                @_addHistory() if lastShortcut != shortcut
                 @updateCurrentSelIsStartIsEnd()
                 @_backspace()
                 # important, for instance in the case of a deletion of a range
@@ -1196,16 +1211,19 @@ module.exports = class CNeditor
                 @editorTarget$.trigger jQuery.Event('onChange')
 
             when '-tab'
+                @_addHistory()
                 @tab()
                 e.preventDefault()
                 @editorTarget$.trigger jQuery.Event('onChange')
 
             when 'Shift-tab'
+                @_addHistory()
                 @shiftTab()
                 e.preventDefault()
                 @editorTarget$.trigger jQuery.Event('onChange')
 
             when '-suppr'
+                @_addHistory() if lastShortcut != shortcut
                 @updateCurrentSelIsStartIsEnd()
                 @_suppr(e)
                 e.preventDefault()
@@ -1213,10 +1231,12 @@ module.exports = class CNeditor
                 @editorTarget$.trigger jQuery.Event('onChange')
 
             when 'CtrlShift-down'
+                @_addHistory() if lastShortcut != shortcut
                 # @_moveLinesDown()
                 e.preventDefault()
 
             when 'CtrlShift-up'
+                @_addHistory() if lastShortcut != shortcut
                 # @_moveLinesUp()
                 e.preventDefault()
 
@@ -1225,20 +1245,24 @@ module.exports = class CNeditor
                 e.preventDefault()
 
             when 'Alt-L'
+                @_addHistory()
                 @markerList()
                 e.preventDefault()
                 @editorTarget$.trigger jQuery.Event('onChange')
 
             when 'Alt-A'
+                @_addHistory()
                 @toggleType()
                 e.preventDefault()
                 @editorTarget$.trigger jQuery.Event('onChange')
 
             when 'Ctrl-V'
+                @_addHistory()
                 @editorTarget$.trigger jQuery.Event('onChange')
                 return true
 
             when 'Ctrl-B'
+                @_addHistory()
                 @strong()
                 e.preventDefault()
 

@@ -68,15 +68,18 @@ actioncolor = #fe8800
 ///////////////////////
 
 task-btn-bgcolor = white
+
 // common to all tasks
 div[ data-type = "task" ]
-    background-color:#FDEFEF
-    border-radius: 6px
-    border-color : rgba(255, 0, 0, 0.06)
-    border-width:1px
-    border-style: solid
-    // border-bottom-left-radius: 6px
-    // border-top-left-radius: 6px
+    background-color : #FDEFEF
+    border-radius    : 6px
+    border-color     : rgba(255, 0, 0, 0.06)
+    border-width     : 1px
+    border-style     : solid
+    padding-top      : 1px
+    margin-top       : -2px
+    margin-bottom    : -1px
+
 // on done tasks, color for the line-through
 div[ data-state = "done" ]
     background-color:#F3F3F3
@@ -155,14 +158,14 @@ titleMixin(rank, type)
         border-bottom: 1px solid softgrey
         line-height:19px
     else if type == 2
-        margin-top 0px 
+        margin-top 0px
         font-weight: bold
         font-variant: small-caps
         font-size: 15px
         color: blue
         padding-bottom: 0px
     else if type == 3
-        margin-top 0px 
+        margin-top 0px
         font-variant: small-caps
         color: blue
         font-style:italic
@@ -170,7 +173,7 @@ titleMixin(rank, type)
         font-size: 15px
         padding-bottom: 0px
     else
-        margin-top 0px 
+        margin-top 0px
         font-variant: small-caps
         color: blue
         font-style:italic
