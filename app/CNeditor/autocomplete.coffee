@@ -12,11 +12,12 @@ class AutoComplete
         @hotString  = hotString
         @tTags       = [] # types of tags
         @tTagsDiv    = document.createElement('DIV')
+        @tTagsDiv.className = 'SUGG_ttags'
         @contacts    = [] # items of contact
         @contactsDiv = document.createElement('DIV')
         @reminderDiv = document.createElement('DIV')
         @htagDiv     = document.createElement('DIV')
-        reminderHTML =
+        @reminderDiv.innerHTML =
         """
             <div class="reminder-title">Add a reminder</div>
             <div class="date" data-date="12-02-2012" data-date-format="dd-mm-yyyy">
@@ -26,17 +27,15 @@ class AutoComplete
                 </div>
             </div>
         """
-        @reminderDiv.innerHTML = reminderHTML
         @datePick = $(@reminderDiv.lastChild).datepicker()
         @datePick.show()
-        @datePick.on('changeDate', (ev) =>
-            nd = ev.date
+        @datePick.on('changeDate', (e) =>
+            nd = e.date
             date = @_currentDate
             date.setDate(nd.getDate())
             date.setMonth(nd.getMonth())
             date.setFullYear(nd.getFullYear())
         )
-
 
         @timePick = $(@reminderDiv.childNodes[2].firstElementChild.lastElementChild)
         @timePick.timepicker(
@@ -50,7 +49,6 @@ class AutoComplete
         reminderTitle = @reminderDiv.querySelector('.reminder-title')
         reminderTitle.addEventListener 'click', () =>
             @hotString.validate()
-            console.log 't'
 
 
         # .timepicker().on('changeTime.timepicker', (e) ->
@@ -111,7 +109,11 @@ class AutoComplete
         return this
 
 
-
+    ###*
+     * Adds items to a type of suggestions
+     * @param {String} type  'tTags', 'contact', 'htag'
+     * @param {Object} items Object {text, type, [mention]}
+    ###
     setItems : (type, items) ->
         # console.log ' setItems', items, type
         switch type
@@ -130,7 +132,11 @@ class AutoComplete
         return true
 
 
-
+    ###*
+     * Insert a suggestion line in the list of possible suggestions
+     * @param  {Object} item The item which can be suggested.
+     * @return {Object}      A ref to the created line.
+    ###
     _createLine : (item) ->
         # console.log '_createLine', item
 
@@ -169,7 +175,7 @@ class AutoComplete
 
     ###*
      * Show the suggestion list
-     * @param  {Object} seg The segment to be positionned next to.
+     * @param  {Object} seg The segment of the editor to be positionned next to.
      * @param  {String} typedTxt   The string typed by the user (hotstring)
      * @param  {[type]} edLineDiv  The editor line div where the user is typing
     ###
@@ -198,7 +204,10 @@ class AutoComplete
         return true
 
 
-
+    ###*
+     * set the autocomplete popover to a mode : contact, htag, reminder.
+     * @param {String} mode 'contact', 'htag', 'reminder'.
+    ###
     setMode : (mode) ->
 
         @_unSelectLine()

@@ -240,7 +240,7 @@ module.exports = class CNeditor
 
 
     _clickCB : (e) =>
-        # console.log "== editor._clickCB()"
+        console.log "== editor._clickCB()"
         @_lastKey = null
         # if the start of selection after a click is in a link, then show
         # url popover to edit the link.
@@ -4225,6 +4225,7 @@ module.exports = class CNeditor
 
         Ctrl-y                 H1     H2              H3          H4(*)
         _tasksToBeSaved                                           {}
+
     ###
 
 
