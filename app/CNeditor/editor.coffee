@@ -5385,7 +5385,8 @@ module.exports = class CNeditor
     ###*
      * Called by the hotString controler when return is hit or when an item of
      * the auto complete is clicked.
-     * @param  {Object} autoItem {text:'value', type:'reminder'|'contact'|...}
+     * @param  {Object} autoItem
+     *                  {text:'value', type:'reminder'|'contact'|..., value:{}}
     ###
     doHotStringAction : (autoItem) ->
 
