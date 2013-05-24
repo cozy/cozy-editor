@@ -1,9 +1,6 @@
 AutoComplete = require('./autocomplete').AutoComplete
 selection    = require('./selection').selection
 
-console.info = ->
-    console.log.apply console, arguments
-
 module.exports = class HotString
 
 
@@ -111,17 +108,14 @@ module.exports = class HotString
      * @param  {Event} e The keyboard event
     ###
     keypressCb : (e) ->
-        console.log  '== hotstring.keypressCb()'
+        console.info  '== hotstring.keypressCb()'
         charCode = e.which
 
         if @isPreparing
 
         else if charCode == 64  # '@'
-            console.log  '== here'
             if @editor._isStartingWord()
                 modes = @editor.getCurrentAllowedInsertions()
-
-                console.log  '== here2'
 
                 @_auto.setAllowedModes modes
 

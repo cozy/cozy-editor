@@ -20,6 +20,8 @@
 #   _firstLine        : points the first line : TODO : not taken into account
 ###
 
+require('./logging')
+
 md2cozy      = require('./md2cozy').md2cozy
 selection    = require('./selection').selection
 Task         = require('./task')
@@ -28,9 +30,6 @@ Tags         = require('./tags')
 Line         = require('./line')
 
 realtimer    = require('./realtimer')
-
-console.info = ->
-    # console.log.apply console, arguments
 
 module.exports = class CNeditor
 

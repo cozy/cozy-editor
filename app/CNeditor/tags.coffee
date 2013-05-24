@@ -7,9 +7,6 @@ selection = require('./selection').selection
  * contact ...)
 ###
 
-console.info = ->
-    # console.log.apply console, arguments
-
 module.exports = class Tags
 
     constructor : () ->
