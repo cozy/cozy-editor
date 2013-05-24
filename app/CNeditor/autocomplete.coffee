@@ -52,7 +52,7 @@ class AutoComplete
 
 
         # .timepicker().on('changeTime.timepicker', (e) ->
-        #     console.log e.time
+        #     console.info e.time
         #     t = e.time
         #     date = @_currentDate
         #     date.setHours(t.getDate())
@@ -82,29 +82,29 @@ class AutoComplete
         auto.appendChild(@contactsDiv)
 
         @setItems( 'tTags', [
-            {text:'contact' , type:'ttag', value:'contact' , mention:' (@)' }
-            {text:'reminder', type:'ttag', value:'reminder', mention:' (@@)'}
+            # {text:'contact' , type:'ttag', value:'contact' , mention:' (@)' }
+            # {text:'reminder', type:'ttag', value:'reminder', mention:' (@@)'}
             {text:'todo'    , type:'ttag', value:'todo'                     }
-            {text:'tag'     , type:'ttag', value:'htag'    , mention:' (#)' }
+            # {text:'tag'     , type:'ttag', value:'htag'    , mention:' (#)' }
             ])
 
-        @setItems( 'contact', [
-            {text:'Frank @Rousseau' , type:'contact'             }
-            {text:'Lucas Toulouse'  , type:'contact'             }
-            {text:'Maxence Cote'    , type:'contact'             }
-            {text:'Joseph Silvestre', type:'contact'             }
-            {text:'Romain Foucault' , type:'contact'             }
-            {text:'Zoé Bellot'      , type:'contact'             }
-            ])
+        # @setItems( 'contact', [
+        #     {text:'Frank @Rousseau' , type:'contact'             }
+        #     {text:'Lucas Toulouse'  , type:'contact'             }
+        #     {text:'Maxence Cote'    , type:'contact'             }
+        #     {text:'Joseph Silvestre', type:'contact'             }
+        #     {text:'Romain Foucault' , type:'contact'             }
+        #     {text:'Zoé Bellot'      , type:'contact'             }
+        #     ])
 
-        @setItems( 'htag', [
-            {text:'Carte'              , type:'htag'}
-            {text:'Factures'           , type:'htag'}
-            {text:'Javascript'         , type:'htag'}
-            {text:'Pérou 2012'         , type:'htag'}
-            {text:'Présentation LyonJS', type:'htag'}
-            {text:'Recettes cuisine'   , type:'htag'}
-            ])
+        # @setItems( 'htag', [
+        #     {text:'Carte'              , type:'htag'}
+        #     {text:'Factures'           , type:'htag'}
+        #     {text:'Javascript'         , type:'htag'}
+        #     {text:'Pérou 2012'         , type:'htag'}
+        #     {text:'Présentation LyonJS', type:'htag'}
+        #     {text:'Recettes cuisine'   , type:'htag'}
+        #     ])
 
         return this
 
@@ -115,7 +115,7 @@ class AutoComplete
      * @param {Object} items Object {text, type, [mention]}
     ###
     setItems : (type, items) ->
-        # console.log ' setItems', items, type
+        # console.info ' setItems', items, type
         switch type
             when 'tTags'
                 @tTags = items
@@ -138,7 +138,7 @@ class AutoComplete
      * @return {Object}      A ref to the created line.
     ###
     _createLine : (item) ->
-        # console.log '_createLine', item
+        # console.info '_createLine', item
 
         line = document.createElement('LI')
         # line.contentEditable = false
@@ -214,6 +214,17 @@ class AutoComplete
 
         switch mode
 
+            when 'ttag'
+                @_currentMode = 'ttag'
+                if !@tTagsDiv.parentNode
+                    @el.appendChild(@tTagsDiv)
+                if @htagDiv.parentNode
+                    @el.removeChild(@htagDiv)
+                if @contactsDiv.parentNode
+                    @el.removeChild(@contactsDiv)
+                if @reminderDiv.parentNode
+                    @el.removeChild(@reminderDiv)
+
             when 'contact'
                 @_currentMode = 'contact'
                 if !@tTagsDiv.parentNode
@@ -262,6 +273,14 @@ class AutoComplete
         nbrOfSuggestions = 0
 
         switch @_currentMode
+            when 'ttag'
+                for ttag in @tTags
+                    if ttag.isInMode && @_shouldDisp(ttag,typedTxt)
+                        nbrOfSuggestions += 1
+                        ttag.line.style.display = 'block'
+                    else
+                        ttag.line.style.display = 'none'
+                items = []
             when 'contact'
                 # check the ttags to show
                 for ttag in @tTags
@@ -288,7 +307,7 @@ class AutoComplete
                 resRegH  = regH.exec(typedTxt)
                 resRegMn = regMn.exec(typedTxt)
 
-                console.log resRegD
+                console.info resRegD
                 if resRegMn or resRegH or resRegD
                     dd = dh = dmn = 0
                     if resRegD
@@ -349,7 +368,7 @@ class AutoComplete
 
 
     _updateLine : (line,item, typedTxt) ->
-        console.log '_updateLine'
+        console.info '_updateLine'
         type = item.type
         switch type
             when 'tag'
@@ -413,7 +432,7 @@ class AutoComplete
 
     getSelectedItem : () ->
         switch @_currentMode
-            when 'contact'
+            when 'ttag', 'contact'
                 if @_selectedLine
                     item = @_selectedLine.item
                     @_unSelectLine()

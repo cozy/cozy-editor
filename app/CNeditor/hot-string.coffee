@@ -1,6 +1,9 @@
 AutoComplete = require('./autocomplete').AutoComplete
 selection    = require('./selection').selection
 
+console.info = ->
+    console.log.apply console, arguments
+
 module.exports = class HotString
 
 
@@ -14,8 +17,8 @@ module.exports = class HotString
         @_hsTypes  = ['@', '@@', '#']
         @_modes    =
             '@'  : 'contact'
-            '@@' : 'reminder'
-            '#'  : 'htag'
+            # '@@' : 'reminder'
+            # '#'  : 'htag'
         @isPreparing  = false # true if a hot sring is under construction
         @_hsType      = ''
         @_hsRight     = ''
@@ -54,7 +57,9 @@ module.exports = class HotString
     ###
     keyDownCb : (shortcut)->
 
-        # console.log 'newShortCut' , shortcut, metaKeyCode, keyCode
+        preventDefault = false
+
+        # console.info 'newShortCut' , shortcut, metaKeyCode, keyCode
         switch shortcut
 
             when '-return'
@@ -75,10 +80,10 @@ module.exports = class HotString
 
             when '-pgUp', '-pgDwn', '-end', '-home'
                 @reset(false)
-                preventDefault = false
+            #     preventDefault = false
 
-            when '-space'
-                preventDefault = false
+            # when '-space'
+            #     preventDefault = false
 
             # when 'Ctrl-K'
 
@@ -90,7 +95,7 @@ module.exports = class HotString
 
             when '-esc'
                 @reset('end')
-                preventDefault = false
+                # preventDefault = false
 
         return preventDefault
 
@@ -106,31 +111,43 @@ module.exports = class HotString
      * @param  {Event} e The keyboard event
     ###
     keypressCb : (e) ->
-        # console.log  '== hotstring.keypressCb()'
+        console.log  '== hotstring.keypressCb()'
         charCode = e.which
 
         if @isPreparing
 
         else if charCode == 64  # '@'
+            console.log  '== here'
             if @editor._isStartingWord()
                 modes = @editor.getCurrentAllowedInsertions()
+
+                console.log  '== here2'
+
+                @_auto.setAllowedModes modes
+
                 if 'contact' in modes
                     @_hsType = '@'
                     @isPreparing = true
-                    @_auto.setAllowedModes(modes)
-                    @_currentMode = 'contact'
-                    @_auto.setMode('contact')
+                    @_auto.setMode 'ttag'
+                    @_currentMode = 'ttag'
+                    @_autoToBeShowed = mode:'insertion'
+                else if modes.length > 0
+                    @_hsType = '@'
+                    @isPreparing = true
+                    @_auto.setMode 'ttag'
+                    @_currentMode = 'ttag'
                     @_autoToBeShowed = mode:'insertion'
 
-        else if charCode == 35  # '#'
-            if @editor._isStartingWord()
-                modes = @editor.getCurrentAllowedInsertions()
-                if 'htag' in modes
-                    @_hsType = '#'
-                    @isPreparing = true
-                    @_currentMode = 'htag'
-                    @_auto.setMode('htag')
-                    @_autoToBeShowed = mode:'insertion'
+        # else if charCode == 35  # '#'
+
+            # if @editor._isStartingWord()
+            #     modes = @editor.getCurrentAllowedInsertions()
+            #     if 'htag' in modes
+            #         @_hsType = '#'
+            #         @isPreparing = true
+            #         @_currentMode = 'htag'
+            #         @_auto.setMode('htag')
+            #         @_autoToBeShowed = mode:'insertion'
 
         return true
 
@@ -142,7 +159,7 @@ module.exports = class HotString
      * appropriate actions (update autocomplete, change mode, reset)
     ###
     updateHs : (seg) ->
-        # console.log "== updateHs"
+        # console.info "== updateHs"
         if !seg
             seg = @_hsSegment
 
@@ -189,7 +206,7 @@ module.exports = class HotString
      * @param  {Range} range The range of the selection
     ###
     edit : (seg, range) ->
-        console.log 'hotstring.edit()'
+        console.info 'hotstring.edit()'
         @_isEdit = true
         @isPreparing = true
 
@@ -244,7 +261,7 @@ module.exports = class HotString
                47 < charCode < 58   or   \  # 0 .. 9
                charCode in [43]             # +
 
-        # console.log 'isNormal = ', res, '(' + charCode + ')'
+        # console.info 'isNormal = ', res, '(' + charCode + ')'
         return res
 
 
@@ -337,7 +354,7 @@ module.exports = class HotString
      *                            otherwise.
     ###
     reset : (dealCaret, hardReset) ->
-        # console.log 'hotString.reset()'
+        # console.info 'hotString.reset()'
 
         if !@isPreparing
             return true
@@ -405,7 +422,7 @@ module.exports = class HotString
 
 
     mouseDownCb : (e) ->
-        # console.log '== mousedown'
+        # console.info '== mousedown'
         # detect if click is in the list or out
         isOut =     e.target != @el                                    \
                 and $(e.target).parents('#CNE_autocomplete').length == 0
@@ -440,6 +457,6 @@ module.exports = class HotString
      * Helper for debug purpose, prints the current hotstring.
     ###
     printHotString : () ->
-        console.log '_hsType = "'  + @_hsType  + '"' ,
+        console.info '_hsType = "'  + @_hsType  + '"' ,
                     '_hsLeft = "'  + @_hsLeft  + '"' ,
                     '_hsRight = "' + @_hsRight + '"'

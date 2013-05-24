@@ -29,7 +29,8 @@ Line         = require('./line')
 
 realtimer    = require('./realtimer')
 
-
+console.info = ->
+    # console.log.apply console, arguments
 
 module.exports = class CNeditor
 
@@ -165,7 +166,7 @@ module.exports = class CNeditor
 
 
     _mousedownCb : (e) =>
-        # console.log '== editor._mousedownCb()'
+        # console.info '== editor._mousedownCb()'
 
         # if a hotstring is under preparation, let hotstring controler deal with
         # the new keystroke
@@ -184,7 +185,7 @@ module.exports = class CNeditor
      * true and take actions depending on selection location and editor state.
     ###
     _mouseupCb : (e) =>
-        # console.log '== editor._mouseupCb()'
+        # console.info '== editor._mouseupCb()'
         @newPosition = true
 
         # In case the mousedownCb set tags to uneditable, then revert.
@@ -240,7 +241,7 @@ module.exports = class CNeditor
 
 
     _clickCB : (e) =>
-        console.log "== editor._clickCB()"
+        console.info "== editor._clickCB()"
         @_lastKey = null
         # if the start of selection after a click is in a link, then show
         # url popover to edit the link.
@@ -360,6 +361,7 @@ module.exports = class CNeditor
         span.appendChild(txt)
         taskDiv.insertBefore(span,segment)
         @_setSelectionOnNode(txt)
+        @_addHistory()
 
 
     ###*
@@ -409,9 +411,6 @@ module.exports = class CNeditor
         btn.removeEventListener('click', @_toggleTaskCB)
         @Tags.remove(btn)
         taskDiv.removeChild(btn)
-
-        # remove model :
-        @_stackTaskChange(taskDiv.task,'removed')
 
         # taskDiv attibutes
         taskDiv.task          = null
@@ -484,7 +483,7 @@ module.exports = class CNeditor
      * @param {Element} lineDiv The lineDiv turned into a task.
     ###
     _setTaskToLine : (lineDiv) ->
-        # console.log '=== _setTaskToLine'
+        # console.info '=== _setTaskToLine'
 
         # Add btn listener
         btn = lineDiv.firstChild
@@ -508,7 +507,7 @@ module.exports = class CNeditor
             @editorTarget$.trigger jQuery.Event('onChange')
 
         else
-            # console.log 'fetch requested with id', id
+            # console.info 'fetch requested with id', id
             t = new Task(id:id)
             @_internalTaskCounter += 1
             t.internalId = 'CNE_task_id_' + @_internalTaskCounter
@@ -517,12 +516,13 @@ module.exports = class CNeditor
             t.lineDiv = lineDiv
             t.fetch(silent:true)
             .done () =>
-                # console.log "editor : t.fetch.done()",t.id
+                # console.info "editor : t.fetch.done()",t.id
+                t.isFromServer = true
                 realtimer.watchOne t
                 @_updateTaskLine(t) #task may have change when note was not open
 
             .fail (resp) =>
-                # console.log "editor : t.fetch.fail()",t.id
+                # console.info "editor : t.fetch.fail()",t.id
                 # fetch was not possible, there are 2 possible causes :
                 #   1/ the task has been deleted in the meanwhile turn lineDiv
                 #   in a line
@@ -540,14 +540,16 @@ module.exports = class CNeditor
                     ,
                         {silent:true}
                     )
+                    t.isFromServer = false
 
             t.on 'change', (t)=>
-                # console.log ' editor : change from fetch detected !', t.id
-                # console.log t.changedAttributes()
+                # console.info ' editor : change from fetch detected !', t.id
+                # console.info t.changedAttributes()
+                t.isFromServer = true
                 @_updateTaskLine(t)
 
             t.on 'destroy', (t)=>
-                # console.log ' editor : destroy from fetch detected !', t.id
+                # console.info ' editor : destroy from fetch detected !', t.id
                 @_turneTaskIntoLine(t.lineDiv)
 
             @_taskList.push(t)
@@ -569,6 +571,7 @@ module.exports = class CNeditor
             attrib = t.previousAttributes()
         else
             attrib = t.attributes
+        console.info attrib
         t.lineDiv.firstChild.nextSibling.textContent = attrib.description
         currentTaskState = t.lineDiv.dataset.state == 'done'
         if attrib.done
@@ -583,7 +586,7 @@ module.exports = class CNeditor
 
     _stackTaskChange : (task,action) ->
         # action in : done, undone, modified, removed
-        console.log '== editor._stackTaskChange() ' + action, task.internalId
+        console.info '== editor._stackTaskChange() ' + action, task.internalId
 
         @_stackTaskForSave(task.internalId, task, action)
 
@@ -592,7 +595,7 @@ module.exports = class CNeditor
             when 'modified', 'done', 'undone'
                 @_tasksModifSinceLastHistory[task.internalId] =
                     t:task, a:'modified'
-                # console.log '  @_tasksModifSinceLastHistory',
+                # console.info '  @_tasksModifSinceLastHistory',
                 #  @_tasksModifSinceLastHistory
 
             when 'created'
@@ -639,8 +642,8 @@ module.exports = class CNeditor
                     modif.created = false
                 else
                     modif.deleted = true
-            # when 'removed'
-            #     nothing
+            when 'removed'
+                 modif.removed = true
 
         return true
 
@@ -657,17 +660,18 @@ module.exports = class CNeditor
      * @return {[type]} [description]
     ###
     saveTasks : () ->
-        console.log '== saveTasks()'
+        console.info '== saveTasks()'
+
         for id,modif of @_tasksToBeSaved
-            # console.log 'saveTask
-            if modif.removed
-                continue
+            # console.info 'saveTask
+            if modif.deleted
+                modif.t.destroy(silent: true)
 
             else if modif.created && modif.deleted
                 continue
 
-            else if modif.deleted
-                modif.t.destroy(silent: true)
+            else if modif.removed
+                continue
 
             else if modif.modified && !modif.created
                 t = modif.t
@@ -685,6 +689,7 @@ module.exports = class CNeditor
                             @_updateTaskLine(t, true)
                     }
                 )
+                t.isFromServer = false
 
             else if modif.created && !modif.t.id
                 @_saveTaskCreation(modif.t)
@@ -719,21 +724,25 @@ module.exports = class CNeditor
                 ignoreMySocketNotification: true
                 silent  : true
                 success : (t) =>
-                    # console.log "editor t.save.done()",t.id
+                    # console.info "editor t.save.done()",t.id
                     realtimer.watchOne t
+
                     # t.lineDiv.dataset.id = t.internalId
                     @editorTarget$.trigger jQuery.Event('onChange')
+
+                    t.lineDiv.dataset.id = t.id
 
                     # will be called by modification on server side.
                     # Modifications initiated on this client will be
                     # saved with silent=true so that this call back is
                     # not fired whereas ui is uptodate
                     t.on 'change', () =>
-                        # console.log "onchange from save", t.id
-                        # console.log t.changedAttributes()
+                        # console.info "onchange from save", t.id
+                        # console.info t.changedAttributes()
+                        t.isFromServer = true
                         @_updateTaskLine(t)
                     t.on 'destroy', (t) =>
-                        # console.log ' editor : destroy from save',t.id
+                        # console.info ' editor : destroy from save',t.id
                         @_turneTaskIntoLine(t.lineDiv)
                 error : (t) =>
                     window.alert('Cozy Todo is not responding, save ' +\
@@ -742,6 +751,7 @@ module.exports = class CNeditor
                     @_turneTaskIntoLine(t.lineDiv)
                 }
         )
+        t.isFromServer = false
 
 
     ###* -----------------------------------------------------------------------
@@ -808,9 +818,11 @@ module.exports = class CNeditor
     getCurrentAllowedInsertions : () ->
         sel = @updateCurrentSel()
         if sel.startLineDiv.dataset.type == 'task'
-            return ['contact','event','reminder','htag']
+            return []
+            # return ['contact','event','reminder','htag']
         else
-            return ['contact','todo','event','reminder','htag']
+            return ['todo']
+            # return ['contact','todo','event','reminder','htag']
 
 
     ### ------------------------------------------------------------------------
@@ -1009,7 +1021,7 @@ module.exports = class CNeditor
             isAction : isAction
             shortcut : shortcut
             keyCode  : keyCode
-        # console.log 'editor.getShortCut()', @_shortcut.shortcut
+        # console.info 'editor.getShortCut()', @_shortcut.shortcut
 
 
     ###* -----------------------------------------------------------------------
@@ -1068,7 +1080,7 @@ module.exports = class CNeditor
      *                   'Ctrl-'
     ###
     _keyDownCb : (e) =>
-        # console.log '_keyDownCb'
+        # console.info '_keyDownCb'
         if ! @isEnabled
             return true
 
@@ -1081,21 +1093,21 @@ module.exports = class CNeditor
         # This means that in case of multiple return, only the first one is in
         # history. A letter such as 'a' doesn't increase the history.
 
-        console.log '== keyDownCb() : shortcut', shortcut, '_lastKey', @_lastKey, 'isAction', @_shortcut.isAction, 'newPosition', @newPosition
+        # console.info '== keyDownCb() : shortcut', shortcut, '_lastKey', @_lastKey, 'isAction', @_shortcut.isAction, 'newPosition', @newPosition
         # if @_lastKey != shortcut and \
         #        shortcut in ['-return', '-backspace', '-suppr',
         #                     'CtrlShift-down', 'CtrlShift-up',
         #                     'CtrlShift-left', 'CtrlShift-right',
         #                     'Ctrl-V']
-        #     console.log 'cas1'
+        #     console.info 'cas1'
         #     @_addHistory()
 
         # else if @_lastKey == '-space' && shortcut != '-space'
-        #     console.log 'cas2'
+        #     console.info 'cas2'
         #     @_addHistory()
 
         # else if @newPosition and !@_shortcut.isAction and shortcut != 'Ctrl-Y' and shortcut != 'Ctrl-Z'
-        #     console.log 'cas3'
+        #     console.info 'cas3'
         #     @_addHistory()
 
         lastShortcut = @_lastKey
@@ -1164,11 +1176,15 @@ module.exports = class CNeditor
                     @editorTarget$.trigger jQuery.Event('onChange')
                     @_detectTaskChange()
                     return true
+                if e.ctrlKey && e.altKey # altgr on windows
+                    return true
+
 
         # 7- if alt or ctrl is pressed, then prevent default, only custom
         # behaviour defined below must occur, no default by browser.
         if e.altKey or e.ctrlKey
-            e.preventDefault()
+            unless e.altKey && e.ctrlKey
+                e.preventDefault()
 
         # 8- launch the action corresponding to the pressed shortcut
         # If a popover is visible, the actions are sent to it
@@ -1177,6 +1193,8 @@ module.exports = class CNeditor
             when '-return'
                 @_addHistory() if lastShortcut != shortcut
                 @updateCurrentSelIsStartIsEnd()
+                if @currentSel.isStartInTask and lastShortcut == shortcut
+                    @_addHistory()
                 @_return()
                 @newPosition = false
                 e.preventDefault()
@@ -1273,7 +1291,7 @@ module.exports = class CNeditor
                 @editorTarget$.trigger jQuery.Event('onChange')
 
             else
-                # console.log 'keyDownCb ELSE'
+                # console.info 'keyDownCb ELSE'
                 e.preventDefault()
 
 
@@ -1667,7 +1685,12 @@ module.exports = class CNeditor
             return true
 
         currentSel = @updateCurrentSelIsStartIsEnd()
+
+        # if we are in a task, don't allow link creation
+        return true if currentSel.isStartInTask
+
         range = currentSel.theoricalRange
+
 
         # Show url popover if range is collapsed in a link segment
         if range.collapsed
@@ -2034,6 +2057,22 @@ module.exports = class CNeditor
             return segments
         else
             return false
+
+
+    ###* -----------------------------------------------------------------------
+     * Go to end of line and emulate @ pressed
+    ###
+    emulateAt : () ->
+
+        currentSel = @updateCurrentSelIsStartIsEnd()
+        newCont = currentSel.endLine.line$[0].lastChild.previousSibling
+        newCont.innerHTML += '@'
+        @_keypressCb which: 64
+        @_setCaret(newCont,newCont.childNodes.length)
+        @_hotString.showAutoAndHighLight()
+
+
+
 
 
     ###* -----------------------------------------------------------------------
@@ -2647,11 +2686,17 @@ module.exports = class CNeditor
                 if startLine.lineNext != null
                     if sel.startLineDiv.nextSibling.dataset.type == 'task'
                         result = window.confirm('Do you want to remove
-                            the task ?')
+                            the task from todos ?')
+
                         if result
-                            @_turneTaskIntoLine(sel.startLineDiv.nextSibling)
+                            @_addHistory()
+                            @_stackTaskChange(sel.startLineDiv.nextSibling.task,'deleted')
                         else
-                            return
+                            @_addHistory()
+                            @_stackTaskChange(sel.startLineDiv.nextSibling.task,'removed')
+
+                        @_turneTaskIntoLine(sel.startLineDiv.nextSibling)
+
                     sel.range.setEndBefore(
                         startLine.lineNext.line$[0].firstChild)
                     selection.normalize(sel.range)
@@ -2662,11 +2707,11 @@ module.exports = class CNeditor
                 # if there is no next line :
                 # no modification, just prevent default action
                 else
-                    # console.log '_suppr 2 - test '
+                    # console.info '_suppr 2 - test '
 
             # 1.2 caret is in the middle of the line : delete one caracter
             else
-                # console.log '_suppr 3 - test '
+                # console.info '_suppr 3 - test '
                 # we consider that we are in a text node
                 textNode = sel.range.startContainer
                 startOffset = sel.range.startOffset
@@ -2692,7 +2737,7 @@ module.exports = class CNeditor
 
         # 2- Case of a selection contained in a line
         else if sel.endLine == startLine
-            # console.log '_suppr 4 - test '
+            # console.info '_suppr 4 - test '
             # check if there are tags that will be deleted
             @Tags.removeFromRange(sel.theoricalRange)
             # sel can be safely deleted thanks to normalization that have set
@@ -2708,7 +2753,7 @@ module.exports = class CNeditor
 
         # 3- Case of a multi lines selection
         else
-            # console.log '_suppr 5 - test '
+            # console.info '_suppr 5 - test '
             @_deleteMultiLinesSelections()
 
         return false
@@ -2733,13 +2778,19 @@ module.exports = class CNeditor
                 if startLine.linePrev != null
                     if sel.isStartInTask
                         result = window.confirm('Do you want to remove the
-                                                 task ?')
+                                                 task from todos?')
+
                         if result
+                            @_addHistory()
+                            @_stackTaskChange(sel.startLineDiv.task,'deleted')
+                        else
+                            @_addHistory()
+                            @_stackTaskChange(sel.startLineDiv.task,'removed')
+
                             @_turneTaskIntoLine(sel.startLineDiv)
                             @_setCaret(sel.startLineDiv,0)
-                        else
-                            return
-                    # console.log '_backspace 3 - test ok'
+
+                    # console.info '_backspace 3 - test ok'
                     cloneRg = sel.range.cloneRange()
                     cloneRg.setStartBefore(
                         startLine.linePrev.line$[0].lastChild)
@@ -2750,7 +2801,7 @@ module.exports = class CNeditor
 
             # 1.2 caret is in the middle of the line : delete one caracter
             else
-                # console.log '_backspace 5 - deletion of one caracter'
+                # console.info '_backspace 5 - deletion of one caracter'
                 # we consider that we are in a text node (selection has been
                 # normalized)
                 textNode = sel.range.startContainer
@@ -2778,7 +2829,7 @@ module.exports = class CNeditor
 
         # 2- Case of a selection contained in a line
         else if sel.endLine == startLine
-            # console.log '_backspace 6 - test ok'
+            # console.info '_backspace 6 - test ok'
             # check if there are tags that will be deleted
             @Tags.removeFromRange(sel.theoricalRange)
             # sel can be safely deleted thanks to normalization that have set
@@ -3281,7 +3332,7 @@ module.exports = class CNeditor
 
         # 3- Caret is at the beginning of the line
         else if currSel.rangeIsStartLine
-            # console.log '  F1 - currSel.rangeIsStartLine'
+            # console.info '  F1 - currSel.rangeIsStartLine'
             newLine = @_insertLineBefore (
                 sourceLine         : startLine
                 targetLineType     : startLine.lineType
@@ -4235,7 +4286,7 @@ module.exports = class CNeditor
      * No effect if the url popover is displayed
     ###
     _addHistory : () ->
-        console.log '== _addHistory()'
+        console.info '== _addHistory()'
         # do nothing if urlpopover is on, otherwise its html will also be
         # serialized in the history.
         if @isUrlPopoverOn or @_hotString.isPreparing
@@ -4276,7 +4327,7 @@ module.exports = class CNeditor
 
         # 6- add the list of task modified since last addHistory()
         h.modifiedTask.push @_tasksModifSinceLastHistory
-        # console.log '  last h.modifiedTask', h.modifiedTask[@HISTORY_SIZE]
+        # console.info '  last h.modifiedTask', h.modifiedTask[@HISTORY_SIZE]
         @_tasksModifSinceLastHistory = {}
 
         # 7- update the index
@@ -4345,7 +4396,7 @@ module.exports = class CNeditor
             # @_lastKey = null # to force addhistory on next action
 
     _forceUndo : () ->
-        console.log "\n== UNDO :"
+        console.info "\n== UNDO :"
         h = @_history
         # if we are in an unsaved state
         if h.index == h.history.length-1
@@ -4380,12 +4431,14 @@ module.exports = class CNeditor
         # 6 - stack the tasks that have been impacted by undo so that
         # saveTasks() take them into account.
         for id, modif of h.modifiedTask[stepIndex+1]
+            console.info modif.a
             switch modif.a
                 when 'modified'
                     @_stackTaskForSave(id, modif.t, 'modified')
                 when 'deleted'
                     @_stackTaskForSave(id, modif.t, 'created')
                 else
+                    console.info 'marking as deleted in undo'
                     @_stackTaskForSave(id, modif.t, 'deleted')
 
         # 7- Restore the tasks that that were not impacted by the undo &
@@ -4394,18 +4447,23 @@ module.exports = class CNeditor
         for t in @_taskList
             # check the task is not modified by one of the step of history that
             # have been backward
-            i = stepIndex + 1
-            isInHistory = false
-            while @HISTORY_SIZE - i
-                modifs = h.modifiedTask[i]
-                i++
-                for id of modifs
-                    if id == t.internalId
-                        i = @HISTORY_SIZE
-                        isInHistory = true
-                        break
-            if !isInHistory
-                @_updateTaskLine(t)
+            if t.isFromServer
+                @_updateTaskLine t
+
+
+            # i = stepIndex + 1
+            # isInHistory = false
+            # while @HISTORY_SIZE - i
+            #     modifs = h.modifiedTask[i]
+            #     i++
+            #     for id of modifs
+            #         if id == t.internalId
+            #             i = @HISTORY_SIZE
+            #             isInHistory = true
+            #             break
+            # if !isInHistory
+            #     console.info 'here'
+            #     @_updateTaskLine(t)
 
         @__printTasksModifStacks()
 
@@ -4420,7 +4478,7 @@ module.exports = class CNeditor
      * Redo a undo-ed action
     ###
     reDo : () ->
-        console.log "\n== REDO :"
+        console.info "\n== REDO :"
         h = @_history
         # if there is an action to redo
         if @redoPossible() and @isEnabled
@@ -4463,18 +4521,21 @@ module.exports = class CNeditor
             for t in @_taskList
                 # check the task is not modified by one of the step of history
                 # that have been backward
-                i = index + 1
-                isInHistory = false
-                while @HISTORY_SIZE - i
-                    modifs = h.modifiedTask[i]
-                    i++
-                    for id, modif of modifs
-                        if id == t.internalId
-                            i = @HISTORY_SIZE
-                            isInHistory = true
-                            break
-                if !isInHistory
+                if t.isFromServer
                     @_updateTaskLine(t)
+
+                # i = index + 1
+                # isInHistory = false
+                # while @HISTORY_SIZE - i
+                #     modifs = h.modifiedTask[i]
+                #     i++
+                #     for id, modif of modifs
+                #         if id == t.internalId
+                #             i = @HISTORY_SIZE
+                #             isInHistory = true
+                #             break
+                # if !isInHistory
+                #     @_updateTaskLine(t)
 
             # to force addhistory on next action
             # @_lastKey = null
@@ -4484,7 +4545,7 @@ module.exports = class CNeditor
             # @__printHistoryModifiedTask()
             @__printTasksModifStacks()
 
-            # console.log 'reDo', h.index
+            # console.info 'reDo', h.index
             # @__printHistory('reDo')
 
 
@@ -4506,7 +4567,7 @@ module.exports = class CNeditor
     __printHistory : (txt) ->
         if ! txt
             txt = ''
-        console.log txt + ' _history.index : ' + @._history.index
+        console.info txt + ' _history.index : ' + @._history.index
         for step, i in @._history.history
             if @._history.index == i
                 arrow = ' <---'
@@ -4514,7 +4575,7 @@ module.exports = class CNeditor
                 arrow = ' '
                 content = $(step).text()
                 content = '_' if content == ''
-            console.log i, content , @._history.historySelect[i] , arrow
+            console.info i, content , @._history.historySelect[i] , arrow
         return true
 
 
@@ -4539,7 +4600,7 @@ module.exports = class CNeditor
             res = res.slice(0,-1)
             res +=  ', '
         res = res.slice(0,-2)
-        console.log res
+        console.info res
         return true
 
 

@@ -6,6 +6,10 @@ selection = require('./selection').selection
  * Tag = a segment with a .dataset.type (reminder, a button of a task, a
  * contact ...)
 ###
+
+console.info = ->
+    # console.log.apply console, arguments
+
 module.exports = class Tags
 
     constructor : () ->
@@ -31,7 +35,7 @@ module.exports = class Tags
      *
     ###
     setTagEditable : () ->
-        # console.log 'set tags EDITABLE'
+        # console.info 'set tags EDITABLE'
         if !@_areTagsEditable
             for tag in @_tagList
                 tag.contentEditable = true
@@ -39,7 +43,7 @@ module.exports = class Tags
 
 
     setTagUnEditable : () ->
-        # console.log 'set tags UN-EDITABLE'
+        # console.info 'set tags UN-EDITABLE'
         if @_areTagsEditable
             for tag in @_tagList
                 tag.contentEditable = false
@@ -55,7 +59,7 @@ module.exports = class Tags
     removeFromRange : (rg) ->
         startSeg = selection.getSegment(rg.startContainer,0)
         endSeg   = selection.getSegment(rg.endContainer  ,0)
-        console.log '_tagList at beginning', @_tagList
+        console.info '_tagList at beginning', @_tagList
         # if equal, means we are inside a tag or oustide, no tag will be
         # deleted
         if startSeg != endSeg
