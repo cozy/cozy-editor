@@ -1,0 +1,21 @@
+[
+  {
+    "type" : "internal multiple line",
+    "html"  : "<div id=\"CNID_7\" class=\"Lu-3\"><span>Lu-3 - n°7</span><br></div><span>Tu-3 - n°8</span>"
+  },
+  {
+    "type" : "raw text",
+    "html"  : "a simple raw text"
+  },
+  {
+    "type" : "3 internal lines, the last being a span (div has been deleted wile pasted by firefox) ",
+    "html"  : "<div id=\"CNID_7\" class=\"Lu-3\"><span>Lu-3 - n°7</span><br></div><span>Tu-3 - n°8</span>"
+  },
+  {
+    "type" : "4 internal lines, pasted in chrome, of decreasing depths",
+    "html" : "<div class=\"Tu-4\" id=\"CNID_10\" style=\"box-sizing: border-box; color: rgb(82, 82, 82); font-family: main; font-size: 13px; line-height: 18px; background-color: rgb(255, 255, 255);\"><span style=\"box-sizing: border-box;\">Lu-3 - n°7</span><br style=\"box-sizing: border-box;\"></div><div class=\"Tu-3\" id=\"CNID_12\" style=\"box-sizing: border-box; color: rgb(82, 82, 82); font-family: main; font-size: 13px; line-height: 18px; background-color: rgb(255, 255, 255);\"><span style=\"box-sizing: border-box;\">Tu-3 - n°8</span><br style=\"box-sizing: border-box;\"></div><div class=\"Tu-2\" id=\"CNID_13\" style=\"box-sizing: border-box; color: rgb(82, 82, 82); font-family: main; font-size: 13px; line-height: 18px; background-color: rgb(255, 255, 255);\"><span style=\"box-sizing: border-box;\">Lu-3 - n°9</span><br style=\"box-sizing: border-box;\"></div><div class=\"Tu-1\" id=\"CNID_14\" style=\"box-sizing: border-box; color: rgb(82, 82, 82); font-family: main; font-size: 13px; line-height: 18px; background-color: rgb(255, 255, 255);\"><span style=\"box-sizing: border-box;\">Lu-3 - n°7</span></div>"
+  }
+
+
+
+]

@@ -28,16 +28,18 @@ md2cozy.cozy2md = (linesDiv) ->
     prevLineMetaData = null
 
     for line in linesDiv.children()
+        if line.id == 'CNE_urlPopover'
+            continue
         line = $ line
         lineMetaData = md2cozy.getLineMetadata(line.attr 'class')
         markCode = md2cozy.buildMarkdownPrefix lineMetaData, prevLineMetaData
         prevLineMetaData = lineMetaData
 
-        for lineElt in line.children()
-            if lineElt.nodeType == 1
-                markCode += md2cozy.convertInlineEltToMarkdown($ lineElt)
+        for segment in line.children()
+            if segment.nodeType == 1
+                markCode += md2cozy.convertInlineEltToMarkdown($ segment)
             else
-                markCode += $(lineElt).text()
+                markCode += $(segment).text()
 
         lines.push markCode
     
@@ -91,7 +93,7 @@ md2cozy.buildMarkdownPrefix = (metadata, prevMetadata) ->
         else
             ''
 
-# Convert inline element (a, img, span) to HTML.
+# Convert inline element (a, img, span) to Markdown.
 md2cozy.convertInlineEltToMarkdown = (obj) ->
     switch obj[0].nodeName
         when 'A'
@@ -104,7 +106,14 @@ md2cozy.convertInlineEltToMarkdown = (obj) ->
             src   = if obj.attr('src')? then obj.attr('src') else ""
             return '![' + alt + '](' + src + ' "' + title + '")'
         when 'SPAN'
-            return obj.text()
+            classList = obj[0].classList
+            if classList.contains('CNE_strong')
+                return '**' + obj.text() + '**'
+            # underline is not in the standard md syntax...
+            else if classList.contains('CNE_underline')
+                return obj.text()
+            else
+                return obj.text()
         else
             return ''
 

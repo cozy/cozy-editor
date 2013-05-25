@@ -19,22 +19,26 @@ exports.config =
     files:
         javascripts:
             joinTo:
+                'javascripts/vendor.js'  : /^(vendor)|(CNeditor)/
                 'javascripts/app.js'     : /^app/
-                'javascripts/vendor.js'  : /^vendor/
                 'javascripts/tests.js'   : /^test/
             order:
                 before: [
-                    'vendor/scripts/jquery-1.8.2.js'
-                    'vendor/scripts/lodash-v0.8.2.js'
-                    'vendor/scripts/backbone-0.9.2.js'
+                    'vendor/scripts/CNeditor-dependencies/jquery-1.8.2.js'
+                    'vendor/scripts/CNeditor-dependencies/bootstrap-datepicker.js'
+                    'vendor/scripts/underscore-1.4.4.js'
+                    'vendor/scripts/backbone-1.0.0.js'
                 ]
 
         stylesheets:
             joinTo:
-                'stylesheets/app.css': /(^vendor\/styles)|(^app\/views\/styles)/
-                'stylesheets/CNeditor.css': /(^app\/views\/CNeditor\/)/
+                'stylesheets/app.css': /(^app\/CNeditor)|(^vendor\/styles)|(^app\/views\/styles)/
+                'stylesheets/CNeditor.css': /(^app\/CNeditor\/)/
             order:
-                before: ['vendor/styles/normalize.css']
+                before: [
+                    'vendor/styles/normalize.css'
+                    'app/CNeditor/datepicker.css'
+                    ]
                 after: ['vendor/styles/helpers.css']
 
         templates:

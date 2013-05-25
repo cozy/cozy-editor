@@ -24,37 +24,28 @@ exports.config =
                 # depending your needs :
 
                 # for deployement in "public/CNeditor.js"
-                # './CNeditor.js': /^app\/views\/CNeditor\/.*\.coffee$/
+                '../build/CNeditor.js': /^app\/CNeditor\/.*(\.coffee)|(\.js)$/
 
                 # for deployement directly in cozy-notes
-                '../../cozy-notes/client/vendor/scripts/CNeditor.js': /^app\/views\/CNeditor\/.*\.coffee$/
-
+                '../../cozy-notes/client/vendor/scripts/CNeditor.js': /^app\/CNeditor\/.*(\.coffee)|(\.js)$/
 
                 'javascripts/tests.js': /^test/
 
             order:
                 before: [
-                    'app/views/CNeditor/md2cozy.coffee'
-                    'app/views/CNeditor/selection.coffee'
-                ]
-
+                    'app/CNeditor/selection.coffee'
+                    'app/CNeditor/md2cozy.coffee'
+                    'app/CNeditor/task.coffee'
+                    'app/CNeditor/realtimer.coffee'                ]
         stylesheets:
             joinTo:
-                './CNeditor.css': /^app\/views\/CNeditor/
+                '../build/CNeditor.css': /^app\/CNeditor/
+                '../../cozy-notes/client/vendor/styles/CNeditor.css': /^app\/CNeditor/
+            order:
+                before:[
+                    'app/CNeditor/datepicker.css'
+                ]
+
 
     modules:
-        wrapper: false
-        definition:  (path, data) ->
-            # for deployement in "public/CNeditor.js"
-            # if path == "public/CNeditor.js"
-            # for deployement in "public/CNeditor.js"
-            if path == "../cozy-notes/client/vendor/scripts/CNeditor.js"
-                
-                """
-                exports = {};
-                """
-
-    # minify: true
-    # optimize: true
-    # none of those syntax work, there is a pb in the documentation : 
-    # http://brunch.readthedocs.org/en/latest/config.html#optimize
+        wrapper: 'commonjs'

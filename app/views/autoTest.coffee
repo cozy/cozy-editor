@@ -22,7 +22,7 @@ class exports.AutoTest
     checkLines : (editor) ->
         # init
         @editor    = editor
-        @divLines$ = $(editor.editorBody$[0].children[1])
+        @linesDiv = @editor.linesDiv # $(editor.editorBody$[0].children[1])
         
         # 1-Is there a line object corresponding to each DIV ?
         try
@@ -191,9 +191,10 @@ class exports.AutoTest
     checkTextNodes: (elmt, line) ->
         if elmt.childNodes.length > 1 
             @logErr(line,"a #{elmt.nodeName} should have only 1 child node")
-        else if elmt.childNodes.length == 0 
-            @logErr(line,"a #{elmt.nodeName} should have at least 1 child node")
-        else if elmt.childNodes[0].nodeName != '#text'
+        # 
+        # else if elmt.childNodes.length == 0 
+        #     @logErr(line,"a #{elmt.nodeName} should have at least 1 child node")
+        if elmt.childNodes.length == 1 &&  elmt.childNodes[0].nodeName != '#text'
             @logErr(line,"element #{elmt.nodeName} should not have 
                 a #{elmt.childNodes[0].nodeName} as node child")
 
@@ -201,14 +202,15 @@ class exports.AutoTest
     checkLineStructure : (line) ->
         type  = @nodeType(line.lineType)
         depth = line.lineDepthAbs
-        
+
         # 1- check the line has a corresponding element
-        lineEl = @divLines$.children('#'+line.lineID)[0]
+        # lineEl = @linesDiv.querySelector('#'+line.lineID)
+        lineEl = this.editor.document.getElementById(line.lineID)
         if lineEl == null
             txt = 'has no matching DIV'
             @logErr(line,txt)
         
-        # 2- a DIV contains a sequence of SPAN A and IMG ended by a BR ----(OK)
+        # 2- a DIV contains a sequence of SPAN, A and IMG ended by a BR ----(OK)
         children = [].slice.call(lineEl.childNodes)
         # rq : el.childNodes is not an array, it's a nodeList...
         
@@ -223,26 +225,29 @@ class exports.AutoTest
             txt = 'must end with BR'
             @logErr(line,txt)
 
-
-        lastClass = undefined
-        for child in children
-            # 4- two successive SPAN can't have the same class -------------(OK)
-            if child.nodeName == 'SPAN'
-                childClass = child.getAttribute('class')
-                if childClass? && lastClass == child.getAttribute('class')
-                    txt = "two consecutive SPAN with same 
-                          class #{lastClass}"
-                    @logErr(line,txt)
-                else
-                    lastClass = childClass
-                @checkElement(child, line)
-            else if child.nodeName == 'A'
-                lastClass = undefined
-            else if child.nodeName == 'IMG'
-                lastClass = undefined
-            else
-                txt = "invalid element in a line (#{child.nodeName})"
+        # 4- two successive child of a line div must not be "similar" (same 
+        # class same node name and if a <a> same href)
+        child1 = children[0]
+        while child1.nodeName != 'BR'
+            child2 = child1.nextSibling
+            isSimilar = this.editor._haveSameMeta(child1,child2)
+            if isSimilar
+                txt = "two successive element in a line which are similar (same node type and class)"
                 @logErr(line,txt)
+            else
+                @checkElement(child1, line)
+                child1 = child1.nextSibling
+
+        # 5- Segments should not be empty (exept in case of an empty line)
+        if children.length > 1
+            for i in [0..children.length-2]
+                if children[i].textContent == ''
+                    if children[i].dataset.type != ('taskBtn')
+                        txt = "no empty segment in a non empty line"
+                        @logErr(line,txt)
+
+        return true
+
 
 
     buildTree : () ->
@@ -251,7 +256,7 @@ class exports.AutoTest
         rootLine =
             lineType: 'root'
             lineID: 'CNID_0'
-            lineNext: @editor._lines['CNID_1'] # should be _firstLine instead
+            lineNext: @editor.getFirstline()
             linePrev: null
             lineDepthAbs: 0
         root = @createNode(rootLine, [])
@@ -267,13 +272,10 @@ class exports.AutoTest
         # appending the property ".sons" to every line that is a non-empty title
         # It will be easier to check the remaining properties with a tree
         while nextLine != null
-            try 
-                @checkLineStructure nextLine
-            catch error
-                return
+
+            @checkLineStructure nextLine
                     
             # Then we add it to the tree
-            @addLine
             newNode = @createNode(nextLine, [])
             type    = @nodeType(nextLine.lineType)
             depth   = nextLine.lineDepthAbs
@@ -287,6 +289,10 @@ class exports.AutoTest
                     @myAncestor.push(newNode)
                 else
                     @myAncestor[depth] = newNode
+                    n  = @myAncestor.length - 1
+                    while depth != n
+                        @myAncestor.pop()
+                        n += -1
                 
                 # adds title to the tree
                 if @myAncestor[depth-1] == null
@@ -319,9 +325,14 @@ class exports.AutoTest
 
 
     checkEachDivRefersALine : () ->
-        objDiv = @divLines$.children('div')
-        objDiv.each (i,div) =>
+
+        objDiv = this.linesDiv.childNodes
+        
+        for div, i in objDiv
             myId = div.id
+            # jump to nex div if div <=> urlPopover
+            if myId == 'CNE_urlPopover' or myId == 'CNE_autocomplete'
+                continue
             if /CNID_[0-9]+/.test myId
                 if ! @editor._lines[myId]?
                     txt = 'div\'s id has no corresponding line ' + myId
@@ -329,6 +340,7 @@ class exports.AutoTest
             else
                 txt = 'wrong line id format : ' + myId
                 @logErr(null,txt)
+            
 
 
 
