@@ -3,10 +3,12 @@ request = require("./request")
 # Model that describes a single task
 module.exports = class Alarm extends Backbone.Model
 
-    # A remplir par Joseph
     urlRoot: "/apps/agenda/alarms"
 
     @dateFormat = "{Dow} {Mon} {dd} {yyyy} {HH}:{mm}:00"
+
+    defaults: ->
+        action: 'DISPLAY'
 
     validate: (attrs, options) ->
 
@@ -16,17 +18,6 @@ module.exports = class Alarm extends Backbone.Model
             errors.push
                 field: 'description'
                 value: "A description must be set."
-
-        if not attrs.action or attrs.action is ""
-            errors.push
-                field: 'action'
-                value: "An action must be set."
-
-        allowedActions = ['DISPLAY', 'EMAIL']
-        if allowedActions.indexOf(attrs.action) is -1
-            errors.push
-                field: 'action'
-                value: "A valid action must be set."
 
         if not attrs.trigg or not new Date.create(attrs.trigg).isValid()
             errors.push
@@ -43,29 +34,23 @@ module.exports = class Alarm extends Backbone.Model
     getFormattedDate: (formatter) ->
         return @getDateObject().format formatter
 
-    # Private static methods
-    noCallback = ->
-    isAlarm = (app) -> app.name is 'agenda'
-    getApps = (callback) -> request.get '/api/applications', callback
-    checkAlarmInstalled = (apps, callback) ->
-        if apps.rows.some isAlarm then callback null, true
-        else callback 'notinstalled'
+    @makeCollection = ->
+        new Backbone.Collection [],
+            model: Alarm
 
     # Static methods
     @initialize = (callback) ->
 
-        fail = (err) ->
-            Alarm.canBeUsed = false
-            Alarm.error = err
-            callback false if typeof callback is 'function'
+        callback ?= ->
 
-        success = () ->
-            Alarm.canBeUsed = true
-            callback true if typeof callback is 'function'
+        isAgenda = (app) -> app.name is 'agenda'
 
-        getApps (err, apps) ->
-            return fail err if err
+        request.get '/api/applications', (err, apps) ->
 
-            checkAlarmInstalled apps, (err) ->
-                if err then fail err
-                else success()
+            err = 'notinstalled' if not err and not apps.rows.some isAgenda
+
+            if err
+                Contact.error = err
+                callback Alarm.canBeUsed = false
+            else
+                callback Alarm.canBeUsed = true

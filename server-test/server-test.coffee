@@ -135,7 +135,7 @@ port = 3000
 server = http.createServer(app)
 
 initializer = require 'cozy-realtime-adapter'
-initializer server: server, ['task.update', 'task.delete', 'alarm.update', 'alarm.delete']
+initializer server: server, ['task.*', 'alarm.*', 'contact.*']
 
 
 server.listen port

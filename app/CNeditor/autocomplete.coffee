@@ -30,11 +30,10 @@ class AutoComplete
         @datePick = $(@reminderDiv.lastChild).datepicker()
         @datePick.show()
         @datePick.on('changeDate', (e) =>
-            nd = e.date
-            date = @_currentDate
-            date.setDate(nd.getDate())
-            date.setMonth(nd.getMonth())
-            date.setFullYear(nd.getFullYear())
+            @_currentDate ?= new Date()
+            @_currentDate.setDate     e.date.getDate()
+            @_currentDate.setMonth    e.date.getMonth()
+            @_currentDate.setFullYear e.date.getFullYear()
         )
 
         @timePick = $(@reminderDiv.childNodes[2].firstElementChild.lastElementChild)
@@ -44,21 +43,18 @@ class AutoComplete
             showSeconds  : true
             showMeridian : false
         )
+        @timePick.timepicker().on('changeTime.timepicker', (e) ->
+            @_currentDate ?= new Date()
+            @_currentDate.setHours   e.time.hours
+            @_currentDate.setMinutes e.time.minutes
+            @_currentDate.setSeconds e.time.seconds
+        )
 
         # listener for the title click
         reminderTitle = @reminderDiv.querySelector('.reminder-title')
         reminderTitle.addEventListener 'click', () =>
             @hotString.validate()
 
-
-        # .timepicker().on('changeTime.timepicker', (e) ->
-        #     console.info e.time
-        #     t = e.time
-        #     date = @_currentDate
-        #     date.setHours(t.getDate())
-        #     date.setMinutes(t.getMonth())
-        #     date.setSeconds(t.getFullYear())
-        # )
 
         @regexStore = {}
         @isVisible  = false
@@ -82,35 +78,19 @@ class AutoComplete
         auto.appendChild(@contactsDiv)
 
         @setItems( 'tTags', [
-            # {text:'contact' , type:'ttag', value:'contact' , mention:' (@)' }
-            # {text:'reminder', type:'ttag', value:'reminder', mention:' (@@)'}
+            {text:'contact' , type:'ttag', value:'contact' , mention:' (@)' }
             {text:'todo'    , type:'ttag', value:'todo'                     }
+            {text:'reminder', type:'ttag', value:'reminder', mention:' (@@)'}
             # {text:'tag'     , type:'ttag', value:'htag'    , mention:' (#)' }
             ])
 
-        # @setItems( 'contact', [
-        #     {text:'Frank @Rousseau' , type:'contact'             }
-        #     {text:'Lucas Toulouse'  , type:'contact'             }
-        #     {text:'Maxence Cote'    , type:'contact'             }
-        #     {text:'Joseph Silvestre', type:'contact'             }
-        #     {text:'Romain Foucault' , type:'contact'             }
-        #     {text:'Zoé Bellot'      , type:'contact'             }
-        #     ])
-
-        # @setItems( 'htag', [
-        #     {text:'Carte'              , type:'htag'}
-        #     {text:'Factures'           , type:'htag'}
-        #     {text:'Javascript'         , type:'htag'}
-        #     {text:'Pérou 2012'         , type:'htag'}
-        #     {text:'Présentation LyonJS', type:'htag'}
-        #     {text:'Recettes cuisine'   , type:'htag'}
-        #     ])
+        @setItems 'contact', []
 
         return this
 
 
     ###*
-     * Adds items to a type of suggestions
+     * Set items for a type of suggestions
      * @param {String} type  'tTags', 'contact', 'htag'
      * @param {Object} items Object {text, type, [mention]}
     ###
@@ -126,11 +106,12 @@ class AutoComplete
             when 'htag'
                 @htags = items
                 lines = @htagDiv
+
+        lines.removeChild lines.firstChild while lines.firstChild
         for it in items
             lines.appendChild(@_createLine(it))
 
         return true
-
 
     ###*
      * Insert a suggestion line in the list of possible suggestions
@@ -293,33 +274,14 @@ class AutoComplete
             when 'htag'
                 items = @htags
             when 'reminder'
-                reg1 = /\+?(\d+)h(\d*)mn/i
-                reg2 = /\+?(\d+)h/i
-                reg3 = /\+?((\d+)d)?((\d+)h)?((\d*)mn)?/i
-                regD  = /(\d+)d/i
-                regH  = /(\d+)h/i
-                regMn = /(\d+)mn/i
-                # txt = typedTxt.slice(2)
-                resReg1 = reg1.exec(typedTxt)
-                resReg2 = reg2.exec(typedTxt)
-                resReg3 = reg3.exec(typedTxt)
-                resRegD  = regD.exec(typedTxt)
-                resRegH  = regH.exec(typedTxt)
-                resRegMn = regMn.exec(typedTxt)
 
-                console.info resRegD
-                if resRegMn or resRegH or resRegD
-                    dd = dh = dmn = 0
-                    if resRegD
-                        dd  = parseInt(resRegD[1])  * 3600000 * 24
-                    if resRegH
-                        dh  = parseInt(resRegH[1])  * 3600000
-                    if resRegMn
-                        dmn = parseInt(resRegMn[1]) * 60000
-                    @_currentDate.setTime(@_initialDate.getTime()+dd+dh+dmn)
-                    now = @_currentDate
-                    @datePick.datepicker('setValue', now)
-                    @timePick.timepicker('setTime', now.getHours()+':'+now.getMinutes()+':'+now.getSeconds())
+                newdate = Date.future(typedTxt)
+                if newdate.isValid()
+                    @_currentDate = newdate
+                    @datePick.datepicker 'setValue', @_currentDate
+                    time = @_currentDate.toTimeString().substring 0, 8
+                    @timePick.timepicker 'setTime', time
+
                 return
 
         # check the items to show

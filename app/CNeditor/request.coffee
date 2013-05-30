@@ -9,7 +9,7 @@ exports.request = (type, url, data, callback) ->
         success: (data) ->
             callback(null, data) if callback?
         error: ->
-            if data.msg? and callback?
+            if data?.msg? and callback?
                 callback new Error data.msg
             else if callback?
                 callback new Error "Server error occured"

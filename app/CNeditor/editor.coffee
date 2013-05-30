@@ -25,6 +25,8 @@ require('./logging')
 md2cozy      = require('./md2cozy').md2cozy
 selection    = require('./selection').selection
 Task         = require('./task')
+Contact      = require('./contact')
+Alarm        = require('./alarm')
 HotString    = require('./hot-string')
 Tags         = require('./tags')
 Line         = require('./line')
@@ -44,7 +46,14 @@ module.exports = class CNeditor
         # 1- var
         @editorTarget  = editorTarget
         @editorTarget$ = $(@editorTarget)
-        @callBack = callBack
+
+        # we wait for 4 things to be loaded : loadEditor,
+        # Task.initialize, Contact.initialize and Alarm.initialize
+        loadingJoinCounter = 4
+        loadingJoin = () =>
+            loadingJoinCounter--
+            if loadingJoinCounter is 0
+                callBack.call this
 
         # 2- Initialisation of the Tasks -
         # Counter for temporary tasks id waiting
@@ -56,25 +65,50 @@ module.exports = class CNeditor
         @_tasksToBeSaved = {}
         # a list of tasks modified since last addHistory()
         @_tasksModifSinceLastHistory = {}
-        # init the socketio connection
-        Task.initialize () =>
+
+        # 2 - Async loading of everything
+                # init the socketio connection
+        Task.initialize =>
             @taskCanBeUsed = Task.canBeUsed
+            loadingJoin()
+
+        @contactsCollection = Contact.makeCollection()
+        Contact.initialize =>
+            @contactCanBeUsed = Contact.canBeUsed
+            @contactsCollection.fetch() if @contactCanBeUsed
+            realtimer.watch @contactsCollection
+            @contactsCollection.on 'add',         @_updateHotStringContacts
+            @contactsCollection.on 'sync',        @_updateHotStringContacts
+            @contactsCollection.on 'remove',      @_updateHotStringContacts
+            @contactsCollection.on 'reset',       @_updateHotStringContacts
+            @contactsCollection.on 'change:name', @_updateHotStringContacts
+            @contactsCollection.on 'change:name', @_updateContactSegment
+            @contactsCollection.on 'destroy',     @_removeContactSegment
+            loadingJoin()
+
+        @alarmsCollection = Alarm.makeCollection()
+        Alarm.initialize =>
+            @alarmCanBeUsed = Alarm.canBeUsed
+            realtimer.watch @alarmsCollection
+            @alarmsCollection.on 'destroy',
+            loadingJoin()
 
         # 3- launch loard editor in synchrone or async whether the editor is in
         # a div or an iframe.
         if @editorTarget.nodeName == "IFRAME"
             @isInIframe = true
-            @editorTarget$.on 'load', @loadEditor
+            @editorTarget$.on 'load', =>
+                @loadEditor loadingJoin
             @editorTarget.src = ''
         else if @editorTarget.nodeName == "DIV"
             @isInIframe = false
-            @loadEditor()
+            @loadEditor loadingJoin
 
         # return a ref to the editor's controler
         return this
 
 
-    loadEditor : () =>
+    loadEditor : (callback) =>
         # preparation of the iframe
         if @isInIframe
             editor_html$ = @editorTarget$.contents().find("html")
@@ -160,7 +194,7 @@ module.exports = class CNeditor
         @enable()
 
         # callback
-        @callBack.call(this)
+        callback()
 
 
 
@@ -226,7 +260,7 @@ module.exports = class CNeditor
 
         # 4- when in a meta segment (contact, reminder etc...), edit it.
         switch startSeg.dataset.type
-            when 'contact', 'reminder', 'htag'
+            when 'reminder', 'htag'
                 if !@_hotString.isPreparing
                     rg = this.document.getSelection().getRangeAt(0)
                     @Tags.remove(startSeg)
@@ -255,6 +289,12 @@ module.exports = class CNeditor
                 @_showUrlPopover(segments,false)
                 e.stopPropagation()
                 e.preventDefault()
+
+
+        @_hideContactPopover()
+
+        if e.target.dataset.type is 'contact'
+            @_showContactPopover e.target
 
         # if a hot string is under preparation, re init the process.
         if @hotString.isPreparing
@@ -376,7 +416,7 @@ module.exports = class CNeditor
 
 
     _turneLineIntoTask : (lineDiv) ->
-        if !@taskCanBeUsed
+        if !Task.canBeUsed
             return false
 
         # add button
@@ -766,6 +806,33 @@ module.exports = class CNeditor
         return res
 
 
+    setReminderCf: (description, related) ->
+        @reminderCf ?= {}
+        @reminderCf.description = description if description
+        @reminderCf.related     = related     if related
+
+    _createReminderForSegment: (segment) ->
+
+        date = Date.create(segment.dataset.value).format Alarm.dateFormat
+
+        alarm = new Alarm
+            id:          segment.dataset.id or null
+            trigg:       date
+            related:     @reminderCf.related
+            description: @reminderCf.description
+
+        console.log 'alarm.trigg is ', alarm.get 'trigg'
+
+        alarm.save()
+        .done =>
+            segment.dataset.id = alarm.id
+            # @alarmsCollection.add alarm
+        .fail =>
+            console.log 'failed to save CNE_reminder'
+            segment.dataset = {}
+            segment.removeClass 'CNE_reminder'
+
+
     ###* -----------------------------------------------------------------------
      * Returns true if the selection is at the start of a word. Ex :
      *     . xxxx |yyyy   : true
@@ -820,7 +887,7 @@ module.exports = class CNeditor
             return []
             # return ['contact','event','reminder','htag']
         else
-            return ['todo']
+            return ['todo', 'contact', 'reminder']
             # return ['contact','todo','event','reminder','htag']
 
 
@@ -997,6 +1064,7 @@ module.exports = class CNeditor
                     when 8  then key = 'backspace'
                     when 65 then key = 'A'
                     when 66 then key = 'B'
+                    when 67 then key = 'C'
                     when 85 then key = 'U'
                     when 75 then key = 'K'
                     when 76 then key = 'L'
@@ -1011,7 +1079,7 @@ module.exports = class CNeditor
 
         # a,s,v,y,z alone are simple characters
         if metaKey in ['', 'Shift'] && key in
-             ['A', 'B', 'U', 'K', 'L', 'S', 'V', 'Y', 'Z']
+             ['A', 'B', 'C', 'U', 'K', 'L', 'S', 'V', 'Y', 'Z']
             key = 'other'
 
         @_shortcut =
@@ -1036,6 +1104,7 @@ module.exports = class CNeditor
         catch error
             alert('A bug occured, we prefer to undo your last action not ' + \
                   'to take any risk.\n\nMessage :\n' + error)
+            console.log error.stack
             e.preventDefault()
             @unDo()
 
@@ -1161,7 +1230,14 @@ module.exports = class CNeditor
                     return true
 
             when 'other', 'space'
-                if !e.ctrlrlKey && !e.altKey
+                # catch ctrl + key and alt + key but not ctrl+alt+key
+                # as it is a alt-gr on windows
+
+                winAltGr = e.ctrlKey and e.altKey
+
+                return true if winAltGr
+
+                unless e.ctrlKey or e.altKey
                     if @newPosition
                         @_addHistory()
                     else if lastShortcut == '-space' && shortcut != '-space'
@@ -1175,15 +1251,13 @@ module.exports = class CNeditor
                     @editorTarget$.trigger jQuery.Event('onChange')
                     @_detectTaskChange()
                     return true
-                if e.ctrlKey && e.altKey # altgr on windows
-                    return true
 
 
-        # 7- if alt or ctrl is pressed, then prevent default, only custom
-        # behaviour defined below must occur, no default by browser.
-        if e.altKey or e.ctrlKey
-            unless e.altKey && e.ctrlKey
-                e.preventDefault()
+        # # 7- if alt or ctrl is pressed, then prevent default, only custom
+        # # behaviour defined below must occur, no default by browser.
+        # if e.altKey or e.ctrlKey
+        #     unless shortcut is 'Ctrl-C'
+        #         e.preventDefault()
 
         # 8- launch the action corresponding to the pressed shortcut
         # If a popover is visible, the actions are sent to it
@@ -1289,6 +1363,9 @@ module.exports = class CNeditor
                 e.preventDefault()
                 @editorTarget$.trigger jQuery.Event('onChange')
 
+            when 'Ctrl-C'
+                # let it happens
+
             else
                 # console.info 'keyDownCb ELSE'
                 e.preventDefault()
@@ -1350,8 +1427,19 @@ module.exports = class CNeditor
                     else
                         @_setCaret(startSeg.nextSibling,0)
 
+                when 'contact'
+                    # if left : go to the end of previous segment.
+                    if e.keyCode == 37
+                        @_setCaret(
+                            startSeg.previousSibling.childNodes[0],
+                            startSeg.previousSibling.childNodes[0].length-1)
+                    # put it at the beginning of next segment
+                    else
+                        console.log startSeg.nextSibling
+                        @_setCaret(startSeg.nextSibling.childNodes[0], 1)
+
                 # B/ When in a meta segment (contact, reminder etc...), edit it.
-                when 'contact', 'reminder', 'htag'
+                when 'reminder', 'htag'
                     if !@_hotString.isPreparing
                         @Tags.remove(startSeg)
                         @_hotString.edit(startSeg,rg)
@@ -2810,8 +2898,14 @@ module.exports = class CNeditor
                     bp = selection.setBpPreviousSegEnd(textNode)
                     textNode = bp.cont
                     startOffset = bp.offset
+
+                if textNode.parentNode.dataset.type is 'contact'
+                    textNode.parentNode.parentNode.removeChild textNode.parentNode
+                    return
+
                 # delete one caracter in the textNode
                 txt = textNode.textContent
+
 
                 textNode.textContent = txt.substr(0,startOffset-1) +
                                        txt.substr(startOffset)
@@ -5496,8 +5590,10 @@ module.exports = class CNeditor
             when 'contact'
                 hs._forceUserHotString(autoItem.text, [])
                 hs._hsSegment.classList.add('CNE_contact')
+                hs._hsSegment.contentEditable = false
                 hs._hsSegment.dataset.type = 'contact'
-                @Tags._tagList.push(hs._hsSegment) # not clean but perf...
+                hs._hsSegment.dataset.id = autoItem.model.id
+                # @Tags._tagList.push(hs._hsSegment) # not clean but perf...
                 hs._hsSegment.classList.remove('CNE_hot_string')
                 bp = @.insertSpaceAfterSeg(hs._hsSegment)
                 @_setCaret(bp.cont,1)
@@ -5523,26 +5619,16 @@ module.exports = class CNeditor
                 return true
 
             when 'reminder'
-
-                format = (n)->
-                    if n.toString().length == 1
-                        return '0' + n
-                    else
-                        return n
-                date = autoItem.value
-                d    = format(date.getDate()     )
-                m    = format(date.getMonth()    )
-                y    = format(date.getFullYear() )
-                h    = format(date.getHours()    )
-                mn   = format(date.getMinutes()  )
-                txt  = d + '/' + m + '/' + y + '  ' + h + ':' + mn
+                txt = if typeof autoItem.value is 'string' then autoItem.value
+                else autoItem.value.format()
                 hs._forceUserHotString(txt, [])
 
                 hs._hsSegment.classList.add('CNE_reminder')
                 hs._hsSegment.classList.remove('CNE_hot_string')
                 hs._hsSegment.dataset.type = 'reminder'
                 @Tags._tagList.push(hs._hsSegment) # not clean but perf...
-                hs._hsSegment.dataset.value = date.format()
+                hs._hsSegment.dataset.value = txt
+                @_createReminderForSegment hs._hsSegment
 
                 bp = @.insertSpaceAfterSeg(hs._hsSegment)
                 @_setCaret(bp.cont,1)
@@ -5559,7 +5645,43 @@ module.exports = class CNeditor
         return false
 
 
+    _hideContactPopover: ->
+        if @contactpopover
+            @contactpopover.parentNode.removeChild @contactpopover
+            @contactpopover = null
 
+
+    _showContactPopover: (contactsegment) =>
+        model = @contactsCollection.get contactsegment.dataset.id
+        @contactpopover = document.createElement('DIV')
+        @contactpopover.id = 'contactpopover'
+        html = '<dl class="dl-horizontal">'
+        for dp in model.get 'datapoints'
+            value = dp.value.replace "\n", '<br />'
+            html += "<dt>#{dp.type}</dt><dd>#{value}</dd>"
+        html += '</dl>'
+        @contactpopover.innerHTML = html
+        contactsegment.appendChild @contactpopover
+
+    _removeContactSegment: (model) =>
+        selector = "span[data-type='contact'][data-id='#{model.id}']"
+        for contactsegment in @linesDiv.querySelectorAll(selector)
+            contactsegment.textContent = '@ '+contactsegment.textContent
+            contactsegment.classList.remove 'CNE_contact'
+            contactsegment.dataset = {}
+
+    _updateContactSegment: (model) =>
+        selector = "span[data-type='contact'][data-id='#{model.id}']"
+        for contactsegment in @linesDiv.querySelectorAll(selector)
+            contactsegment.textContent = model.get 'name'
+
+    _updateHotStringContacts: =>
+        contacts = @contactsCollection.map (contact) ->
+                text: contact.get 'name'
+                type: 'contact'
+                model: contact
+
+        @_hotString._auto.setItems 'contact', contacts
 
 
     ### ------------------------------------------------------------------------

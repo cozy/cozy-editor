@@ -14,7 +14,7 @@ module.exports = class HotString
         @_hsTypes  = ['@', '@@', '#']
         @_modes    =
             '@'  : 'contact'
-            # '@@' : 'reminder'
+            '@@' : 'reminder'
             # '#'  : 'htag'
         @isPreparing  = false # true if a hot sring is under construction
         @_hsType      = ''
@@ -122,8 +122,8 @@ module.exports = class HotString
                 if 'contact' in modes
                     @_hsType = '@'
                     @isPreparing = true
-                    @_auto.setMode 'ttag'
-                    @_currentMode = 'ttag'
+                    @_auto.setMode 'contact'
+                    @_currentMode = 'contact'
                     @_autoToBeShowed = mode:'insertion'
                 else if modes.length > 0
                     @_hsType = '@'
