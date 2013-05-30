@@ -230,7 +230,9 @@ module.exports = class HotString
         @_hsTextNode = seg.firstChild
         @_hsString = seg.textContent
         @_hsTextNode.textContent = @_hsType + @_hsString
-        seg.classList.remove(segClass)
+        seg.classList.remove 'CNE_reminder'
+        seg.classList.remove 'CNE_contact'
+        seg.classList.remove 'CNE_htag'
         seg.dataset.type = ''
         @editor.setSelection(seg.firstChild, startOffset ,
                              seg.firstChild, endOffset

@@ -1,5 +1,6 @@
 
 selection = require('./selection').selection
+Alarm = require('./alarm')
 
 ###*
  * Helpers for Tags
@@ -9,7 +10,7 @@ selection = require('./selection').selection
 
 module.exports = class Tags
 
-    constructor : () ->
+    constructor : (@editor) ->
         @_tagList = []
         @_areTagsEditable = true
         window.taglist = @_tagList
@@ -47,7 +48,22 @@ module.exports = class Tags
             @_areTagsEditable = false
 
     remove : (seg) ->
+        console.log 'Tags.remove', seg
         @_tagList = _.without(@_tagList, seg)
+
+        switch seg.dataset.type
+            when 'reminder'
+                seg.textContent = '@@' + seg.textContent
+                @editor.alarmsCollection.get(seg.dataset.id)?.destroy()
+            when 'contact'
+                seg.textContent = '@' + seg.textContent
+
+        seg.classList.remove 'CNE_reminder'
+        seg.classList.remove 'CNE_contact'
+
+        delete seg.dataset.id
+        delete seg.dataset.type
+        delete seg.dataset.value
 
     ###*
      * Find and removes all tags within a range (normalize it for precaution).
@@ -68,8 +84,7 @@ module.exports = class Tags
                     if seg == endSeg
                         break
                 # if a tag, remove it
-                if seg.dataset.type
-                    @_tagList = _.without(@_tagList, seg)
+                @remove seg if seg.dataset.type
                 seg = seg.nextSibling
 
         return true

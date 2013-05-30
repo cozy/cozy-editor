@@ -467,6 +467,11 @@ class AutoComplete
             if prev
                 @_selectedLine = prev
             else
+                if @_currentMode is 'reminder'
+                    @_selectedLine = line
+                    @_selectLine()
+                    return true
+
                 if line.item.type == 'ttag'
                     @_selectedLine = @el.lastChild.lastChild
                 else
@@ -496,6 +501,11 @@ class AutoComplete
             line = @_unSelectLine()
             next = line.nextSibling
             if next
+                if @_currentMode is 'reminder'
+                    @_selectedLine = line
+                    @_selectLine()
+                    return true
+
                 @_selectedLine = next
             else
                 if line.item.type == 'ttag'

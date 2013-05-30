@@ -90,7 +90,10 @@ module.exports = class CNeditor
         Alarm.initialize =>
             @alarmCanBeUsed = Alarm.canBeUsed
             realtimer.watch @alarmsCollection
-            @alarmsCollection.on 'destroy',
+
+            @alarmsCollection.on 'change:trigg', @_updateReminderSegment
+            @alarmsCollection.on 'destroy',      @_removeReminderSegment
+
             loadingJoin()
 
         # 3- launch loard editor in synchrone or async whether the editor is in
@@ -152,7 +155,7 @@ module.exports = class CNeditor
         @_hotString = new HotString(this)
 
         # init Tags helper
-        @Tags = new Tags()
+        @Tags = new Tags this
 
         # set the properties of the editor
         @_lines      = {}            # contains every line
@@ -263,7 +266,7 @@ module.exports = class CNeditor
             when 'reminder', 'htag'
                 if !@_hotString.isPreparing
                     rg = this.document.getSelection().getRangeAt(0)
-                    @Tags.remove(startSeg)
+                    # @Tags.remove(startSeg)
                     @_hotString.edit(startSeg, rg)
                     while false # otherwise bug in ff debugger...
                         d
@@ -291,9 +294,9 @@ module.exports = class CNeditor
                 e.preventDefault()
 
 
-        @_hideContactPopover()
+        oldcontactseg = @_hideContactPopover()
 
-        if e.target.dataset.type is 'contact'
+        if e.target.dataset.type is 'contact' and e.target isnt oldcontactseg
             @_showContactPopover e.target
 
         # if a hot string is under preparation, re init the process.
@@ -807,6 +810,7 @@ module.exports = class CNeditor
 
 
     setReminderCf: (description, related) ->
+        console.info 'setReminderCf'
         @reminderCf ?= {}
         @reminderCf.description = description if description
         @reminderCf.related     = related     if related
@@ -821,16 +825,14 @@ module.exports = class CNeditor
             related:     @reminderCf.related
             description: @reminderCf.description
 
-        console.log 'alarm.trigg is ', alarm.get 'trigg'
-
+        @alarmsCollection.add alarm
         alarm.save()
         .done =>
             segment.dataset.id = alarm.id
-            # @alarmsCollection.add alarm
-        .fail =>
+        .fail (jqXHR) =>
+            console.log jqXHR
             console.log 'failed to save CNE_reminder'
-            segment.dataset = {}
-            segment.removeClass 'CNE_reminder'
+            @Tags.remove segment
 
 
     ###* -----------------------------------------------------------------------
@@ -955,6 +957,9 @@ module.exports = class CNeditor
     # Returns an html string representing the editor content
     ###
     getEditorContent : () ->
+
+        @_hideContactPopover()
+
         if @_hotString.isPreparing or @.isUrlPopoverOn
             clone = @linesDiv.cloneNode(true)
 
@@ -1070,6 +1075,7 @@ module.exports = class CNeditor
                     when 76 then key = 'L'
                     when 83 then key = 'S'
                     when 86 then key = 'V'
+                    when 88 then key = 'X'
                     when 89 then key = 'Y'
                     when 90 then key = 'Z'
                     else
@@ -1079,7 +1085,7 @@ module.exports = class CNeditor
 
         # a,s,v,y,z alone are simple characters
         if metaKey in ['', 'Shift'] && key in
-             ['A', 'B', 'C', 'U', 'K', 'L', 'S', 'V', 'Y', 'Z']
+             ['A', 'B', 'C', 'X', 'U', 'K', 'L', 'S', 'V', 'Y', 'Z']
             key = 'other'
 
         @_shortcut =
@@ -1332,6 +1338,10 @@ module.exports = class CNeditor
             when 'Ctrl-V'
                 @_addHistory()
                 @editorTarget$.trigger jQuery.Event('onChange')
+                if @_hotString.isPreparing
+                    cont = @_hotString._hsSegment.childNodes[0]
+                    offset = cont.length
+                    @_setCaret(cont,offset)
                 return true
 
             when 'Ctrl-B'
@@ -1363,7 +1373,7 @@ module.exports = class CNeditor
                 e.preventDefault()
                 @editorTarget$.trigger jQuery.Event('onChange')
 
-            when 'Ctrl-C'
+            when 'Ctrl-C', 'Ctrl-X'
                 # let it happens
 
             else
@@ -1435,13 +1445,17 @@ module.exports = class CNeditor
                             startSeg.previousSibling.childNodes[0].length-1)
                     # put it at the beginning of next segment
                     else
-                        console.log startSeg.nextSibling
-                        @_setCaret(startSeg.nextSibling.childNodes[0], 1)
+
+                        if startSeg.nextSibling.childNodes[0]
+                            @_setCaret(startSeg.nextSibling.childNodes[0], 1)
+                        else
+                            bp = @insertSpaceAfterSeg startSeg
+                            @_setCaret bp.cont, bp.offset
 
                 # B/ When in a meta segment (contact, reminder etc...), edit it.
                 when 'reminder', 'htag'
                     if !@_hotString.isPreparing
-                        @Tags.remove(startSeg)
+                        # @Tags.remove(startSeg)
                         @_hotString.edit(startSeg,rg)
 
         # C/ shift Keyup : a selection with keyboard might occured
@@ -2899,6 +2913,7 @@ module.exports = class CNeditor
                     textNode = bp.cont
                     startOffset = bp.offset
 
+                # if attempt to delete inside a contact, delete whole contact
                 if textNode.parentNode.dataset.type is 'contact'
                     textNode.parentNode.parentNode.removeChild textNode.parentNode
                     return
@@ -5546,8 +5561,8 @@ module.exports = class CNeditor
 
         hs = @_hotString
 
-        if !autoItem
-            hs.reset('end')
+        unless autoItem?.type
+            hs.reset('end', true)
             return true
 
         switch autoItem.type
@@ -5646,9 +5661,15 @@ module.exports = class CNeditor
 
 
     _hideContactPopover: ->
+
+        oldcontactseg = null
+
         if @contactpopover
-            @contactpopover.parentNode.removeChild @contactpopover
+            oldcontactseg = @contactpopover.parentNode
+            oldcontactseg.removeChild @contactpopover
             @contactpopover = null
+
+        return oldcontactseg
 
 
     _showContactPopover: (contactsegment) =>
@@ -5658,7 +5679,9 @@ module.exports = class CNeditor
         html = '<dl class="dl-horizontal">'
         for dp in model.get 'datapoints'
             value = dp.value.replace "\n", '<br />'
-            html += "<dt>#{dp.type}</dt><dd>#{value}</dd>"
+            if dp.name is 'other' or dp.name is 'about' then name = dp.type
+            else name = dp.type + ' '+ dp.name.replace 'smail', 'postal'
+            html += "<dt>#{name}</dt><dd>#{value}</dd>"
         html += '</dl>'
         @contactpopover.innerHTML = html
         contactsegment.appendChild @contactpopover
@@ -5666,9 +5689,7 @@ module.exports = class CNeditor
     _removeContactSegment: (model) =>
         selector = "span[data-type='contact'][data-id='#{model.id}']"
         for contactsegment in @linesDiv.querySelectorAll(selector)
-            contactsegment.textContent = '@ '+contactsegment.textContent
-            contactsegment.classList.remove 'CNE_contact'
-            contactsegment.dataset = {}
+            @Tags.remove contactsegment
 
     _updateContactSegment: (model) =>
         selector = "span[data-type='contact'][data-id='#{model.id}']"
@@ -5682,6 +5703,19 @@ module.exports = class CNeditor
                 model: contact
 
         @_hotString._auto.setItems 'contact', contacts
+
+
+    _removeReminderSegment: (model) =>
+        selector = "span[data-type='reminder'][data-id='#{model.id}']"
+        remindersegment = @linesDiv.querySelectorAll(selector)[0]
+        @Tags.remove remindersegment
+
+
+    _updateReminderSegment: (model) =>
+        selector = "span[data-type='reminder'][data-id='#{model.id}']"
+        for contactsegment in @linesDiv.querySelectorAll(selector)
+            value = Date.create(model.get('trigg')).format()
+            contactsegment.textContent = value
 
 
     ### ------------------------------------------------------------------------
