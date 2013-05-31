@@ -1,9 +1,11 @@
+ExternalModels = require './externalmodels'
+
 class SocketListener extends CozySocketListener
 
     models:
-        'task' : require 'CNeditor/task'
-        'alarm': require 'CNeditor/alarm'
-        'contact': require 'CNeditor/contact'
+        'task' :   ExternalModels.Task
+        'alarm':   ExternalModels.Alarm
+        'contact': ExternalModels.Contact
 
     events:
         ['alarm.update', 'alarm.delete',
@@ -18,4 +20,9 @@ class SocketListener extends CozySocketListener
     onRemoteDelete: (model) ->
         model.trigger 'destroy', model, model.collection, {}
 
-module.exports = new SocketListener()
+
+realtimer = new SocketListener()
+realtimer.watch ExternalModels.contactCollection
+realtimer.watch ExternalModels.alarmCollection
+module.exports = realtimer
+

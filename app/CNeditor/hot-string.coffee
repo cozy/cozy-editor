@@ -1,9 +1,7 @@
-AutoComplete = require('./autocomplete').AutoComplete
-selection    = require('./selection').selection
+AutoComplete = require('./autocomplete')
+selection    = require('./selection')
 
 module.exports = class HotString
-
-
 
     constructor : (editor) ->
         @editor    = editor
@@ -418,20 +416,12 @@ module.exports = class HotString
 
 
     mouseDownCb : (e) ->
-        # console.info '== mousedown'
-        # detect if click is in the list or out
-        isOut =     e.target != @el                                    \
-                and $(e.target).parents('#CNE_autocomplete').length == 0
-        if !isOut
-            e.preventDefault()
-
-
+        e.preventDefault() if @isInAuto e.target
 
     mouseUpInAutoCb : (e) ->
 
         # if click in reminder, let the components deal actions.
-        if @_currentMode == 'reminder'
-            return true
+        return true if @_currentMode == 'reminder'
 
         # else
         selectedLine = e.target
@@ -442,11 +432,24 @@ module.exports = class HotString
         else
             @reset('end')
 
-
-
     isInAuto : (elt) ->
         return elt == @el or $(elt).parents('#CNE_autocomplete').length != 0
 
+    realtimeContacts: (contactCollection) =>
+
+        updateItems = =>
+            console.log 'updateItems', contactCollection
+            @_auto.setItems 'contact', contactCollection.map (contact) ->
+                text: contact.get 'name'
+                type: 'contact'
+                model: contact
+
+        contactCollection.on
+            'add'         : updateItems
+            'remove'      : updateItems
+            'change:name' : updateItems
+
+        updateItems()
 
 
     ###*

@@ -2,7 +2,7 @@ require('./bootstrap-datepicker')
 require('./bootstrap-timepicker')
 
 # Exports a single task
-class AutoComplete
+module.exports = class AutoComplete
 
 
     constructor : (container, editor, hotString) ->
@@ -530,7 +530,3 @@ class AutoComplete
             if text == tag.text
                 return tag
         return false
-
-
-
-exports.AutoComplete = AutoComplete

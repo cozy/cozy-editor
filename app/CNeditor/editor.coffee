@@ -20,18 +20,19 @@
 #   _firstLine        : points the first line : TODO : not taken into account
 ###
 
-require('./logging')
-
+logging      = require('./logging')
 md2cozy      = require('./md2cozy').md2cozy
-selection    = require('./selection').selection
-Task         = require('./task')
-Contact      = require('./contact')
-Alarm        = require('./alarm')
+selection    = require('./selection')
 HotString    = require('./hot-string')
+UrlPopover   = require('./urlpopover')
+History      = require('./history')
 Tags         = require('./tags')
 Line         = require('./line')
-
 realtimer    = require('./realtimer')
+
+ExternalModels = require('./externalmodels')
+{Alarm, Contact, Task} = ExternalModels
+
 
 module.exports = class CNeditor
 
@@ -47,14 +48,6 @@ module.exports = class CNeditor
         @editorTarget  = editorTarget
         @editorTarget$ = $(@editorTarget)
 
-        # we wait for 4 things to be loaded : loadEditor,
-        # Task.initialize, Contact.initialize and Alarm.initialize
-        loadingJoinCounter = 4
-        loadingJoin = () =>
-            loadingJoinCounter--
-            if loadingJoinCounter is 0
-                callBack.call this
-
         # 2- Initialisation of the Tasks -
         # Counter for temporary tasks id waiting
         # to receive their id from server.
@@ -68,48 +61,25 @@ module.exports = class CNeditor
 
         # 2 - Async loading of everything
                 # init the socketio connection
-        Task.initialize =>
-            @taskCanBeUsed = Task.canBeUsed
-            loadingJoin()
+        ExternalModels.initialize (err) =>
+            console.log err
 
-        @contactsCollection = Contact.makeCollection()
-        Contact.initialize =>
-            @contactCanBeUsed = Contact.canBeUsed
-            @contactsCollection.fetch() if @contactCanBeUsed
-            realtimer.watch @contactsCollection
-            @contactsCollection.on 'add',         @_updateHotStringContacts
-            @contactsCollection.on 'sync',        @_updateHotStringContacts
-            @contactsCollection.on 'remove',      @_updateHotStringContacts
-            @contactsCollection.on 'reset',       @_updateHotStringContacts
-            @contactsCollection.on 'change:name', @_updateHotStringContacts
-            @contactsCollection.on 'change:name', @_updateContactSegment
-            @contactsCollection.on 'destroy',     @_removeContactSegment
-            loadingJoin()
+            realtimer.watch ExternalModels.contactCollection
 
-        @alarmsCollection = Alarm.makeCollection()
-        Alarm.initialize =>
-            @alarmCanBeUsed = Alarm.canBeUsed
-            realtimer.watch @alarmsCollection
+            # 3- launch loard editor in synchrone or async whether
+            # the editor is in a div or an iframe.
+            if @editorTarget.nodeName == "IFRAME"
+                @isInIframe = true
+                @editorTarget$.on 'load', =>
+                    @loadEditor callBack
+                @editorTarget.src = ''
+            else if @editorTarget.nodeName == "DIV"
+                @isInIframe = false
+                @loadEditor callBack
 
-            @alarmsCollection.on 'change:trigg', @_updateReminderSegment
-            @alarmsCollection.on 'destroy',      @_removeReminderSegment
-
-            loadingJoin()
-
-        # 3- launch loard editor in synchrone or async whether the editor is in
-        # a div or an iframe.
-        if @editorTarget.nodeName == "IFRAME"
-            @isInIframe = true
-            @editorTarget$.on 'load', =>
-                @loadEditor loadingJoin
-            @editorTarget.src = ''
-        else if @editorTarget.nodeName == "DIV"
-            @isInIframe = false
-            @loadEditor loadingJoin
 
         # return a ref to the editor's controler
         return this
-
 
     loadEditor : (callback) =>
         # preparation of the iframe
@@ -132,49 +102,41 @@ module.exports = class CNeditor
         @document = @editorBody.ownerDocument
 
         # Create div that will contains line
-        linesDiv  = document.createElement('div')
-        @linesDiv = linesDiv
-        linesDiv.setAttribute('id','editor-lines')
-        linesDiv.setAttribute('class','editor-frame')
-        linesDiv.contentEditable =  true
-        @editorBody$.append(linesDiv)
+        @linesDiv  = document.createElement('div')
+        @linesDiv.setAttribute('id','editor-lines')
+        @linesDiv.setAttribute('class','editor-frame')
+        @linesDiv.contentEditable =  true
+        @editorBody$.append(@linesDiv)
         if @isInIframe
-            linesDiv.style.overflowY = 'auto'
-            linesDiv.style.position  = 'absolute'
-            linesDiv.style.top       = 0
-            linesDiv.style.bottom    = 0
-            linesDiv.style.right     = 0
-            linesDiv.style.left      = 0
+            @linesDiv.style.overflowY = 'auto'
+            @linesDiv.style.position  = 'absolute'
+            @linesDiv.style.top       = 0
+            @linesDiv.style.bottom    = 0
+            @linesDiv.style.right     = 0
+            @linesDiv.style.left      = 0
 
 
         # init clipboard div and url popover
         @_initClipBoard()
-        @_initUrlPopover()
 
-        # initialisation of the hot sting manager
-        @_hotString = new HotString(this)
+        @urlPopover = new UrlPopover this
+
+        # initialisation of the hot string manager
+        @_hotString = new HotString this
+        @_hotString.realtimeContacts ExternalModels.contactCollection
 
         # init Tags helper
-        @Tags = new Tags this
+        @Tags = new Tags this, ExternalModels
 
         # set the properties of the editor
         @_lines      = {}            # contains every line
         @newPosition = true          # true if cursor has moved
         @_highestId  = 0             # last inserted line identifier
         @_deepest    = 1             # current maximum indentation
-        @_firstLine  = null          # pointer to the first line
-        # @hotString   = ''            # the string to detect hotStrings
+        @isEnabled   = true          # condition to all callbacks
 
-        # init history
-        HISTORY_SIZE  = 100
-        @HISTORY_SIZE = HISTORY_SIZE
-        @_history     =               # for history management
-            index         : HISTORY_SIZE - 1
-            history       : new Array(HISTORY_SIZE)
-            historySelect : new Array(HISTORY_SIZE)
-            historyScroll : new Array(HISTORY_SIZE)
-            historyPos    : new Array(HISTORY_SIZE)
-            modifiedTask  : new Array(HISTORY_SIZE)
+        # init History
+        @_history     = new History this   # for history management
 
         @_lastKey     = null      # last pressed key (avoid duplication)
 
@@ -191,18 +153,18 @@ module.exports = class CNeditor
         @isChromeOrSafari = @isChrome or @isSafari
 
         # initialize event listeners
-        @linesDiv.addEventListener('drop', (e)->
-            e.preventDefault()
-        )
-        @enable()
+        @linesDiv.addEventListener 'drop', (e) -> e.preventDefault()
+
+        @_registerEventListeners()
 
         # callback
         callback()
 
 
-
     _mousedownCb : (e) =>
         # console.info '== editor._mousedownCb()'
+
+        return true unless @isEnabled
 
         # if a hotstring is under preparation, let hotstring controler deal with
         # the new keystroke
@@ -211,7 +173,7 @@ module.exports = class CNeditor
 
         # if the mousedown occurs outside of a tag, then set all tags to
         # uneditable so that selection can not end within a tag.
-        startCont = this.document.getSelection().getRangeAt(0).startContainer
+        startCont = @getEditorSelection().getRangeAt(0).startContainer
         startSeg = selection.getSegment(e.target, 0)
         if !startSeg.dataset.type
             @Tags.setTagUnEditable()
@@ -221,6 +183,9 @@ module.exports = class CNeditor
      * true and take actions depending on selection location and editor state.
     ###
     _mouseupCb : (e) =>
+
+        return true unless @isEnabled
+
         # console.info '== editor._mouseupCb()'
         @newPosition = true
 
@@ -234,24 +199,24 @@ module.exports = class CNeditor
                 return true
 
         # B- else deal selection of the editor
-        rg = this.document.getSelection().getRangeAt(0)
+        rg = @getEditorSelection().getRangeAt(0)
         startSeg = selection.getSegment(rg.startContainer)
         endSeg   = selection.getSegment(rg.endContainer)
 
         # 1- if carret is in the button of a task, move it
-        if startSeg.dataset.type == 'taskBtn'
+        if startSeg.dataset?.type == 'taskBtn'
             @_setCaret(startSeg.nextSibling,0)
-        else if endSeg.dataset.type == 'taskBtn'
+        else if endSeg.dataset?.type == 'taskBtn'
             @_setCaret(endSeg.nextSibling,0)
 
         # 2- if selection has an end which is a tag (hotString, reminder,
         # contact...) but not the other, then put all the selection within the
         # tag.
-        if (startSeg.dataset.type && !endSeg.dataset.type)
+        if (startSeg.dataset?.type && !endSeg.dataset?.type)
             @setSelection(rg.startContainer, rg.startOffset,
                           startSeg         , startSeg.childNodes.length)
             endSeg = startSeg
-        else if (!startSeg.dataset.type && endSeg.dataset.type)
+        else if (!startSeg.dataset?.type && endSeg.dataset?.type)
             @setSelection(endSeg         , 0 ,
                           rg.endContainer, rg.endOffset)
             startSeg = endSeg
@@ -262,11 +227,10 @@ module.exports = class CNeditor
             @_hotString.reset('current')
 
         # 4- when in a meta segment (contact, reminder etc...), edit it.
-        switch startSeg.dataset.type
+        switch startSeg.dataset?.type
             when 'reminder', 'htag'
                 if !@_hotString.isPreparing
-                    rg = this.document.getSelection().getRangeAt(0)
-                    # @Tags.remove(startSeg)
+                    rg = @getEditorSelection().getRangeAt(0)
                     @_hotString.edit(startSeg, rg)
                     while false # otherwise bug in ff debugger...
                         d
@@ -277,6 +241,9 @@ module.exports = class CNeditor
 
 
     _clickCB : (e) =>
+
+        return true unless @isEnabled
+
         console.info "== editor._clickCB()"
         @_lastKey = null
         # if the start of selection after a click is in a link, then show
@@ -287,27 +254,28 @@ module.exports = class CNeditor
             if e.ctrlKey
                 url = segments[0].href
                 window.open(url,'_blank')
-                e.preventDefault()
             else
-                @_showUrlPopover(segments,false)
-                e.stopPropagation()
-                e.preventDefault()
+                @urlPopover.show segments, false
+
+            e.stopPropagation()
+            e.preventDefault()
 
 
-        oldcontactseg = @_hideContactPopover()
-
-        if e.target.dataset.type is 'contact' and e.target isnt oldcontactseg
-            @_showContactPopover e.target
+        #
+        @Tags.clickCb e
 
         # if a hot string is under preparation, re init the process.
-        if @hotString.isPreparing
-            @hotString.reInit()
+        @hotString.reInit() if @hotString.isPreparing
+
 
         return true
 
 
 
     _pasteCB : (event) =>
+
+        return true unless @isEnabled
+
         @paste event
 
 
@@ -316,64 +284,53 @@ module.exports = class CNeditor
 
         # listen keydown on capturing phase (before bubbling)
         # main actions triger.
-        @linesDiv.addEventListener('keydown', @_keyDownCbTry, true)
-        @linesDiv.addEventListener('keyup', @_keyupCb, false)
-        @linesDiv.addEventListener('keypress', @_keypressCb)
+        @linesDiv.addEventListener 'keydown',  @_keyDownCbTry, true
+        @linesDiv.addEventListener 'keyup',    @_keyupCb,      false
+        @linesDiv.addEventListener 'keypress', @_keypressCb
 
         # Listen to mouse to detect when caret is moved
-        @linesDiv.addEventListener('mouseup', @_mouseupCb, true)
-        @linesDiv.addEventListener('mousedown', @_mousedownCb, true)
+        @linesDiv.addEventListener 'mouseup',   @_mouseupCb,   true
+        @linesDiv.addEventListener 'mousedown', @_mousedownCb, true
 
         # Click and paste call backs
-        @editorBody$.on('click', @_clickCB)
+        @editorBody$.on 'click', @_clickCB
         @editorBody$.on 'paste', @_pasteCB
 
 
 
-    _unRegisterEventListeners : () ->
-        # listen keydown on capturing phase (before bubbling)
-        # main actions triger.
-        @linesDiv.removeEventListener('keydown', @_keyDownCbTry, true)
-        @linesDiv.removeEventListener('keyup', @_keyupCb, false)
-        @linesDiv.removeEventListener('keypress', @_keypressCb)
+    # _unRegisterEventListeners : () ->
+    #     # listen keydown on capturing phase (before bubbling)
+    #     # main actions triger.
+    #     @linesDiv.removeEventListener('keydown', @_keyDownCbTry, true)
+    #     @linesDiv.removeEventListener('keyup', @_keyupCb, false)
+    #     @linesDiv.removeEventListener('keypress', @_keypressCb)
 
-        # Listen to mouse to detect when caret is moved
-        @linesDiv.removeEventListener('mouseup', @_mouseupCb, true)
-        @linesDiv.removeEventListener('mousedown', @_mousedownCb, true)
+    #     # Listen to mouse to detect when caret is moved
+    #     @linesDiv.removeEventListener('mouseup', @_mouseupCb, true)
+    #     @linesDiv.removeEventListener('mousedown', @_mousedownCb, true)
 
-        # Click and paste call backs
-        @editorBody$.off('click', @_clickCB)
-        @editorBody$.off('paste', @_pasteCB)
-
-
-
-    disable : () ->
-        @isEnabled = false
-        @_unRegisterEventListeners()
+    #     # Click and paste call backs
+    #     @editorBody$.off('click', @_clickCB)
+    #     @editorBody$.off('paste', @_pasteCB)
 
 
 
-    enable : () ->
-        @isEnabled = true
-        @_registerEventListeners()
+    disable : () -> @isEnabled = false
+
+    enable :  () -> @isEnabled = true
 
 
     ###* -----------------------------------------------------------------------
      * Set focus on the editor
     ###
-    setFocus : () ->
-        @linesDiv.focus()
+    setFocus : () -> @linesDiv.focus()
 
 
     ###* -----------------------------------------------------------------------
-     * Methods to deal selection on an iframe
-     * This method is modified during construction if the editor target is not
-     * an iframe
+     * Get the selection from the editor's document
      * @return {selection} The selection on the editor.
     ###
-    getEditorSelection : () ->
-        return this.document.getSelection()
-        # return rangy.getIframeSelection @editorTarget
+    getEditorSelection : () -> this.document.getSelection()
 
 
     ###* -----------------------------------------------------------------------
@@ -384,13 +341,7 @@ module.exports = class CNeditor
      *                  instance if there is no selectio within editor), then
      *                  false is returned.
     ###
-    saveEditorSelection : () ->
-        sel = this.document.getSelection()
-        if sel.rangeCount == 0
-            return false
-        return  @serializeRange(sel.getRangeAt(0))
-
-
+    saveEditorSelection : () -> @serializeSel()
 
     _initTaskContent : (taskDiv) ->
         segment = taskDiv.firstChild.nextSibling
@@ -403,7 +354,7 @@ module.exports = class CNeditor
         span.appendChild(txt)
         taskDiv.insertBefore(span,segment)
         @_setSelectionOnNode(txt)
-        @_addHistory()
+        @_history.addStep()
 
 
     ###*
@@ -412,21 +363,19 @@ module.exports = class CNeditor
      * @param  {Element} lineDiv The lineDiv
     ###
     _turnIntoTask : (lineDiv) ->
-        if !lineDiv
-            lineDiv = @updateCurrentSel().startLineDiv
+        lineDiv ?= @updateCurrentSel().startLineDiv
         return @_turneLineIntoTask(lineDiv)
 
 
 
     _turneLineIntoTask : (lineDiv) ->
-        if !Task.canBeUsed
-            return false
+        return false unless ExternalModels.taskCanBeUsed
 
         # add button
         btn = this.document.createElement('SPAN')
         btn.className = 'CNE_task_btn'
         btn.dataset.type = 'taskBtn'
-        @Tags._tagList.push(btn)
+        @Tags.handle btn
         if @isChromeOrSafari
             text = this.document.createTextNode(' ')
         else
@@ -464,7 +413,7 @@ module.exports = class CNeditor
 
     _toggleTaskCB : (e) =>
         # lineDiv = @_getSelectedLineDiv()
-        @_addHistory()
+        @_history.addStep()
         lineDiv = selection.getLineDiv(e.target)
         btn = lineDiv.firstChild
         if lineDiv.dataset.state == 'done'
@@ -647,7 +596,7 @@ module.exports = class CNeditor
             # when 'removed'
             #   nothing
 
-        @__printTasksModifStacks()
+        logging.printTasksModifStacks '_stackTaskChange', @_tasksToBeSaved
 
         return true
 
@@ -809,32 +758,6 @@ module.exports = class CNeditor
         return res
 
 
-    setReminderCf: (description, related) ->
-        console.info 'setReminderCf'
-        @reminderCf ?= {}
-        @reminderCf.description = description if description
-        @reminderCf.related     = related     if related
-
-    _createReminderForSegment: (segment) ->
-
-        date = Date.create(segment.dataset.value).format Alarm.dateFormat
-
-        alarm = new Alarm
-            id:          segment.dataset.id or null
-            trigg:       date
-            related:     @reminderCf.related
-            description: @reminderCf.description
-
-        @alarmsCollection.add alarm
-        alarm.save()
-        .done =>
-            segment.dataset.id = alarm.id
-        .fail (jqXHR) =>
-            console.log jqXHR
-            console.log 'failed to save CNE_reminder'
-            @Tags.remove segment
-
-
     ###* -----------------------------------------------------------------------
      * Returns true if the selection is at the start of a word. Ex :
      *     . xxxx |yyyy   : true
@@ -884,13 +807,22 @@ module.exports = class CNeditor
 
 
     getCurrentAllowedInsertions : () ->
-        sel = @updateCurrentSel()
-        if sel.startLineDiv.dataset.type == 'task'
-            return []
-            # return ['contact','event','reminder','htag']
-        else
-            return ['todo', 'contact', 'reminder']
-            # return ['contact','todo','event','reminder','htag']
+        line = @updateCurrentSel().startLineDiv
+        out = []
+        if line.dataset.type == 'task'
+            return out
+
+        metaSelector = '[data-type="contact"], [data-type="reminder"]'
+        if ExternalModels.taskCanBeUsed and not line.querySelector metaSelector
+            out.push 'todo'
+
+        if ExternalModels.contactCanBeUsed
+            out.push 'contact'
+
+        if ExternalModels.alarmCanBeUsed
+            out.push 'reminder'
+
+        return out
 
 
     ### ------------------------------------------------------------------------
@@ -911,16 +843,13 @@ module.exports = class CNeditor
                lines[c].lineType == "Th" and lines[c].lineDepthAbs > max
                 max = @_lines[c].lineDepthAbs
 
-        # Following code is way too ugly to be kept
-        # It needs to be replaced with a way to change a variable in a styl or
-        # css file... but I don't even know if it is possible.
-        if max != @_deepest
-            @_deepest = max
-            if max < 4
-                @replaceCSS("stylesheets/app-deep-#{max}.css")
-            else
-                @replaceCSS("stylesheets/app-deep-4.css")
 
+    ###-----------------------------------------------------------------------
+    # Set the editor description and related to be used when creating
+    # reminders
+    ###
+    setReminderCf: (description, related) ->
+        Alarm.setDefaultCf description, related
 
     ###* -----------------------------------------------------------------------
      * Initialize the editor content from a html string
@@ -933,12 +862,11 @@ module.exports = class CNeditor
         if unPretify
             htmlString = htmlString.replace(/>[\n ]*</g, "><")
 
-        if @.isUrlPopoverOn
-            @_cancelUrlPopover(false)
+        @urlPopover.cancel()
 
         @linesDiv.innerHTML = htmlString
         @_taskList = []
-        @_readHtml()
+        @_readHtml(true)
         @_setCaret(@linesDiv.firstChild.firstChild, 0, true)
         @newPosition = true
         @hotString = ''
@@ -958,9 +886,10 @@ module.exports = class CNeditor
     ###
     getEditorContent : () ->
 
-        @_hideContactPopover()
+        # hide the contact popover
+        @Tags.contactPopover.hide()
 
-        if @_hotString.isPreparing or @.isUrlPopoverOn
+        if @_hotString.isPreparing or @urlPopover.isOn
             clone = @linesDiv.cloneNode(true)
 
             # if the auto completion of hot string is visible : remove it
@@ -974,7 +903,7 @@ module.exports = class CNeditor
                 segment.parentElement.removeChild(segment)
 
             # if the urlpopover is visible : remove it
-            if  @.isUrlPopoverOn
+            if  @urlPopover.isOn
                 # remove the url popover
                 segment = clone.querySelector('#CNE_urlPopover')
                 segment.parentElement.removeChild(segment)
@@ -998,10 +927,9 @@ module.exports = class CNeditor
 
 
     ### ------------------------------------------------------------------------
-    # Sets the editor content from a markdown string
+    # Sets the editor content from a html string
     ###
-    setEditorContent : (htmlContent) ->
-        @replaceContent(htmlContent)
+    setEditorContent : (htmlContent) -> @replaceContent(htmlContent)
 
 
     ### ------------------------------------------------------------------------
@@ -1011,16 +939,6 @@ module.exports = class CNeditor
     setEditorContentFromMD : (mdContent) ->
         cozyContent = md2cozy.md2cozy mdContent
         @replaceContent(cozyContent)
-
-
-    ### ------------------------------------------------------------------------
-    # Change the path of the css applied to the editor iframe
-    ###
-    replaceCSS : (path) ->
-        document = @document
-        linkElm = document.querySelector('#editorCSS')
-        linkElm.setAttribute('href' , path)
-        document.head.appendChild(linkElm)
 
 
     ###* -----------------------------------------------------------------------
@@ -1104,12 +1022,14 @@ module.exports = class CNeditor
      * @param  {event} e  The key event
     ###
     _keyDownCbTry : (e) =>
+
+        return unless @isEnabled
         # try actions, in case of error, undo
         try
             @_keyDownCb(e)
         catch error
-            alert('A bug occured, we prefer to undo your last action not ' + \
-                  'to take any risk.\n\nMessage :\n' + error)
+            alert('A bug occured, we prefer to undo your last action to ' + \
+                  'be safe.\n\nMessage :\n' + error)
             console.log error.stack
             e.preventDefault()
             @unDo()
@@ -1122,9 +1042,8 @@ module.exports = class CNeditor
     ###
     registerKeyDownCbForTest : ()=>
         @linesDiv.removeEventListener('keydown', @_keyDownCbTry, true)
-        # otherwise _unRegisterEventListeners will no longer work
-        @_keyDownCbTry = @_keyDownCb
-        @linesDiv.addEventListener('keydown', @_keyDownCbTry, true)
+        @linesDiv.addEventListener('keydown', @_keyDownCb, true)
+        # @_keyDownCbTry = @_keyDownCb
 
 
     ###*------------------------------------------------------------------------
@@ -1155,8 +1074,7 @@ module.exports = class CNeditor
     ###
     _keyDownCb : (e) =>
         # console.info '_keyDownCb'
-        if ! @isEnabled
-            return true
+        return true unless @isEnabled
 
         # 1- Prepare the shortcut corresponding to pressed keys
         @getShortCut(e)
@@ -1222,7 +1140,7 @@ module.exports = class CNeditor
         # 5- if a shift keydown : prevent the partial selection of tag by setting
         # all of them uneditable in case where this happens outside of a tag.
         if e.keyCode == 16
-            rg = this.document.getSelection().getRangeAt(0)
+            rg = @getEditorSelection().getRangeAt(0)
             if !selection.getSegment(rg.startContainer,0).dataset.type
                 @Tags.setTagUnEditable()
 
@@ -1245,9 +1163,9 @@ module.exports = class CNeditor
 
                 unless e.ctrlKey or e.altKey
                     if @newPosition
-                        @_addHistory()
+                        @_history.addStep()
                     else if lastShortcut == '-space' && shortcut != '-space'
-                        @_addHistory()
+                        @_history.addStep()
 
                     if @newPosition
                         sel = @updateCurrentSel()
@@ -1258,29 +1176,22 @@ module.exports = class CNeditor
                     @_detectTaskChange()
                     return true
 
-
-        # # 7- if alt or ctrl is pressed, then prevent default, only custom
-        # # behaviour defined below must occur, no default by browser.
-        # if e.altKey or e.ctrlKey
-        #     unless shortcut is 'Ctrl-C'
-        #         e.preventDefault()
-
         # 8- launch the action corresponding to the pressed shortcut
         # If a popover is visible, the actions are sent to it
         switch shortcut
 
             when '-return'
-                @_addHistory() if lastShortcut != shortcut
+                @_history.addStep() if lastShortcut != shortcut
                 @updateCurrentSelIsStartIsEnd()
                 if @currentSel.isStartInTask and lastShortcut == shortcut
-                    @_addHistory()
+                    @_history.addStep()
                 @_return()
                 @newPosition = false
                 e.preventDefault()
                 @editorTarget$.trigger jQuery.Event('onChange')
 
             when '-backspace'
-                @_addHistory() if lastShortcut != shortcut
+                @_history.addStep() if lastShortcut != shortcut
                 @updateCurrentSelIsStartIsEnd()
                 @_backspace()
                 # important, for instance in the case of a deletion of a range
@@ -1290,19 +1201,19 @@ module.exports = class CNeditor
                 @editorTarget$.trigger jQuery.Event('onChange')
 
             when '-tab'
-                @_addHistory()
+                @_history.addStep()
                 @tab()
                 e.preventDefault()
                 @editorTarget$.trigger jQuery.Event('onChange')
 
             when 'Shift-tab'
-                @_addHistory()
+                @_history.addStep()
                 @shiftTab()
                 e.preventDefault()
                 @editorTarget$.trigger jQuery.Event('onChange')
 
             when '-suppr'
-                @_addHistory() if lastShortcut != shortcut
+                @_history.addStep() if lastShortcut != shortcut
                 @updateCurrentSelIsStartIsEnd()
                 @_suppr(e)
                 e.preventDefault()
@@ -1310,12 +1221,12 @@ module.exports = class CNeditor
                 @editorTarget$.trigger jQuery.Event('onChange')
 
             when 'CtrlShift-down'
-                @_addHistory() if lastShortcut != shortcut
+                @_history.addStep() if lastShortcut != shortcut
                 # @_moveLinesDown()
                 e.preventDefault()
 
             when 'CtrlShift-up'
-                @_addHistory() if lastShortcut != shortcut
+                @_history.addStep() if lastShortcut != shortcut
                 # @_moveLinesUp()
                 e.preventDefault()
 
@@ -1324,28 +1235,25 @@ module.exports = class CNeditor
                 e.preventDefault()
 
             when 'Alt-L'
-                @_addHistory()
+                @_history.addStep()
                 @markerList()
                 e.preventDefault()
                 @editorTarget$.trigger jQuery.Event('onChange')
 
             when 'Alt-A'
-                @_addHistory()
+                @_history.addStep()
                 @toggleType()
                 e.preventDefault()
                 @editorTarget$.trigger jQuery.Event('onChange')
 
             when 'Ctrl-V'
-                @_addHistory()
+                @_history.addStep()
                 @editorTarget$.trigger jQuery.Event('onChange')
-                if @_hotString.isPreparing
-                    cont = @_hotString._hsSegment.childNodes[0]
-                    offset = cont.length
-                    @_setCaret(cont,offset)
+                # todo in hotstring, put the content inside hotstring
                 return true
 
             when 'Ctrl-B'
-                @_addHistory()
+                @_history.addStep()
                 @strong()
                 e.preventDefault()
 
@@ -1383,6 +1291,7 @@ module.exports = class CNeditor
 
 
     _keypressCb : (e) =>
+        return true unless @isEnabled
         @_hotString.keypressCb(e)
 
 
@@ -1412,12 +1321,14 @@ module.exports = class CNeditor
     ###
     _keyupCb : (e) =>
 
+        return true unless @isEnabled
+
         # A/a) If chrome, place last inserted caracter in the correct segment.
         if @isChromeOrSafari
             @_chromeCorrection()
 
         # A/ Detect in which segment the caret is and launch adapted actions
-        rg = this.document.getSelection().getRangeAt(0)
+        rg = @getEditorSelection().getRangeAt(0)
         startSeg = selection.getSegment(rg.startContainer)
         endSeg   = selection.getSegment(rg.endContainer)
         if startSeg.dataset
@@ -1726,7 +1637,7 @@ module.exports = class CNeditor
      * @return {Boolean} True if there is a selection, false otherwise.
     ###
     hasNoSelection : (expectWide) ->
-        sel = this.document.getSelection()
+        sel = @getEditorSelection()
         if sel.rangeCount > 0
             rg = sel.getRangeAt(0)
 
@@ -1760,10 +1671,10 @@ module.exports = class CNeditor
     strong : () ->
         if !@isEnabled or @hasNoSelection(true) or @_hotString.isPreparing
             return true
-        @._addHistory()
-        rg = @._applyMetaDataOnSelection('CNE_strong')
+        @_history.addStep()
+        rg = @_applyMetaDataOnSelection('CNE_strong')
         if !rg
-            @._removeLastHistoryStep()
+            @_history.removeLastStep()
         else
             @editorTarget$.trigger jQuery.Event('onChange')
 
@@ -1772,10 +1683,10 @@ module.exports = class CNeditor
     underline : () ->
         if ! @isEnabled or @hasNoSelection(true) or @_hotString.isPreparing
             return true
-        @._addHistory()
-        rg = @._applyMetaDataOnSelection('CNE_underline')
+        @_history.addStep()
+        rg = @_applyMetaDataOnSelection('CNE_underline')
         if !rg
-            @._removeLastHistoryStep()
+            @_history.removeLastStep()
         else
             @editorTarget$.trigger jQuery.Event('onChange')
 
@@ -1796,8 +1707,7 @@ module.exports = class CNeditor
         # Show url popover if range is collapsed in a link segment
         if range.collapsed
             segments = @_getLinkSegments()
-            if segments
-                @_showUrlPopover(segments,false)
+            @urlPopover.show segments, false if segments
 
         # if selection is not collapsed, 2 cases :
         # the start breakpoint is in a link or not
@@ -1805,323 +1715,24 @@ module.exports = class CNeditor
             segments = @_getLinkSegments()
             # case when the start break point is in a link
             if segments
-                @_showUrlPopover(segments,false)
+                @urlPopover.show segments, false
             # case when the start break point is not in a link
             else
-                @_addHistory()
+                @_history.addStep()
                 # We apply a temporary link metadata in order to make the
                 # modification zone visible to the user.
                 # We set isUrlPopoverOn so that when we apply this temporary
                 # style there is no detection of modification (neither task nor
                 # editor content nor anything)
-                @isUrlPopoverOn = true
+                @urlPopover.isOn = true
                 rg = @_applyMetaDataOnSelection('A','http://')
                 if rg
                     segments = @_getLinkSegments(rg)
-                    @_showUrlPopover(segments,true)
+                    @urlPopover.show segments, true
                 else
-                    @isUrlPopoverOn = true
+                    @urlPopover.isOn = true
 
         return true
-
-
-    ###* -----------------------------------------------------------------------
-     * initialise the popover during the editor initialization.
-    ###
-    _initUrlPopover : () ->
-        pop  = document.createElement('div')
-        pop.id = 'CNE_urlPopover'
-        pop.className = 'CNE_urlpop'
-        pop.setAttribute.contentEditable = false
-        pop.innerHTML =
-            """
-            <span class="CNE_urlpop_head">Link</span>
-            <span  class="CNE_urlpop_shortcuts">(Ctrl+K)</span>
-            <div class="CNE_urlpop-content">
-                <a target="_blank">Open link <span class="CNE_urlpop_shortcuts">
-                    (Ctrl+click)</span></a></br>
-                <span>url</span><input type="text"></br>
-                <span>Text</span><input type="text"></br>
-                <button class="btn">ok</button>
-                <button class="btn">Cancel</button>
-                <button class="btn">Delete</button>
-            </div>
-            """
-        pop.titleElt = pop.firstChild
-        pop.link = pop.getElementsByTagName('A')[0]
-
-        # b = document.querySelector('body')
-        # b.insertBefore(frag,b.firstChild)
-        [btnOK, btnCancel, btnDelete] = pop.querySelectorAll('button')
-        btnOK.addEventListener('click',@_validateUrlPopover)
-        btnCancel.addEventListener('click',@_cancelUrlPopoverCB)
-        btnDelete.addEventListener 'click', () =>
-            pop.urlInput.value = ''
-            @_validateUrlPopover()
-
-        [urlInput,textInput] = pop.querySelectorAll('input')
-        pop.urlInput = urlInput
-        pop.textInput = textInput
-        pop.addEventListener 'keypress', (e) =>
-            if e.keyCode == 13
-                @_validateUrlPopover()
-                e.stopPropagation()
-            else if e.keyCode == 27
-                @_cancelUrlPopover(false)
-
-            return false
-
-        @urlPopover = pop
-
-        return true
-
-
-    ###* -----------------------------------------------------------------------
-     * Show, positionate and initialise the popover for link edition.
-     * @param  {array} segments  An array with the segments of
-     *                           the link [<a>,...<a>]. Must be created even if
-     *                           it is a creation in order to put a background
-     *                           on the segment where the link will be.
-     * @param  {boolean} isLinkCreation True is it is a creation. In this case,
-     *                                  if the process is canceled, the initial
-     *                                  state without link will be restored.
-    ###
-    _showUrlPopover : (segments, isLinkCreation) ->
-        pop = @urlPopover
-
-        # Disable the editor to prevent actions when popover is on
-        @disable()
-
-        @.isUrlPopoverOn = true
-        pop.isLinkCreation = isLinkCreation # save the flag
-
-        # save initial selection range to restore it on close
-        pop.initialSelRg = @currentSel.theoricalRange.cloneRange()
-
-        # save segments array
-        pop.segments = segments
-
-        # positionnate the popover (centered for now)
-        seg = segments[0]
-        pop.style.left = seg.offsetLeft + 'px'
-        pop.style.top = seg.offsetTop + 20 + 'px'
-
-        # update the inputs fields of popover
-        href = seg.href
-        if href == '' or href == 'http:///'
-            href = 'http://'
-        pop.urlInput.value = href
-        txt = ''
-        txt += seg.textContent for seg in segments
-        pop.textInput.value = txt
-        pop.initialTxt = txt
-
-        if isLinkCreation
-            pop.titleElt.textContent = 'Create Link'
-            pop.link.style.display = 'none'
-        else
-            pop.titleElt.textContent = 'Edit Link'
-            pop.link.style.display = 'inline-block'
-            pop.link.href = href
-
-        # Insert the popover
-        seg.parentElement.parentElement.appendChild(pop)
-
-        # add event listener to detect a click outside of the popover
-        @editorBody.addEventListener('mouseup',@_detectClickOutUrlPopover)
-
-        # select and put focus in the popover
-        pop.urlInput.select()
-        pop.urlInput.focus()
-
-        # colorize the concerned segments.
-        for seg in segments
-            # seg.style.backgroundColor = '#dddddd'
-            seg.classList.add('CNE_url_in_edition')
-
-        return true
-
-
-    ###* -----------------------------------------------------------------------
-     * The callback for a click outside the popover
-    ###
-    _detectClickOutUrlPopover : (e) =>
-        isOut =     e.target != @urlPopover                                    \
-                and $(e.target).parents('#CNE_urlPopover').length == 0
-        if isOut
-            @_cancelUrlPopover(true)
-
-
-    ###* -----------------------------------------------------------------------
-     * Close the popover and revert modifications if isLinkCreation == true
-     * @param  {boolean} doNotRestoreOginalSel If true, lets the caret at its
-     *                                         position (used when you click
-     *                                         outside url popover in order not
-     *                                         to loose the new selection)
-    ###
-    _cancelUrlPopover : (doNotRestoreOginalSel) =>
-        pop = @urlPopover
-        segments = pop.segments
-
-        # remove the click listener
-        @editorBody.removeEventListener('mouseup', @_detectClickOutUrlPopover)
-
-        # remove popover
-        pop.parentElement.removeChild(pop)
-        @.isUrlPopoverOn = false
-
-        # remove the "selected style" of the segments
-        for seg in segments
-            # seg.style.removeProperty('background-color')
-            seg.classList.remove('CNE_url_in_edition')
-
-        # case of a link creation called and cancelled : a segment for the link
-        # to creat has already been added in order to show the selection when
-        # popover is visible. As it is canceled, we undo in order to remove this
-        # link.
-        if pop.isLinkCreation
-            s0 = segments[0]
-            s1 = segments[segments.length-1]
-            bp1 =
-                cont   : s0
-                offset : 0
-            bp2 =
-                cont   : s1
-                offset : s1.childNodes.length
-            bps = [bp1,bp2]
-            selection.normalizeBPs(bps)
-            lineDiv = selection._getLineDiv(s0)
-            @_applyAhrefToSegments(s0, s1 , bps, false, '')
-            @_fusionSimilarSegments(lineDiv,bps)
-            if !doNotRestoreOginalSel
-                @setSelectionBp(bp1, bp2)
-
-        else if !doNotRestoreOginalSel
-            sel = this.document.getSelection()
-            sel.removeAllRanges()
-            sel.addRange(pop.initialSelRg)
-
-        # restore editor enabled
-        @setFocus()
-        @enable()
-
-        return true
-
-
-    ###* -----------------------------------------------------------------------
-     * Same as _cancelUrlPopover but used in events call backs
-    ###
-    _cancelUrlPopoverCB : (e) =>
-        e.stopPropagation()
-        @_cancelUrlPopover(false)
-
-
-    ###* -----------------------------------------------------------------------
-     * Close the popover and applies modifications to the link.
-    ###
-    _validateUrlPopover : (event) =>
-
-        if event
-            event.stopPropagation()
-
-        pop = @urlPopover
-        segments = pop.segments
-
-        # 1- in case of a link creation and the user validated an empty url, just
-        # cancel the link creation
-        if pop.urlInput.value == '' && pop.isLinkCreation
-            @_cancelUrlPopover(false)
-            return true
-
-        # 2- remove background of selection and hide popover
-        # pop.style.display = 'none'
-        @editorBody.removeEventListener('mouseup', @_detectClickOutUrlPopover)
-        pop.parentElement.removeChild(pop)
-        @.isUrlPopoverOn = false
-        for seg in segments
-            # seg.style.removeProperty('background-color')
-            seg.classList.remove('CNE_url_in_edition')
-
-        # 3- in case of a link creation, addhistory has already be done, but it
-        # must be done if it is not a link creation.
-        if !pop.isLinkCreation
-            sel = this.document.getSelection()
-            sel.removeAllRanges()
-            sel.addRange(pop.initialSelRg) # otherwise addhistory will not work
-            @_addHistory()
-
-        # 4- keep a ref to the modified line
-        lineDiv  = segments[0].parentElement
-
-        # 5- case of a deletion of the urlInput value => 'remove the link'
-        if pop.urlInput.value == ''
-            l = segments.length
-            bp1 =
-                cont : segments[0].firstChild
-                offset : 0
-            bp2 =
-                cont   : segments[l-1].firstChild
-                offset : segments[l-1].firstChild.length
-            bps = [bp1,bp2]
-            @_applyAhrefToSegments(segments[0], segments[l-1], bps, false, '')
-            # fusion similar segments if any
-            @_fusionSimilarSegments(lineDiv, bps)
-            # Position selection
-            rg = document.createRange()
-            bp1 = bps[0]
-            bp2 = bps[1]
-            rg.setStart(bp1.cont, bp1.offset)
-            rg.setEnd(  bp2.cont, bp2.offset)
-            sel = this.document.getSelection()
-            sel.removeAllRanges()
-            sel.addRange(rg)
-            @setFocus()
-            # restore editor enabled
-            @enable()
-            # warn that a change occured
-            @editorTarget$.trigger jQuery.Event('onChange')
-            # stack Task modifications :
-            if lineDiv.dataset.type == 'task'
-                @_stackTaskChange(lineDiv.task,'modified')
-            return true
-
-        # 6- case if only href is changed but not the text
-        else if pop.initialTxt == pop.textInput.value
-            seg.href = pop.urlInput.value for seg in segments
-            lastSeg = seg
-
-        # 7- case if the text of the link is modified : we concatenate
-        # all segments
-        else
-            seg = segments[0]
-            seg.href = pop.urlInput.value
-            seg.textContent = pop.textInput.value
-            parent = seg.parentNode
-            for i in [1..segments.length-1] by 1
-                seg = segments[i]
-                parent.removeChild(seg)
-            lastSeg = segments[0]
-
-        # 8- fusion similar segments if any
-        i = selection.getSegmentIndex(lastSeg)
-        i = i[1]
-        bp = selection.normalizeBP(lineDiv, i+1)
-        @_fusionSimilarSegments(lineDiv, [bp])
-
-        # 9- manage selection, find a space after url or add it and move bp
-        bp = @insertSpaceAfterUrl(selection.getNestedSegment(bp.cont))
-        @_setCaret(bp.cont,bp.offset)
-        @setFocus()
-
-        # 10- restore editor enabled
-        @enable()
-
-        # 11- warn that a change occured
-        @editorTarget$.trigger jQuery.Event('onChange')
-
-        # 12- stack Task modifications :
-        if lineDiv.dataset.type == 'task'
-            @_stackTaskChange(lineDiv.task,'modified')
 
 
     ###* -----------------------------------------------------------------------
@@ -2523,7 +2134,7 @@ module.exports = class CNeditor
 
         # 6- stack Task modifications :
         if lineDiv.dataset.type == 'task'
-            if !@isUrlPopoverOn
+            if !@urlPopover.isOn
                 @_stackTaskChange(lineDiv.task,'modified')
 
         return [bp1,bp2]
@@ -2790,10 +2401,10 @@ module.exports = class CNeditor
                             the task from todos ?')
 
                         if result
-                            @_addHistory()
+                            @_history.addStep()
                             @_stackTaskChange(sel.startLineDiv.nextSibling.task,'deleted')
                         else
-                            @_addHistory()
+                            @_history.addStep()
                             @_stackTaskChange(sel.startLineDiv.nextSibling.task,'removed')
 
                         @_turneTaskIntoLine(sel.startLineDiv.nextSibling)
@@ -2882,10 +2493,10 @@ module.exports = class CNeditor
                                                  task from todos?')
 
                         if result
-                            @_addHistory()
+                            @_history.addStep()
                             @_stackTaskChange(sel.startLineDiv.task,'deleted')
                         else
-                            @_addHistory()
+                            @_history.addStep()
                             @_stackTaskChange(sel.startLineDiv.task,'removed')
 
                             @_turneTaskIntoLine(sel.startLineDiv)
@@ -2969,7 +2580,7 @@ module.exports = class CNeditor
         if ! @isEnabled  or @hasNoSelection()
             return true
 
-        @._addHistory()
+        @_history.addStep()
 
         # 1- find first and last div of the lines to turn into markers
         if l?
@@ -3017,7 +2628,7 @@ module.exports = class CNeditor
         if ! @isEnabled  or @hasNoSelection()
             return true
 
-        @_addHistory()
+        @_history.addStep()
 
         # 1- find first and last div of the lines to turn into markers
         if l?
@@ -3089,7 +2700,7 @@ module.exports = class CNeditor
         if ! @isEnabled  or @hasNoSelection()
             return true
 
-        @._addHistory()
+        @_history.addStep()
 
         # 1- Variables
         sel   = @getEditorSelection()
@@ -3206,7 +2817,7 @@ module.exports = class CNeditor
         if ! @isEnabled  or @hasNoSelection()
             return true
 
-        @._addHistory()
+        @_history.addStep()
 
         # 1- Variables
         if l?
@@ -3308,7 +2919,7 @@ module.exports = class CNeditor
         if ! @isEnabled or @hasNoSelection()
             return true
 
-        @._addHistory()
+        @_history.addStep()
 
         # 1- Variables
         unless range?
@@ -3491,7 +3102,7 @@ module.exports = class CNeditor
         return @_lines[ @linesDiv.childNodes[0].id ]
 
     _getSelectedLineDiv : () ->
-        cont = this.document.getSelection().getRangeAt(0).startContainer
+        cont = @getEditorSelection().getRangeAt(0).startContainer
         return selection.getLineDiv(cont)
 
     ### ------------------------------------------------------------------------
@@ -3887,7 +3498,7 @@ module.exports = class CNeditor
         range = this.document.createRange()
         range.setStart(bp.cont, bp.offset)
         range.collapse(true)
-        sel = this.document.getSelection()
+        sel = @getEditorSelection()
         sel.removeAllRanges()
         sel.addRange(range)
         return bp
@@ -3910,7 +3521,7 @@ module.exports = class CNeditor
         range = this.document.createRange()
         range.selectNodeContents(node)
         selection.normalize(range)
-        sel = this.document.getSelection()
+        sel = @getEditorSelection()
         sel.removeAllRanges()
         sel.addRange(range)
         return true
@@ -3920,14 +3531,14 @@ module.exports = class CNeditor
         range.setStart(startContainer, startOffset )
         range.setEnd(endContainer, endOffset)
         selection.normalize(range)
-        sel = this.document.getSelection()
+        sel = @getEditorSelection()
         sel.removeAllRanges()
         sel.addRange(range)
         return true
 
     setSelectionFromRg : (range, preferNext) ->
         selection.normalize(range, preferNext)
-        sel = this.document.getSelection()
+        sel = @getEditorSelection()
         sel.removeAllRanges()
         sel.addRange(range)
         return true
@@ -3939,7 +3550,7 @@ module.exports = class CNeditor
         range.setStart(bp1.cont, bp1.offset )
         range.setEnd(bp2.cont, bp2.offset)
         selection.normalize(range)
-        sel = this.document.getSelection()
+        sel = @getEditorSelection()
         sel.removeAllRanges()
         sel.addRange(range)
         return true
@@ -4005,7 +3616,7 @@ module.exports = class CNeditor
     ###* -----------------------------------------------------------------------
      * Parse a raw html inserted in the iframe in order to update the controller
     ###
-    _readHtml: () ->
+    _readHtml: (isFullReplaceContent) ->
         linesDiv$    = $(@linesDiv).children()  # linesDiv$= $[Div of lines]
         # loop on lines (div) to initialise the editor controler
         lineDepthAbs = 0
@@ -4014,6 +3625,8 @@ module.exports = class CNeditor
         @_lines      = {}
         linePrev     = null
         lineNext     = null
+
+        @Tags.empty(isFullReplaceContent)
 
         for htmlLine in linesDiv$
             htmlLine$ = $(htmlLine)
@@ -4061,10 +3674,16 @@ module.exports = class CNeditor
 
             # loop on spans of the line to check the tags
             seg = htmlLine.firstChild
-            while seg.nodeName == 'SPAN'
-                if seg.dataset.type
-                    @Tags._tagList.push(seg) # not clean, but perf...
+            while seg and seg.nodeName isnt 'BR'
+                @Tags.handle seg if seg.dataset.type
                 seg = seg.nextSibling
+
+            # there is no br at end of line
+            htmlLine.appendChild document.createElement('br') if not seg
+
+
+
+        @Tags.refreshAll()
 
         @_highestId = lineID
 
@@ -4341,175 +3960,22 @@ module.exports = class CNeditor
                     @shiftTab(myRange)
                     numOfUntab -= 1
 
-
-    ###
-    #  HISTORY MANAGEMENT:
-    # 1. _addHistory (Save html code, selection markers, positions...)
-    # 2. undoPossible (Return true only if unDo can be called)
-    # 3. redoPossible (Return true only if reDo can be called)
-    # 4. unDo (Undo the previous action)
-    # 5. reDo ( Redo a undo-ed action)
-    #
-    # What is saved in the history:
-    #  - current html content
-    #  - current selection
-    #  - current scrollbar position
-    #  - the boolean newPosition
-    ###
-
-    ###* -----------------------------------------------------------------------
-     *  Task history management
-
-        time ------------------+------+---------------+-----------+-------->
-        Tasks modified or      | T0c  | T0m T1c T2c   |  T1m T2m  |
-        created                |      |               |           |
-                               |      |               |           |
-        History steps          H1     H2              H3          H4(*)
-        history.modifiedTask        {T0c}       {T0m T1c T2c}   {T1m T2m}
-
-        Ctrl-z                 H1     H2              H3(*)       H4
-        _tasksToBeSaved                              {T1m,T2m}
-
-        Ctrl-z                 H1     H2(*)           H3          H4
-        _tasksToBeSaved              {T0m, T1d,T2d}
-
-        Ctrl-z                 H1(*)  H2              H3          H4
-        _tasksToBeSaved        {T0d, T1d,T2d}
-
-        Ctrl-y                 H1     H2(*)           H3          H4
-        _tasksToBeSaved              {T0m, T1d,T2d}
-
-        Ctrl-y                 H1     H2              H3(*)       H4
-        _tasksToBeSaved                              {T1m,T2m}
-
-        Ctrl-y                 H1     H2              H3          H4(*)
-        _tasksToBeSaved                                           {}
-
-    ###
-
-
-
-    ###* -----------------------------------------------------------------------
-     * Add html, selection markers and scrollbar positions to the history.
-     * No effect if the url popover is displayed
-    ###
-    _addHistory : () ->
-        console.info '== _addHistory()'
-        # do nothing if urlpopover is on, otherwise its html will also be
-        # serialized in the history.
-        if @isUrlPopoverOn or @_hotString.isPreparing
-            return
-
-        # 1- If some undo has been done, delete the steps forward (redo will
-        # be then impossible)
-        h = @_history
-        if h.index < @HISTORY_SIZE - 1
-            i = @HISTORY_SIZE - 1 - h.index
-            while i--
-                h.historySelect.pop()
-                h.historyScroll.pop()
-                h.historyPos.pop()
-                h.history.pop()
-                h.modifiedTask.pop()
-                h.historySelect.unshift(undefined)
-                h.historyScroll.unshift(undefined)
-                h.historyPos.unshift(undefined)
-                h.history.unshift(undefined)
-                h.modifiedTask.unshift(undefined)
-
-        # 2- save selection
-        savedSel = @saveEditorSelection()
-        h.historySelect.push savedSel
-
-        # 3- save scrollbar position
-        savedScroll =
-            xcoord: @linesDiv.scrollTop
-            ycoord: @linesDiv.scrollLeft
-        h.historyScroll.push savedScroll
-
-        # 4- save newPosition flag
-        h.historyPos.push @newPosition
-
-        # 5- add the html content with markers to the history
-        h.history.push @linesDiv.innerHTML
-
-        # 6- add the list of task modified since last addHistory()
-        h.modifiedTask.push @_tasksModifSinceLastHistory
-        # console.info '  last h.modifiedTask', h.modifiedTask[@HISTORY_SIZE]
-        @_tasksModifSinceLastHistory = {}
-
-        # 7- update the index
-        h.index = @HISTORY_SIZE - 1
-
-        # 8- drop oldest history step
-        h.historySelect.shift()
-        h.historyScroll.shift()
-        h.historyPos.shift()
-        h.history.shift()
-        h.modifiedTask.shift()
-
-        # @__printHistory('_addHistory')
-
-
-    # _initHistory : () ->
-    #     HISTORY_SIZE  = @HISTORY_SIZE
-    #     h = @_history
-    #     h.history       = new Array(HISTORY_SIZE)
-    #     h.historySelect = new Array(HISTORY_SIZE)
-    #     h.historyScroll = new Array(HISTORY_SIZE)
-    #     h.historyPos    = new Array(HISTORY_SIZE)
-    #     h.modifiedTask  = new Array(HISTORY_SIZE)
-    #     @._addHistory()
-
-    _removeLastHistoryStep : () ->
-        h = @_history
-        h.historySelect.pop()
-        h.historyScroll.pop()
-        h.historyPos.pop()
-        h.history.pop()
-        h.modifiedTask.pop()
-        h.historySelect.unshift(undefined)
-        h.historyScroll.unshift(undefined)
-        h.historyPos.unshift(undefined)
-        h.history.unshift(undefined)
-        h.modifiedTask.unshift(undefined)
-        h.index = @HISTORY_SIZE - 1
-
-    ### ------------------------------------------------------------------------
-    #  undoPossible
-    # Return true only if unDo can be called
-    ###
-    undoPossible : () ->
-        i = @_history.index
-        return (i >= 0 && @_history.historyPos[i] != undefined )
-
-    ### ------------------------------------------------------------------------
-    #  redoPossible
-    # Return true only if reDo can be called
-    ###
-    redoPossible : () ->
-        return (@_history.index < @_history.history.length-2)
-
-
     ###*------------------------------------------------------------------------
      * Undo the previous action
     ###
     unDo : () ->
-        # if there is an action to undo
-        if @undoPossible() and @isEnabled
-            if @_hotString.isPreparing
-                @_hotString.reset(false)
-            @_forceUndo()
-            @newPosition = true
-            # @_lastKey = null # to force addhistory on next action
 
-    _forceUndo : () ->
         console.info "\n== UNDO :"
         h = @_history
+
+        return false unless h.undoPossible() and @isEnabled
+
+        @_hotString.reset() if @_hotString.isPreparing
+
         # if we are in an unsaved state
         if h.index == h.history.length-1
             # save current state
-            @_addHistory()
+            @_history.addStep()
             # re-evaluate index
             h.index -= 1
 
@@ -4519,8 +3985,7 @@ module.exports = class CNeditor
         @newPosition = h.historyPos[stepIndex]
 
         # 2- restore html
-        if @isUrlPopoverOn
-            @_cancelUrlPopover(false)
+        @urlPopover.cancel()
         @linesDiv.innerHTML = h.history[stepIndex]
 
         # 3- restore selection
@@ -4573,12 +4038,14 @@ module.exports = class CNeditor
             #     console.info 'here'
             #     @_updateTaskLine(t)
 
-        @__printTasksModifStacks()
+        logging.printTasksModifStacks 'unDo', @_tasksToBeSaved
 
         # 8- update the index
         h.index -= 1
 
-        # @__printHistory('unDo')
+        logging.printHistory 'unDo', @_history
+
+        newPosition = true
 
 
 
@@ -4589,72 +4056,71 @@ module.exports = class CNeditor
         console.info "\n== REDO :"
         h = @_history
         # if there is an action to redo
-        if @redoPossible() and @isEnabled
+        return false unless h.redoPossible() and @isEnabled
 
-            # 0- update the index
-            index = (h.index += 1)
-            # i == index of stpe to redo
-            i = index + 1
+        # 0- update the index
+        index = (h.index += 1)
+        # i == index of stpe to redo
+        i = index + 1
 
-            # restore newPosition
-            @newPosition = h.historyPos[i]
+        # restore newPosition
+        @newPosition = h.historyPos[i]
 
-            # 1- restore html
-            if @isUrlPopoverOn
-                @_cancelUrlPopover(false)
-            @linesDiv.innerHTML = h.history[i]
+        # 1- restore html
+        @urlPopover.cancel()
+        @linesDiv.innerHTML = h.history[i]
 
-            # 2- restore selection
-            savedSel = h.historySelect[i]
-            if savedSel
-                @deSerializeSelection(savedSel)
+        # 2- restore selection
+        savedSel = h.historySelect[i]
+        if savedSel
+            @deSerializeSelection(savedSel)
 
-            # 3- restore scrollbar position
-            xcoord = h.historyScroll[i].xcoord
-            ycoord = h.historyScroll[i].ycoord
-            @linesDiv.scrollTop = xcoord
-            @linesDiv.scrollLeft = ycoord
+        # 3- restore scrollbar position
+        xcoord = h.historyScroll[i].xcoord
+        ycoord = h.historyScroll[i].ycoord
+        @linesDiv.scrollTop = xcoord
+        @linesDiv.scrollLeft = ycoord
 
-            # 4 - restore lines structure
-            @_readHtml()
+        # 4 - restore lines structure
+        @_readHtml()
 
-            # 5 - stack the tasks that have been impacted by redo so that
-            # saveTasks() take them into account.
-            for id, modif of h.modifiedTask[index+1]
-                @_stackTaskForSave(id, modif.t, modif.a)
+        # 5 - stack the tasks that have been impacted by redo so that
+        # saveTasks() take them into account.
+        for id, modif of h.modifiedTask[index+1]
+            @_stackTaskForSave(id, modif.t, modif.a)
 
-            # 6- Restore the ui of tasks that that were not impacted by the undo
-            # &  redo (because the task might have changed on the server side
-            # and ctrl-Z / ctrl-y should not modify those tasks)
-            for t in @_taskList
-                # check the task is not modified by one of the step of history
-                # that have been backward
-                if t.isFromServer
-                    @_updateTaskLine(t)
+        # 6- Restore the ui of tasks that that were not impacted by the undo
+        # &  redo (because the task might have changed on the server side
+        # and ctrl-Z / ctrl-y should not modify those tasks)
+        for t in @_taskList
+            # check the task is not modified by one of the step of history
+            # that have been backward
+            if t.isFromServer
+                @_updateTaskLine(t)
 
-                # i = index + 1
-                # isInHistory = false
-                # while @HISTORY_SIZE - i
-                #     modifs = h.modifiedTask[i]
-                #     i++
-                #     for id, modif of modifs
-                #         if id == t.internalId
-                #             i = @HISTORY_SIZE
-                #             isInHistory = true
-                #             break
-                # if !isInHistory
-                #     @_updateTaskLine(t)
+            # i = index + 1
+            # isInHistory = false
+            # while @HISTORY_SIZE - i
+            #     modifs = h.modifiedTask[i]
+            #     i++
+            #     for id, modif of modifs
+            #         if id == t.internalId
+            #             i = @HISTORY_SIZE
+            #             isInHistory = true
+            #             break
+            # if !isInHistory
+            #     @_updateTaskLine(t)
 
-            # to force addhistory on next action
-            # @_lastKey = null
-            @newPosition = true
+        # to force addhistory on next action
+        # @_lastKey = null
+        @newPosition = true
 
 
-            # @__printHistoryModifiedTask()
-            @__printTasksModifStacks()
+        # logging.printHistoryModifiedTask()
+        logging.printTasksModifStacks 'redo', @_tasksToBeSaved
 
-            # console.info 'reDo', h.index
-            # @__printHistory('reDo')
+        # console.info 'reDo', h.index
+        # logging.printHistory('reDo')
 
 
 
@@ -4666,50 +4132,6 @@ module.exports = class CNeditor
                 return
             if modif[task.internalId]
                 modif[task.internalId].t = task
-
-
-    ###* -----------------------------------------------------------------------
-     * A utility fuction for debugging
-     * @param  {string} txt A text to print in front of the log
-    ###
-    __printHistory : (txt) ->
-        if ! txt
-            txt = ''
-        console.info txt + ' _history.index : ' + @._history.index
-        for step, i in @._history.history
-            if @._history.index == i
-                arrow = ' <---'
-            else
-                arrow = ' '
-                content = $(step).text()
-                content = '_' if content == ''
-            console.info i, content , @._history.historySelect[i] , arrow
-        return true
-
-
-    ###* -----------------------------------------------------------------------
-     * A utility fuction for debugging
-     * @param  {string} txt A text to print in front of the log
-    ###
-    __printTasksModifStacks : (txt) ->
-        if ! txt
-            txt = ''
-        res =  '  _tasksToBeSaved : '
-        for id, modif of @._tasksToBeSaved
-            res += id + ':'
-            if modif.created
-                res += 'created-'
-            if modif.modified
-                res += 'modified-'
-            if modif.deleted
-                res += 'deleted-'
-            if modif.removed
-                res += 'removed-'
-            res = res.slice(0,-1)
-            res +=  ', '
-        res = res.slice(0,-2)
-        console.info res
-        return true
 
 
     ###* -----------------------------------------------------------------------
@@ -4806,15 +4228,14 @@ module.exports = class CNeditor
         return res
 
     serializeSel : () ->
-        s = this.document.getSelection()
-        if s.rangeCount == 0
-            return false
-        return @serializeRange(s.getRangeAt(0))
+        s = @getEditorSelection()
+        return @serializeRange(s.getRangeAt(0)) if s.rangeCount
+        return false #else
 
     deSerializeSelection : (serial) ->
-        sel = this.document.getSelection()
+        sel = @getEditorSelection()
         sel.removeAllRanges()
-        sel.addRange(@.deSerializeRange(serial))
+        sel.addRange(@deSerializeRange(serial))
 
 
     ### ------------------------------------------------------------------------
@@ -4946,7 +4367,7 @@ module.exports = class CNeditor
      * Its role is to insert the content of the clipboard into the editor.
     ###
     _processPaste : () =>
-        sandbox = @.clipboard
+        sandbox = @clipboard
         currSel = @currentSel
 
         # 1- Sanitize clipboard content with node-validator
@@ -5256,29 +4677,6 @@ module.exports = class CNeditor
         return bp
 
 
-    ###*
-     * returns a break point, collapsed after a space caracter immediately
-     * following a given segment. A segment will we inserted if required.
-     * @param  {[type]} seg [description]
-     * @return {Object}     {cont,offset} : the break point
-    ###
-    insertSpaceAfterUrl : (seg) ->
-        nextSeg = seg.nextSibling
-        if nextSeg.nodeName == 'BR'
-            span = @_insertSegmentAfterSeg(seg)
-            bp = {cont:span.firstChild, offset:1}
-        else
-            index = selection.getSegmentIndex(seg)[1] + 1
-            bp = selection.normalizeBP(seg.parentElement, index, true)
-            txtNode = bp.cont
-            # c1 = txtNode.textContent[0]
-            # if c1 != ' ' and c1 != '\u00a0'
-            #     txtNode.textContent = '\u00a0' + txtNode.textContent
-            # bp.offset = 1
-            bp.offset = 0
-        return bp
-
-
     ###* -----------------------------------------------------------------------
      * Walks thoug an html tree in order to convert it in a strutured content
      * that fit to a note structure.
@@ -5365,16 +4763,7 @@ module.exports = class CNeditor
                     #     prevHxLevel          = newHxLevel
                     #     context.prevHxLevel  = newHxLevel
 
-                when 'LI'
-                    # if a line was being populated, append it to the frag
-                    if context.isCurrentLineBeingPopulated
-                        @_appendCurrentLineFrag(context,absDepth,absDepth)
-                    # walk throught the child and append it to the frag
-                    @__domWalk(child, context)
-                    if context.isCurrentLineBeingPopulated
-                        @_appendCurrentLineFrag(context,absDepth,absDepth)
-
-                when 'TR'
+                when 'LI', 'TR'
                     # if a line was being populated, append it to the frag
                     if context.isCurrentLineBeingPopulated
                         @_appendCurrentLineFrag(context,absDepth,absDepth)
@@ -5389,72 +4778,12 @@ module.exports = class CNeditor
                     @_appendCurrentLineFrag(context,absDepth,absDepth)
 
                 when 'A'
-                    # without <a> element :
-                    # lastInsertedEl = context.currentLineEl.lastChild
-                    # if lastInsertedEl != null and lastInsertedEl.nodeName=='SPAN'
-                    #     lastInsertedEl.textContent += '[' + child.textContent + ']('+ child.href+')'
-                    # else
-                    #     spanNode = document.createElement('span')
-                    #     spanNode.textContent = child.textContent + ' [[' + child.href+']] '
-                    #     context.currentLineEl.appendChild(spanNode)
-                    # context.isCurrentLineBeingPopulated = true
-
-                    # with <a> element :
                     aNode = document.createElement('a')
                     aNode.textContent = child.textContent
                     aNode.href        = child.href
                     context.currentLineEl.appendChild(aNode)
 
 
-                    # if context.currentLineEl.nodeName == 'A'
-                    #     context.currentLineEl.textContent += child.textContent
-                    # # otherwise in a new span
-                    # else
-                    #     txtNode = document.createTextNode(child.textContent)
-                    #     spanEl = document.createElement('span')
-                    #     spanEl.appendChild txtNode
-                    #     context.currentLineEl.appendChild spanEl
-
-                    # context.isCurrentLineBeingPopulated = true
-
-
-                # ###
-                # ready for styles to be taken into account
-                # when 'A'
-                #     # insert a <a> in the currentLineFrag
-                #     aNode = document.createElement('a')
-                #     initialCurrentLineEl = context.currentLineEl
-                #     context.currentLineEl.appendChild(aNode)
-                #     context.currentLineEl = aNode
-                #     @__domWalk(child, context)
-                #     context.currentLineEl = initialCurrentLineEl
-                #     context.isCurrentLineBeingPopulated = true
-                # when 'B','STRONG'
-                #     # insert a <span> in the currentLineFrag
-                #     spanNode = document.createElement('strong')
-                #     initialCurrentLineEl = context.currentLineEl
-                #     context.currentLineEl.appendChild(spanNode)
-                #     context.currentLineEl = spanNode
-                #     result += @__domWalk(child, context)
-                #     context.currentLineEl = initialCurrentLineEl
-                #     context.isCurrentLineBeingPopulated = true
-                # when 'I','EM'
-                #     # insert a <span> in the currentLineFrag
-                #     spanNode = document.createElement('EM')
-                #     initialCurrentLineEl = context.currentLineEl
-                #     context.currentLineEl.appendChild(spanNode)
-                #     @__domWalk(child, context)
-                #     context.currentLineEl = initialCurrentLineEl
-                #     context.isCurrentLineBeingPopulated = true
-                # when 'SPAN'
-                #     # insert a <span> in the currentLineFrag
-                #     spanNode = document.createElement('span')
-                #     initialCurrentLineEl = context.currentLineEl
-                #     context.currentLineEl = spanNode
-                #     context.currentLineFrag.appendChild(spanNode)
-                #     @__domWalk(child, context)
-                #     context.currentLineEl = initialCurrentLineEl
-                #     context.isCurrentLineBeingPopulated = true
                 when 'DIV', 'TABLE', 'TBODY'
                     if child.id.substr(0,5)=='CNID_'
                         @_clipBoard_Insert_InternalLine(child, context)
@@ -5587,45 +4916,39 @@ module.exports = class CNeditor
                         return true
 
             when 'todo'
-                taskDiv = @._turnIntoTask()
+                taskDiv = @_turnIntoTask()
                 if taskDiv
                     txt = taskDiv.textContent.trim()
                     reg = new RegExp('^ *@?t?o?d?o? *$','i')
                     if txt.match(reg)
-                        @._initTaskContent(taskDiv)
+                        @_initTaskContent(taskDiv)
                         hs.reset(false)
                     else
                         hs._forceUserHotString('', [])
                         hs.reset('end')
                     @editorTarget$.trigger jQuery.Event('onChange')
-                    # to force addhistory on next action
-                    @newPosition = true
+                    @newPosition = true # to force addhistory on next action
                     return true
 
             when 'contact'
                 hs._forceUserHotString(autoItem.text, [])
-                hs._hsSegment.classList.add('CNE_contact')
-                hs._hsSegment.contentEditable = false
-                hs._hsSegment.dataset.type = 'contact'
                 hs._hsSegment.dataset.id = autoItem.model.id
-                # @Tags._tagList.push(hs._hsSegment) # not clean but perf...
-                hs._hsSegment.classList.remove('CNE_hot_string')
-                bp = @.insertSpaceAfterSeg(hs._hsSegment)
+                @Tags.create 'contact', hs._hsSegment
+                bp = @insertSpaceAfterSeg(hs._hsSegment)
                 @_setCaret(bp.cont,1)
                 hs._auto.hide()
                 hs._reInit()
                 @editorTarget$.trigger jQuery.Event('onChange')
-                # to force addhistory on next action
-                @newPosition = true
+                @newPosition = true # to force addhistory on next action
                 return true
 
             when 'htag'
                 hs._forceUserHotString(autoItem.text, [])
                 hs._hsSegment.classList.add('CNE_htag')
                 hs._hsSegment.dataset.type = 'htag'
-                @Tags._tagList.push(hs._hsSegment) # not clean but perf...
+                @Tags.handle hs._hsSegment, true
                 hs._hsSegment.classList.remove('CNE_hot_string')
-                bp = @.insertSpaceAfterSeg(hs._hsSegment)
+                bp = @insertSpaceAfterSeg(hs._hsSegment)
                 @_setCaret(bp.cont,1)
                 hs._auto.hide()
                 @editorTarget$.trigger jQuery.Event('onChange')
@@ -5638,14 +4961,10 @@ module.exports = class CNeditor
                 else autoItem.value.format()
                 hs._forceUserHotString(txt, [])
 
-                hs._hsSegment.classList.add('CNE_reminder')
-                hs._hsSegment.classList.remove('CNE_hot_string')
-                hs._hsSegment.dataset.type = 'reminder'
-                @Tags._tagList.push(hs._hsSegment) # not clean but perf...
                 hs._hsSegment.dataset.value = txt
-                @_createReminderForSegment hs._hsSegment
+                @Tags.create 'reminder', hs._hsSegment
 
-                bp = @.insertSpaceAfterSeg(hs._hsSegment)
+                bp = @insertSpaceAfterSeg(hs._hsSegment)
                 @_setCaret(bp.cont,1)
 
                 hs._auto.hide()
@@ -5658,153 +4977,6 @@ module.exports = class CNeditor
         hs.reset('end')
         @editorTarget$.trigger jQuery.Event('onChange')
         return false
-
-
-    _hideContactPopover: ->
-
-        oldcontactseg = null
-
-        if @contactpopover
-            oldcontactseg = @contactpopover.parentNode
-            oldcontactseg.removeChild @contactpopover
-            @contactpopover = null
-
-        return oldcontactseg
-
-
-    _showContactPopover: (contactsegment) =>
-        model = @contactsCollection.get contactsegment.dataset.id
-        @contactpopover = document.createElement('DIV')
-        @contactpopover.id = 'contactpopover'
-        html = '<dl class="dl-horizontal">'
-        for dp in model.get 'datapoints'
-            value = dp.value.replace "\n", '<br />'
-            if dp.name is 'other' or dp.name is 'about' then name = dp.type
-            else name = dp.type + ' '+ dp.name.replace 'smail', 'postal'
-            html += "<dt>#{name}</dt><dd>#{value}</dd>"
-        html += '</dl>'
-        @contactpopover.innerHTML = html
-        contactsegment.appendChild @contactpopover
-
-    _removeContactSegment: (model) =>
-        selector = "span[data-type='contact'][data-id='#{model.id}']"
-        for contactsegment in @linesDiv.querySelectorAll(selector)
-            @Tags.remove contactsegment
-
-    _updateContactSegment: (model) =>
-        selector = "span[data-type='contact'][data-id='#{model.id}']"
-        for contactsegment in @linesDiv.querySelectorAll(selector)
-            contactsegment.textContent = model.get 'name'
-
-    _updateHotStringContacts: =>
-        contacts = @contactsCollection.map (contact) ->
-                text: contact.get 'name'
-                type: 'contact'
-                model: contact
-
-        @_hotString._auto.setItems 'contact', contacts
-
-
-    _removeReminderSegment: (model) =>
-        selector = "span[data-type='reminder'][data-id='#{model.id}']"
-        remindersegment = @linesDiv.querySelectorAll(selector)[0]
-        @Tags.remove remindersegment
-
-
-    _updateReminderSegment: (model) =>
-        selector = "span[data-type='reminder'][data-id='#{model.id}']"
-        for contactsegment in @linesDiv.querySelectorAll(selector)
-            value = Date.create(model.get('trigg')).format()
-            contactsegment.textContent = value
-
-
-    ### ------------------------------------------------------------------------
-    # EXTENSION  :  cleaned up HTML parsing
-    #
-    #  (TODO)
-    #
-    # We suppose the html treated here has already been sanitized so the DOM
-    #  structure is coherent and not twisted
-    #
-    # _parseHtml:
-    #  Parse an html string and return the matching html in the editor's format
-    # We try to restitute the very structure the initial fragment :
-    #   > indentation
-    #   > lists
-    #   > images, links, tables... and their specific attributes
-    #   > text
-    #   > textuals enhancements (bold, underlined, italic)
-    #   > titles
-    #   > line return
-    #
-    # Ideas to do that :
-    #  0- textContent is always kept
-    #  1- A, IMG keep their specific attributes
-    #  2- UL, OL become divs whose class is Tu/To. LI become Lu/Lo
-    #  3- H[1-6] become divs whose class is Th. Depth is determined depending on
-    #     where the element was pasted.
-    #  4- U, B have the effect of adding to each elt they contain a class (bold
-    #     and underlined class)
-    #  5- BR delimit the different DIV that will be added
-    #  6- relative indentation preserved with imbrication of paragraphs P
-    #  7- any other elt is turned into a simple SPAN with a textContent
-    #  8- IFRAME, FRAME, SCRIPT are ignored
-    ####
-
-    # _parseHtml : (htmlFrag) ->
-
-        # result = ''
-
-        # specific attributes of IMG and A are copied
-        # copySpecificAttributes =
-            # "IMG" : (elt) ->
-                # attributes = ''
-                # for attr in ["alt", "border", "height", "width", "ismap", "hspace", "vspace", "logdesc", "lowsrc", "src", "usemap"]
-                    # if attr?
-                        # attributes += " #{attr}=#{elt.getAttribute(attr)}"
-                # return "<img #{attributes}>#{elt.textContent}</img>"
-            # "A" : (elt) ->
-                # attributes = ''
-                # for attr in ["href", "hreflang", "target", "title"]
-                    # if attr?
-                        # attributes += " #{attr}=#{elt.getAttribute(attr)}"
-                # return "<a #{attributes}>#{elt.textContent}</a>"
-
-
-        # read recursively through the dom tree and turn the html fragment into
-        # a correct bit of html for the editor with the same specific attributes
-
-        # leafReader = (tree) ->
-            # if the element is an A or IMG --> produce an editor A or IMG
-            # if tree.nodeName == "A" || tree.nodeName == "IMG"
-                # return copySpecificAttributes[tree.nodeName](tree)
-            # if the element is a BR
-            # else if tree.nodeName == "BR"
-                # return "<br>"
-            # if the element is B, U, I, EM then spread this highlightment
-            # if the element is UL(OL) then start a Tu(To)
-            # if the element is LI then continue the list (unless if it is the
-            #    first child of a UL-OL)
-            # else
-            # else if tree.firstChild != null
-                # sibling = tree.firstChild
-                # while sibling != null
-                   #  result += leafReader(sibling)
-                    # sibling = sibling.nextSibling
-            # if the element
-                # src = "src=#{tree.getAttribute('src')}"
-
-            # if the element has children
-            # child = tree.firstChild
-            # if child != null
-            #     while child != null
-                    # result += leafReader(child)
-                    # child = child.nextSibling
-            # else
-
-                # return tree.innerHTML || tree.textContent
-
-        # leafReader(htmlFrag)
 
 CNeditor = exports.CNeditor
 

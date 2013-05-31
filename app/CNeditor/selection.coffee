@@ -537,5 +537,4 @@
             break
     return index
 
-selection = µ
-exports.selection = µ
+module.exports = µ
