@@ -158,7 +158,7 @@ module.exports = class CNeditor
         @_registerEventListeners()
 
         # callback
-        callback()
+        callback.call this
 
 
     _mousedownCb : (e) =>
