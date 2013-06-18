@@ -440,7 +440,7 @@ module.exports = class HotString
         updateItems = =>
             console.log 'updateItems', contactCollection
             @_auto.setItems 'contact', contactCollection.map (contact) ->
-                text: contact.get 'name'
+                text: contact.get 'fn'
                 type: 'contact'
                 model: contact
 

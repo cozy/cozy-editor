@@ -18,7 +18,7 @@ module.exports = class Tags
         @contactPopover = new ContactPopover()
 
         @models.contactCollection.on
-            'change:name' : @_updateContactSegment
+            'change:fn' : @_updateContactSegment
             'destroy'     : @_removeContactSegment
 
         @models.alarmCollection.on
@@ -147,7 +147,7 @@ module.exports = class Tags
 
             when 'contact'
                 model = @models.contactCollection.get seg.dataset.id
-                seg.textContent = model.get 'name'
+                seg.textContent = model.get 'fn'
 
 
     remove : (seg) ->
@@ -213,7 +213,7 @@ module.exports = class Tags
     _updateContactSegment: (model) =>
         for seg in @_tagList
             if seg.dataset.type is 'contact' and seg.dataset.id is model.id
-                seg.textContent = model.get 'name'
+                seg.textContent = model.get 'fn'
 
     _removeReminderSegment: (model) =>
         for seg in @_tagList

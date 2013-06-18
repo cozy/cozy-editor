@@ -862,7 +862,7 @@ module.exports = class CNeditor
         if unPretify
             htmlString = htmlString.replace(/>[\n ]*</g, "><")
 
-        @urlPopover.cancel()
+        @urlPopover?.cancel()
 
         @linesDiv.innerHTML = htmlString
         @_taskList = []

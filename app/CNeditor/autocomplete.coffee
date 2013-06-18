@@ -109,7 +109,8 @@ module.exports = class AutoComplete
 
         lines.removeChild lines.firstChild while lines.firstChild
         for it in items
-            lines.appendChild(@_createLine(it))
+            line = @_createLine(it)
+            lines.appendChild(line) if line
 
         return true
 
@@ -120,6 +121,8 @@ module.exports = class AutoComplete
     ###
     _createLine : (item) ->
         # console.info '_createLine', item
+        # empty contact
+        return null unless item.text
 
         line = document.createElement('LI')
         # line.contentEditable = false
@@ -134,7 +137,7 @@ module.exports = class AutoComplete
         # if line.childNodes.length != 0
         #     line.innerHTML = ''
 
-        t = item.text.split('')
+        t = item.text?.split('') or []
         for c in t
             span = document.createElement('SPAN')
             # span.contentEditable = false
