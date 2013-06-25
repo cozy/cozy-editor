@@ -17,7 +17,6 @@ module.exports.Alarm = class Alarm extends Backbone.Model
     @reminderCf = {}
 
     @setDefaultCf = (description, related) ->
-        console.log 'setting Cf', description
         Alarm.reminderCf.description = description if description
         Alarm.reminderCf.related     = related     if related
         module.exports.alarmCollection.each (model) =>
@@ -41,6 +40,11 @@ module.exports.contactCollection = new Backbone.Collection [],
     url: Contact::urlRoot
     model: Contact
 
+Contact.load = (cb) ->
+    module.exports.contactCollection.fetch
+        success:     -> cb null
+        error: (err) -> cb err
+
 ###
 # Tasks model
 # TODO : use a collection
@@ -55,6 +59,29 @@ module.exports.Task = class Task extends Backbone.Model
 
     parse: (data) -> if data.rows then data.rows[0] else data
 
+Task.getOrCreateInbox = (callback) ->
+    # task can be used, let's get/create inbox list
+    request.get '/apps/todos/todolists', (err, lists) ->
+
+        if err
+            module.exports.taskCanBeUsed = false
+            return callback err
+
+        if inbox = _.findWhere(lists.rows, title: 'Inbox')
+            Task.todolistId = inbox.id
+            return callback null
+
+        todolist = title: 'Inbox', parent_id:'tree-node-all'
+        request.post '/apps/todos/todolists', todolist, (err, inbox) ->
+
+            if err
+                module.exports.taskCanBeUsed = false
+                return callback err
+
+            Task.todolistId = inbox.id
+            return callback null
+
+
 
 ###
 # Initializer : ask home to see what is installed
@@ -65,11 +92,11 @@ module.exports.initialize = (callback) ->
 
     callback ?= ->
 
-    isAgenda = (app) -> app.name is 'agenda'
-
     request.get '/api/applications', (err, apps) ->
 
         return callback err if err
+
+        actions = []
 
         for app in (apps?.rows or [])
             continue unless app.state is 'installed'
@@ -77,31 +104,21 @@ module.exports.initialize = (callback) ->
             switch app.slug
                 when 'contacts'
                     module.exports.contactCanBeUsed = true
-                    module.exports.contactCollection.fetch()
+                    actions.push Contact.load
                 when 'agenda'
                     module.exports.alarmCanBeUsed   = true
                 when 'todos'
                     module.exports.taskCanBeUsed    = true
+                    actions.push Task.getOrCreateInbox
 
-        return callback null unless module.exports.taskCanBeUsed
 
-        # task can be used, let's get/create inbox list
-        request.get '/apps/todos/todolists', (err, lists) ->
+        # async.parallel actions, callback
+        cnt = actions.length
+        err = null
+        for action in actions
+            action (err) ->
+                err ?= err if err
+                cnt--
+                callback err if cnt is 0
 
-            if err
-                module.exports.taskCanBeUsed = false
-                return callback err
 
-            if inbox = _.findWhere(lists.rows, title: 'Inbox')
-                Task.todolistId = inbox.id
-                return callback null
-
-            todolist = title: 'Inbox', parent_id:'tree-node-all'
-            request.post '/apps/todos/todolists', todolist, (err, inbox) ->
-
-                if err
-                    module.exports.taskCanBeUsed = false
-                    return callback err
-
-                Task.todolistId = inbox.id
-                return callback null

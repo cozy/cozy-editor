@@ -62,7 +62,7 @@ module.exports = class CNeditor
         # 2 - Async loading of everything
                 # init the socketio connection
         ExternalModels.initialize (err) =>
-            console.log err
+            console.log err if err
 
             realtimer.watch ExternalModels.contactCollection
 

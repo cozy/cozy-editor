@@ -437,19 +437,21 @@ module.exports = class HotString
 
     realtimeContacts: (contactCollection) =>
 
+        if contactCollection.length is 0
+            contactCollection.once 'sync', =>
+                @realtimeContacts contactCollection
+
         updateItems = =>
-            console.log 'updateItems', contactCollection
             @_auto.setItems 'contact', contactCollection.map (contact) ->
                 text: contact.get 'fn'
                 type: 'contact'
                 model: contact
 
+        updateItems()
         contactCollection.on
             'add'         : updateItems
             'remove'      : updateItems
             'change:name' : updateItems
-
-        updateItems()
 
 
     ###*
