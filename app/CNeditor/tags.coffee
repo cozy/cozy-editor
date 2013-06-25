@@ -101,11 +101,13 @@ module.exports = class Tags
 
         iz = (a) -> (b) -> a.dataset.id is b.dataset.id
 
-        for oldseg in (@oldList or [])
-            unless @_tagList.some(iz oldseg)
-                # the segment have been deleted since empty
-                if oldseg.dataset.type is 'reminder'
-                    @remove oldseg
+        unless @isFullReplaceContent
+            console.log "HERE"
+            for oldseg in (@oldList or [])
+                unless @_tagList.some(iz oldseg)
+                    # the segment have been deleted since empty
+                    if oldseg.dataset.type is 'reminder'
+                        @remove oldseg
 
         if @oldList and not @isFullReplaceContent
             for newseg in @_tagList
@@ -140,9 +142,11 @@ module.exports = class Tags
                 else
                     # model not in the collection, probably a load
                     model = new @models.Alarm(id: seg.dataset.id)
-                    model.fetch().fail =>
-                        @models.alarmCollection.remove model
-                        @remove seg
+                    model.fetch
+                        error: =>
+                            @models.alarmCollection.remove model
+                            @remove seg
+
                     @models.alarmCollection.add model
 
             when 'contact'
@@ -151,7 +155,6 @@ module.exports = class Tags
 
 
     remove : (seg) ->
-        console.log 'Tags.remove', seg
         @_tagList = _.without(@_tagList, seg)
 
         switch seg.dataset.type

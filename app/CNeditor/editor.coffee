@@ -2518,8 +2518,10 @@ module.exports = class CNeditor
                 # normalized)
                 textNode = sel.range.startContainer
                 startOffset = sel.range.startOffset
+
                 # if carret is at the begin of a segment, go to previous segment
-                if startOffset == 0
+                if startOffset == 0 or
+                   startOffset == 1 and textNode.textContent.charCodeAt(0) == 160
                     bp = selection.setBpPreviousSegEnd(textNode)
                     textNode = bp.cont
                     startOffset = bp.offset
@@ -2532,9 +2534,10 @@ module.exports = class CNeditor
                 # delete one caracter in the textNode
                 txt = textNode.textContent
 
-
                 textNode.textContent = txt.substr(0,startOffset-1) +
                                        txt.substr(startOffset)
+
+
                 bp =
                     cont   : textNode
                     offset : startOffset-1
