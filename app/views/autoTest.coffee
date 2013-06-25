@@ -44,6 +44,7 @@ class exports.AutoTest
             root = @buildTree()
         catch error
             console.log error
+            console.log error.stack
             return false
 
         # Tree validation

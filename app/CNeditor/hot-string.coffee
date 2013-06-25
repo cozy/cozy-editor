@@ -1,9 +1,7 @@
-AutoComplete = require('./autocomplete').AutoComplete
-selection    = require('./selection').selection
+AutoComplete = require('./autocomplete')
+selection    = require('./selection')
 
 module.exports = class HotString
-
-
 
     constructor : (editor) ->
         @editor    = editor
@@ -14,7 +12,7 @@ module.exports = class HotString
         @_hsTypes  = ['@', '@@', '#']
         @_modes    =
             '@'  : 'contact'
-            # '@@' : 'reminder'
+            '@@' : 'reminder'
             # '#'  : 'htag'
         @isPreparing  = false # true if a hot sring is under construction
         @_hsType      = ''
@@ -122,8 +120,8 @@ module.exports = class HotString
                 if 'contact' in modes
                     @_hsType = '@'
                     @isPreparing = true
-                    @_auto.setMode 'ttag'
-                    @_currentMode = 'ttag'
+                    @_auto.setMode 'contact'
+                    @_currentMode = 'contact'
                     @_autoToBeShowed = mode:'insertion'
                 else if modes.length > 0
                     @_hsType = '@'
@@ -230,7 +228,9 @@ module.exports = class HotString
         @_hsTextNode = seg.firstChild
         @_hsString = seg.textContent
         @_hsTextNode.textContent = @_hsType + @_hsString
-        seg.classList.remove(segClass)
+        seg.classList.remove 'CNE_reminder'
+        seg.classList.remove 'CNE_contact'
+        seg.classList.remove 'CNE_htag'
         seg.dataset.type = ''
         @editor.setSelection(seg.firstChild, startOffset ,
                              seg.firstChild, endOffset
@@ -416,20 +416,12 @@ module.exports = class HotString
 
 
     mouseDownCb : (e) ->
-        # console.info '== mousedown'
-        # detect if click is in the list or out
-        isOut =     e.target != @el                                    \
-                and $(e.target).parents('#CNE_autocomplete').length == 0
-        if !isOut
-            e.preventDefault()
-
-
+        e.preventDefault() if @isInAuto e.target
 
     mouseUpInAutoCb : (e) ->
 
         # if click in reminder, let the components deal actions.
-        if @_currentMode == 'reminder'
-            return true
+        return true if @_currentMode == 'reminder'
 
         # else
         selectedLine = e.target
@@ -440,11 +432,26 @@ module.exports = class HotString
         else
             @reset('end')
 
-
-
     isInAuto : (elt) ->
         return elt == @el or $(elt).parents('#CNE_autocomplete').length != 0
 
+    realtimeContacts: (contactCollection) =>
+
+        if contactCollection.length is 0
+            contactCollection.once 'sync', =>
+                @realtimeContacts contactCollection
+
+        updateItems = =>
+            @_auto.setItems 'contact', contactCollection.map (contact) ->
+                text: contact.get 'fn'
+                type: 'contact'
+                model: contact
+
+        updateItems()
+        contactCollection.on
+            'add'         : updateItems
+            'remove'      : updateItems
+            'change:name' : updateItems
 
 
     ###*
