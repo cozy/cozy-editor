@@ -1,3 +1,8 @@
+# BRUNCH MAKE FILE
+# For development, compiles files of CNeditor in
+#   ./public/javascripts/app.js
+#   ./public/stylesheets/app.css
+
 exports.config =
     # See docs at http://brunch.readthedocs.org/en/latest/config.html.
     coffeelint:

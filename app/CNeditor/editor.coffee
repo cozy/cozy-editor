@@ -40,7 +40,7 @@ module.exports = class CNeditor
     #   Constructor : newEditor = new CNEditor( iframeTarget,callBack )
     #       iframeTarget = iframe where the editor will be nested
     #       callBack     = launched when editor ready, the context
-    #                      is set to the editorCtrl (callBack.call(this))
+    #                      is set the editor (callBack.call(this))
     ###
     constructor : (editorTarget, callBack) ->
 

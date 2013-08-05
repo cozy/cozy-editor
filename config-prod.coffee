@@ -1,3 +1,8 @@
+# BRUNCH MAKE FILE
+# For production, compiles files in
+#   ./build/
+#   ../cozy-notes/client/vendor/
+
 exports.config =
     # See docs at http://brunch.readthedocs.org/en/latest/config.html.
     coffeelint:
@@ -45,7 +50,6 @@ exports.config =
                 before:[
                     'app/CNeditor/datepicker.css'
                 ]
-
 
     modules:
         wrapper: 'commonjs'
