@@ -10,7 +10,56 @@ module.exports = class AutoComplete
         @container  = container
         @editor     = editor
         @hotString  = hotString
-        @tTags       = [] # types of tags
+        @tTags      = [] # types of tags
+        # list of already compiled regex (created at each user autocomplete)
+        @regexStore = {}
+        @isVisible  = false # whether the popover is visible or not
+
+
+        # DIV of the autocomplete popover. This one will be populated by other
+        # divs, for the contacts, the ttags, the htags, the agenda...
+        auto  = document.createElement('div')
+        auto.id = 'CNE_autocomplete'
+        auto.className = 'CNE_autocomplete'
+        auto.setAttribute('contentEditable','false')
+        auto.addEventListener 'keypress', (e) =>
+            if e.keyCode == 13 # return
+                @_validateUrlPopover()
+                e.stopPropagation()
+            else if e.keyCode == 27 # esc
+                @_cancelUrlPopover(false)
+            return false
+        @el = auto
+
+
+        # divs within the autocomplete element ()
+        @mathDiv     = document.createElement('DIV')
+        @mathDiv.innerHTML =
+        """
+            <p class="math-title">Formula</p>
+            <div id="mathRes" class='mathDivOutput'>$${}$$</div>
+        """
+
+        @el.appendChild(@mathDiv)
+        @container.parentElement.appendChild(@el)
+
+        mathRes     = @mathDiv.children[1]
+        @mathRes    = mathRes
+        # @MATH        = MathJax.Hub.getAllJax(@mathRes)[0]
+        #
+        that = this
+        MathJax.Hub.queue.Push ()->
+            MathJax.Hub.Typeset(mathRes)
+
+        # MathJax.Hub.queue.Push ()->
+        #     that.container.removeChild(that.el)
+
+        MATH = null
+
+        MathJax.Hub.queue.Push ()->
+            MATH = MathJax.Hub.getAllJax()[0]
+        @MATH = MATH
+
         @tTagsDiv    = document.createElement('DIV')
         @tTagsDiv.className = 'SUGG_ttags'
         @contacts    = [] # items of contact
@@ -55,23 +104,7 @@ module.exports = class AutoComplete
         reminderTitle.addEventListener 'click', () =>
             @hotString.validate()
 
-
-        @regexStore = {}
-        @isVisible  = false
-
-        auto  = document.createElement('div')
-        auto.id = 'CNE_autocomplete'
-        auto.className = 'CNE_autocomplete'
-        auto.setAttribute('contentEditable','false')
-        auto.addEventListener 'keypress', (e) =>
-            if e.keyCode == 13 # return
-                @_validateUrlPopover()
-                e.stopPropagation()
-            else if e.keyCode == 27 # esc
-                @_cancelUrlPopover(false)
-            return false
         auto.appendChild(@tTagsDiv)
-        @el = auto
 
         # default mode = contact : will be overriden when show is called
         @_currentMode = 'contact'
@@ -198,8 +231,23 @@ module.exports = class AutoComplete
 
         switch mode
 
+            when 'math'
+                @_currentMode = 'math'
+                if !@mathDiv.parentNode
+                    @el.appendChild(@mathDiv)
+                if @tTagsDiv.parentNode
+                    @el.removeChild(@tTagsDiv)
+                if @htagDiv.parentNode
+                    @el.removeChild(@htagDiv)
+                if @contactsDiv.parentNode
+                    @el.removeChild(@contactsDiv)
+                if @reminderDiv.parentNode
+                    @el.removeChild(@reminderDiv)
+
             when 'ttag'
                 @_currentMode = 'ttag'
+                if @mathDiv.parentNode
+                    @el.removeChild(@mathDiv)
                 if !@tTagsDiv.parentNode
                     @el.appendChild(@tTagsDiv)
                 if @htagDiv.parentNode
@@ -211,6 +259,8 @@ module.exports = class AutoComplete
 
             when 'contact'
                 @_currentMode = 'contact'
+                if @mathDiv.parentNode
+                    @el.removeChild(@mathDiv)
                 if !@tTagsDiv.parentNode
                     @el.appendChild(@tTagsDiv)
                 if @htagDiv.parentNode
@@ -222,6 +272,8 @@ module.exports = class AutoComplete
 
             when 'htag'
                 @_currentMode = 'htag'
+                if @mathDiv.parentNode
+                    @el.removeChild(@mathDiv)
                 if @tTagsDiv.parentNode
                     @el.removeChild(@tTagsDiv)
                 if !@htagDiv.parentNode
@@ -277,15 +329,22 @@ module.exports = class AutoComplete
             when 'htag'
                 items = @htags
             when 'reminder'
-
                 newdate = Date.future(typedTxt)
                 if newdate.isValid()
                     @_currentDate = newdate
                     @datePick.datepicker 'setValue', @_currentDate
                     time = @_currentDate.toTimeString().substring 0, 8
                     @timePick.timepicker 'setTime', time
-
                 return
+            when 'math'
+                MathJax.Hub.queue.Push(
+                    () -> ,
+                    ["Text",@MATH,"\\displaystyle{"+typedTxt+"}"],
+                    () -> ,
+                    () ->
+                    )
+                @mathRes.textContent = typedTxt
+                items = []
 
         # check the items to show
         for it in items

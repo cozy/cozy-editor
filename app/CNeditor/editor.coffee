@@ -59,6 +59,12 @@ module.exports = class CNeditor
         # a list of tasks modified since last addHistory()
         @_tasksModifSinceLastHistory = {}
 
+        # 3- load MathJax
+        script      = document.createElement("script")
+        script.type = "text/javascript"
+        script.src  = "http://cdn.mathjax.org/mathjax/latest/MathJax.js?configs=TeX-AMS-MML_HTMLorMML"
+        document.getElementsByTagName("head")[0].appendChild(script)
+
         # 2 - Async loading of everything
                 # init the socketio connection
         ExternalModels.initialize (err) =>
@@ -66,7 +72,7 @@ module.exports = class CNeditor
 
             realtimer.watch ExternalModels.contactCollection
 
-            # 3- launch loard editor in synchrone or async whether
+            # 3- launch loadEditor in synchrone or async whether
             # the editor is in a div or an iframe.
             if @editorTarget.nodeName == "IFRAME"
                 @isInIframe = true
@@ -805,7 +811,11 @@ module.exports = class CNeditor
                 return false
 
 
-
+    ###*
+     * Returns an array of the modes allowed at the curent place of the carret.
+     *
+     * @return {Array} ['task', 'todo', 'contact', 'reminder', 'math' ]
+    ###
     getCurrentAllowedInsertions : () ->
         line = @updateCurrentSel().startLineDiv
         out = []
@@ -821,6 +831,8 @@ module.exports = class CNeditor
 
         if ExternalModels.alarmCanBeUsed
             out.push 'reminder'
+
+        out.push 'math'
 
         return out
 

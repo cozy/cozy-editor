@@ -141,6 +141,20 @@ module.exports = class HotString
             #         @_auto.setMode('htag')
             #         @_autoToBeShowed = mode:'insertion'
 
+
+        else if charCode == 36  # '$'
+            if @editor._isStartingWord()
+                modes = @editor.getCurrentAllowedInsertions()
+
+                @_auto.setAllowedModes modes
+
+                if 'math' in modes
+                    @_hsType = '$'
+                    @isPreparing = true
+                    @_auto.setMode('math')
+                    @_currentMode = 'math'
+                    @_autoToBeShowed = mode:'insertion'
+
         return true
 
 
@@ -166,7 +180,7 @@ module.exports = class HotString
             @_hsString = newHotStrg.slice(2)
         else
             hsType = hsType[0]
-            if hsType in ['@', '#']
+            if hsType in ['@', '#', '$']
                 @_hsString = newHotStrg.slice(1)
             else
                 @reset('current', true)
