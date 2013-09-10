@@ -39,26 +39,7 @@ module.exports = class AutoComplete
             <p class="math-title">Formula</p>
             <div id="mathRes" class='mathDivOutput'>$${}$$</div>
         """
-
         @el.appendChild(@mathDiv)
-        @container.parentElement.appendChild(@el)
-
-        mathRes     = @mathDiv.children[1]
-        @mathRes    = mathRes
-        # @MATH        = MathJax.Hub.getAllJax(@mathRes)[0]
-        #
-        that = this
-        MathJax.Hub.queue.Push ()->
-            MathJax.Hub.Typeset(mathRes)
-
-        # MathJax.Hub.queue.Push ()->
-        #     that.container.removeChild(that.el)
-
-        MATH = null
-
-        MathJax.Hub.queue.Push ()->
-            MATH = MathJax.Hub.getAllJax()[0]
-        @MATH = MATH
 
         @tTagsDiv    = document.createElement('DIV')
         @tTagsDiv.className = 'SUGG_ttags'
@@ -200,9 +181,42 @@ module.exports = class AutoComplete
         # modes = ['todo','contact','event','reminder','tag']
         edLineDiv = seg.parentElement
         @isVisible = true
+        @container.appendChild(@el)
+
+        if @_currentMode == 'math'
+
+            if !@MATH
+                @initMath()
+
+
+            # @MATH        = MathJax.Hub.getAllJax(@mathRes)[0]
+            #
+            # that = this
+            # MathJax.Hub.queue.Push ()->
+            #     MathJax.Hub.Typeset()
+                # MathJax.Hub.Typeset(mathRes)
+
+            # MathJax.Hub.queue.Push ()->
+            #     that.container.removeChild(that.el)
+
+            # MATH = null
+
+            # MathJax.Hub.queue.Push ()->
+            #     MATH = MathJax.Hub.getAllJax()[0]
+            # @MATH = MATH
+
         @update(typedTxt)
         @_position(seg)
-        @container.appendChild(@el)
+
+
+    initMath : ()->
+
+        mathRes     = @mathDiv.children[1]
+        @mathRes    = mathRes
+        MathJax.Hub.Typeset(mathRes)
+        # fonctionne mais si plusieurs jax sur la page, pb
+        # MATH = MathJax.Hub.getAllJax()[0]
+        @MATH = MathJax.Hub.getJaxFor(mathRes.children[2])
 
 
 
