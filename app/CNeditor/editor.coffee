@@ -4931,6 +4931,16 @@ module.exports = class CNeditor
                         hs.reset('end')
                     @editorTarget$.trigger jQuery.Event('onChange')
                     @newPosition = true # to force addhistory on next action
+
+                    # if this was the last line, we add a empty normal line after it
+                    line = @_lines[taskDiv.id]
+                    unless line.lineNext
+                        @_insertLineAfter
+                            sourceLine         : line
+                            targetLineType     : 'Tu'
+                            targetLineDepthAbs : line.lineDepthAbs
+                            targetLineDepthRel : line.lineDepthRel
+
                     return true
 
             when 'contact'
