@@ -1181,6 +1181,7 @@ module.exports = class CNeditor
         switch shortcut
 
             when '-return'
+                @_chromeCorrection()
                 @_history.addStep() if lastShortcut != shortcut
                 @updateCurrentSelIsStartIsEnd()
                 if @currentSel.isStartInTask and lastShortcut == shortcut
@@ -1432,13 +1433,12 @@ module.exports = class CNeditor
         # one. Then delete the textnode.
         curSel = @updateCurrentSel()
         line   = curSel.startLine.line$[0]
+        @_fixLine line
+
+    _fixLine : (line) ->
         nodes  = line.childNodes
         l = nodes.length
         i = 0
-        # the final <br/> may be deleted by chrome : if so : add it.
-        if nodes[l-1].nodeName != 'BR'
-            brNode = document.createElement('br')
-            line.appendChild(brNode)
         # loop on line's children to find the possible '#text'
         while i < l
             node = nodes[i]
@@ -1476,8 +1476,22 @@ module.exports = class CNeditor
                         line.replaceChild(newSpan,node)
                         @_setCaret(newSpan.firstChild,t.length)
                         i += 1
+
+            else if node.nodeName is 'BR'
+                line.removeChild node
+                l -= 1
+
             else
                 i += 1
+
+        if l is 0
+            spanNode = document.createElement('span')
+            spanNode.textContent = ''
+            line.appendChild spanNode
+
+        brNode = document.createElement('br')
+        line.appendChild(brNode)
+
 
         return true
 
@@ -3675,14 +3689,16 @@ module.exports = class CNeditor
                     htmlLine.firstChild.textContent = '\u00a0'
                 @_setTaskToLine(htmlLine)
 
+            @_fixLine htmlLine
+
             # loop on spans of the line to check the tags
             seg = htmlLine.firstChild
             while seg and seg.nodeName isnt 'BR'
                 @Tags.handle seg if seg.dataset.type
                 seg = seg.nextSibling
 
-            # there is no br at end of line
-            htmlLine.appendChild document.createElement('br') if not seg
+            # # there is no br at end of line
+            # htmlLine.appendChild document.createElement('br') if not seg
 
 
 

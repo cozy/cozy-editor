@@ -28131,6 +28131,7 @@ window.require.register("CNeditor/editor", function(exports, require, module) {
       }
       switch (shortcut) {
         case '-return':
+          this._chromeCorrection();
           if (lastShortcut !== shortcut) {
             this._history.addStep();
           }
@@ -28349,17 +28350,19 @@ window.require.register("CNeditor/editor", function(exports, require, module) {
 
 
     CNeditor.prototype._chromeCorrection = function() {
-      var brNode, curSel, i, l, line, newSpan, nextSeg, node, nodes, prevSeg, t, _ref, _ref1, _ref2;
+      var curSel, line;
 
       curSel = this.updateCurrentSel();
       line = curSel.startLine.line$[0];
+      return this._fixLine(line);
+    };
+
+    CNeditor.prototype._fixLine = function(line) {
+      var brNode, i, l, newSpan, nextSeg, node, nodes, prevSeg, spanNode, t, _ref, _ref1, _ref2;
+
       nodes = line.childNodes;
       l = nodes.length;
       i = 0;
-      if (nodes[l - 1].nodeName !== 'BR') {
-        brNode = document.createElement('br');
-        line.appendChild(brNode);
-      }
       while (i < l) {
         node = nodes[i];
         if (node.nodeName === '#text') {
@@ -28400,10 +28403,20 @@ window.require.register("CNeditor/editor", function(exports, require, module) {
               i += 1;
             }
           }
+        } else if (node.nodeName === 'BR') {
+          line.removeChild(node);
+          l -= 1;
         } else {
           i += 1;
         }
       }
+      if (l === 0) {
+        spanNode = document.createElement('span');
+        spanNode.textContent = '';
+        line.appendChild(spanNode);
+      }
+      brNode = document.createElement('br');
+      line.appendChild(brNode);
       return true;
     };
 
@@ -30523,15 +30536,13 @@ window.require.register("CNeditor/editor", function(exports, require, module) {
           }
           this._setTaskToLine(htmlLine);
         }
+        this._fixLine(htmlLine);
         seg = htmlLine.firstChild;
         while (seg && seg.nodeName !== 'BR') {
           if (seg.dataset.type) {
             this.Tags.handle(seg);
           }
           seg = seg.nextSibling;
-        }
-        if (!seg) {
-          htmlLine.appendChild(document.createElement('br'));
         }
       }
       this.Tags.refreshAll();
