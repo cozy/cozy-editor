@@ -11,7 +11,7 @@ module.exports.alarmCanBeUsed   = false
 ###
 module.exports.Alarm = class Alarm extends Backbone.Model
 
-    urlRoot: "/apps/agenda/alarms"
+    urlRoot: "alarms"
     @dateFormat = "{Dow} {Mon} {dd} {yyyy} {HH}:{mm}:00"
 
     @reminderCf = {}
@@ -34,53 +34,25 @@ module.exports.alarmCollection = new Backbone.Collection [], model: Alarm
 # Contact model and collection
 ###
 module.exports.Contact = class Contact extends Backbone.Model
-    urlRoot: '/apps/contacts/contacts'
+    urlRoot: 'contacts'
+
+    @load = (cb) ->
+        module.exports.contactCollection.fetch
+            success:     -> cb null
+            error: (err) -> cb err
 
 module.exports.contactCollection = new Backbone.Collection [],
     url: Contact::urlRoot
     model: Contact
-
-Contact.load = (cb) ->
-    module.exports.contactCollection.fetch
-        success:     -> cb null
-        error: (err) -> cb err
 
 ###
 # Tasks model
 # TODO : use a collection
 ###
 module.exports.Task = class Task extends Backbone.Model
-    url: ->
-      if @isNew() then "/apps/todos/todolists/#{Task.todolistId}/tasks"
-      else "/apps/todos/tasks/#{@id}"
+    urlRoot: "tasks"
 
-    defaults: ->
-        done:false
-
-    parse: (data) -> if data.rows then data.rows[0] else data
-
-Task.getOrCreateInbox = (callback) ->
-    # task can be used, let's get/create inbox list
-    request.get '/apps/todos/todolists', (err, lists) ->
-
-        if err
-            module.exports.taskCanBeUsed = false
-            return callback err
-
-        if inbox = _.findWhere(lists.rows, title: 'Inbox')
-            Task.todolistId = inbox.id
-            return callback null
-
-        todolist = title: 'Inbox', parent_id:'tree-node-all'
-        request.post '/apps/todos/todolists', todolist, (err, inbox) ->
-
-            if err
-                module.exports.taskCanBeUsed = false
-                return callback err
-
-            Task.todolistId = inbox.id
-            return callback null
-
+    defaults: -> done: false
 
 
 ###
@@ -90,35 +62,8 @@ Task.getOrCreateInbox = (callback) ->
 ###
 module.exports.initialize = (callback) ->
 
-    callback ?= ->
-
-    request.get '/api/applications', (err, apps) ->
-
-        return callback err if err
-
-        actions = []
-
-        for app in (apps?.rows or [])
-            continue unless app.state is 'installed'
-
-            switch app.slug
-                when 'contacts'
-                    module.exports.contactCanBeUsed = true
-                    actions.push Contact.load
-                when 'agenda'
-                    module.exports.alarmCanBeUsed   = true
-                when 'todos'
-                    module.exports.taskCanBeUsed    = true
-                    actions.push Task.getOrCreateInbox
-
-
-        # async.parallel actions, callback
-        cnt = actions.length
-        err = null
-        for action in actions
-            action (err) ->
-                err ?= err if err
-                cnt--
-                callback err if cnt is 0
-
+    module.exports.contactCanBeUsed = true
+    module.exports.alarmCanBeUsed   = true
+    module.exports.taskCanBeUsed    = true
+    Contact.load callback
 

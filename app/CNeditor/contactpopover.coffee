@@ -23,15 +23,24 @@ module.exports = class ContactPopover
 
     show: (segment, model) ->
 
+        datapoints = model.get 'datapoints'
+
         html = '<dl class="dl-horizontal">'
-        for dp in model.get 'datapoints'
-            value = dp.value.replace "\n", '<br />'
-            if dp.name is 'other' or dp.name is 'about' then name = dp.type
-            else name = dp.type + ' '+ dp.name.replace 'smail', 'postal'
-            html += "<dt>#{name}</dt><dd>#{value}</dd>"
+        html += @dp2html dp for dp in datapoints
         html += '</dl>'
 
         @el.innerHTML = html
         segment.appendChild @el
 
         @isOn = true
+
+    # convert a contact datapoint to html
+    dp2html: (dp) ->
+        value = dp.value.replace "\n", '<br />'
+        if dp.name in ['other', 'about']
+            name = dp.type
+        else
+            name = dp.type + ' '+ dp.name
+
+        return "<dt>#{name}</dt><dd>#{value}</dd>"
+
