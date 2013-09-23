@@ -60,10 +60,13 @@ module.exports = class CNeditor
         @_tasksModifSinceLastHistory = {}
 
         # 3- load MathJax
-        script      = document.createElement("script")
-        script.type = "text/javascript"
-        script.src  = "http://cdn.mathjax.org/mathjax/latest/MathJax.js?configs=TeX-AMS-MML_HTMLorMML"
-        document.getElementsByTagName("head")[0].appendChild(script)
+        # if !document.isMathJaxDynLoaded
+        #     console.log 'toto'
+        #     script      = document.createElement("script")
+        #     script.type = "text/javascript"
+        #     script.src  = "http://cdn.mathjax.org/mathjax/latest/MathJax.js?configs=TeX-AMS-MML_HTMLorMML"
+        #     document.getElementsByTagName("head")[0].appendChild(script)
+        #     document.isMathJaxDynLoaded = true
 
         # 2 - Async loading of everything
                 # init the socketio connection
@@ -4988,6 +4991,9 @@ module.exports = class CNeditor
                 # to force addhistory on next action
                 @newPosition = true
                 return true
+
+            when 'math'
+                hs.innerHTML = autoItem.value
 
         hs.reset('end')
         @editorTarget$.trigger jQuery.Event('onChange')

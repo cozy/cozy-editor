@@ -15,7 +15,6 @@ module.exports = class AutoComplete
         @regexStore = {}
         @isVisible  = false # whether the popover is visible or not
 
-
         # DIV of the autocomplete popover. This one will be populated by other
         # divs, for the contacts, the ttags, the htags, the agenda...
         auto  = document.createElement('div')
@@ -40,6 +39,15 @@ module.exports = class AutoComplete
             <div id="mathRes" class='mathDivOutput'>$${}$$</div>
         """
         @el.appendChild(@mathDiv)
+        mathRes     = @mathDiv.children[1]
+        @mathRes    = mathRes
+        console.log "constructor autocomplete"
+        MathJax.Hub.Typeset(mathRes, ()=>
+            console.log "typeset"
+            @MATH = MathJax.Hub.getJaxFor(mathRes.children[2])
+        )
+        # fonctionne mais si plusieurs jax sur la page, pb
+        # MATH = MathJax.Hub.getAllJax()[0]
 
         @tTagsDiv    = document.createElement('DIV')
         @tTagsDiv.className = 'SUGG_ttags'
@@ -181,12 +189,11 @@ module.exports = class AutoComplete
         # modes = ['todo','contact','event','reminder','tag']
         edLineDiv = seg.parentElement
         @isVisible = true
-        @container.appendChild(@el)
 
-        if @_currentMode == 'math'
+        # if @_currentMode == 'math'
 
-            if !@MATH
-                @initMath()
+            # if !@MATH
+            #     @initMath()
 
 
             # @MATH        = MathJax.Hub.getAllJax(@mathRes)[0]
@@ -194,7 +201,7 @@ module.exports = class AutoComplete
             # that = this
             # MathJax.Hub.queue.Push ()->
             #     MathJax.Hub.Typeset()
-                # MathJax.Hub.Typeset(mathRes)
+            #     MathJax.Hub.Typeset(mathRes)
 
             # MathJax.Hub.queue.Push ()->
             #     that.container.removeChild(that.el)
@@ -205,6 +212,7 @@ module.exports = class AutoComplete
             #     MATH = MathJax.Hub.getAllJax()[0]
             # @MATH = MATH
 
+        @container.appendChild(@el)
         @update(typedTxt)
         @_position(seg)
 
@@ -323,6 +331,7 @@ module.exports = class AutoComplete
         nbrOfSuggestions = 0
 
         switch @_currentMode
+
             when 'ttag'
                 for ttag in @tTags
                     if ttag.isInMode && @_shouldDisp(ttag,typedTxt)
@@ -331,6 +340,7 @@ module.exports = class AutoComplete
                     else
                         ttag.line.style.display = 'none'
                 items = []
+
             when 'contact'
                 # check the ttags to show
                 for ttag in @tTags
@@ -340,8 +350,10 @@ module.exports = class AutoComplete
                     else
                         ttag.line.style.display = 'none'
                 items = @contacts
+
             when 'htag'
                 items = @htags
+
             when 'reminder'
                 newdate = Date.future(typedTxt)
                 if newdate.isValid()
@@ -350,14 +362,11 @@ module.exports = class AutoComplete
                     time = @_currentDate.toTimeString().substring 0, 8
                     @timePick.timepicker 'setTime', time
                 return
+
             when 'math'
                 MathJax.Hub.queue.Push(
-                    () -> ,
-                    ["Text",@MATH,"\\displaystyle{"+typedTxt+"}"],
-                    () -> ,
-                    () ->
-                    )
-                @mathRes.textContent = typedTxt
+                    ["Text",@MATH,"\\displaystyle{"+typedTxt+"}"]
+                )
                 items = []
 
         # check the items to show
@@ -487,6 +496,9 @@ module.exports = class AutoComplete
             when 'reminder'
                 date = @_currentDate
                 item = text:date, type:'reminder', value:@_currentDate
+
+            when 'math'
+                item = text:date, type:'math', value:'toto'
 
         return item
 
