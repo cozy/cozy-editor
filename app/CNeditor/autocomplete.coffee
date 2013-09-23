@@ -476,7 +476,9 @@ module.exports = class AutoComplete
         return item
 
 
-
+    ###*
+     * @return {Object} {text, type, value}
+    ###
     getSelectedItem : () ->
         switch @_currentMode
             when 'ttag', 'contact'
@@ -498,7 +500,7 @@ module.exports = class AutoComplete
                 item = text:date, type:'reminder', value:@_currentDate
 
             when 'math'
-                item = text:date, type:'math', value:'toto'
+                item = text:date, type:'math', value:@mathRes.innerHTML
 
         return item
 

@@ -4964,7 +4964,7 @@ module.exports = class CNeditor
                 hs._forceUserHotString(autoItem.text, [])
                 hs._hsSegment.classList.add('CNE_htag')
                 hs._hsSegment.dataset.type = 'htag'
-                @Tags.handle hs._hsSegment, true
+                @Tags.handle(hs._hsSegment, true)
                 hs._hsSegment.classList.remove('CNE_hot_string')
                 bp = @insertSpaceAfterSeg(hs._hsSegment)
                 @_setCaret(bp.cont,1)
@@ -4993,7 +4993,20 @@ module.exports = class CNeditor
                 return true
 
             when 'math'
-                hs.innerHTML = autoItem.value
+
+                # hs.innerHTML = autoItem.value
+                hs._forceHtmlHotString(autoItem.value)
+                hs._hsSegment.classList.add('CNE_mathtag')
+                hs._hsSegment.dataset.type = 'mathtag'
+                @Tags.handle(hs._hsSegment, true)
+                hs._hsSegment.classList.remove('CNE_hot_string')
+                bp = @insertSpaceAfterSeg(hs._hsSegment)
+                @_setCaret(bp.cont,1)
+                hs._auto.hide()
+                @editorTarget$.trigger jQuery.Event('onChange')
+                # to force addhistory on next action
+                @newPosition = true
+                return true
 
         hs.reset('end')
         @editorTarget$.trigger jQuery.Event('onChange')

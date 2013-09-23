@@ -98,7 +98,7 @@ module.exports = class HotString
 
     ###* -----------------------------------------------------------------------
      * Detection on keypress if the user is starting a new hotstring.
-     * A hotstring is a "#" or "@" inserted as a word start (no characters
+     * A hotstring is a "#", "$", or "@" inserted as a word start (no characters
      * before).
      * Actions - Arrows, return, baskspace etc - are managed in newShortCut()
      * If a hotString is already preparing, the editor must call updateHs() when
@@ -337,8 +337,15 @@ module.exports = class HotString
                 bp.offset = newHotString.length
         return bps
 
+    _forceHtmlHotString : (html) ->
+        @_hsSegment.innerHTML = html
 
 
+    ###*
+     * Takes the current value of the autocomplete and launch the corresponding
+     * action in the editor. Note : the decision to close the autocomplete will
+     * be taken by the editor.
+    ###
     validate : () ->
         item = @_auto.getSelectedItem()
         @editor.doHotStringAction(item)
