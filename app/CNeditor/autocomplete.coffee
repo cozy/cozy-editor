@@ -291,9 +291,9 @@ module.exports = class AutoComplete
         for it in items
             if @_shouldDisp(it,typedTxt)
                 nbrOfSuggestions += 1
-                it.line.style.display = 'block'
+                it.line.style.display = 'block' if it.line
             else
-                it.line.style.display = 'none'
+                it.line.style.display = 'none' if it.line
 
         # sort items to show
         @_sortItems()
@@ -426,6 +426,9 @@ module.exports = class AutoComplete
             regText = typedTxt.replace(/\W/g,'').split('').join('[\\w ]*')
             reg = new RegExp(regText, 'i')
             @regexStore[typedTxt] = reg
+
+        return false unless item.text
+
         if item.text.match(reg)
             typedCar = typedTxt.toLowerCase().split('')
             c = typedCar.shift()

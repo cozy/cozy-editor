@@ -440,10 +440,11 @@ module.exports = class HotString
         if contactCollection.length is 0
             contactCollection.once 'sync', =>
                 @realtimeContacts contactCollection
+            return true
 
         updateItems = =>
             @_auto.setItems 'contact', contactCollection.map (contact) ->
-                text: contact.get 'fn'
+                text: contact.getFN()
                 type: 'contact'
                 model: contact
 
