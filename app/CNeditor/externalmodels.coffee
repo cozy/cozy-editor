@@ -36,6 +36,13 @@ module.exports.alarmCollection = new Backbone.Collection [], model: Alarm
 module.exports.Contact = class Contact extends Backbone.Model
     urlRoot: 'contacts'
 
+    getFN: =>
+        console.log "getFN", @get('fn'), @get('n')
+        return @get 'fn' if @has 'fn'
+        return '' unless @get('n')
+        [familly, given, middle, prefix, suffix] = @get('n').split ';'
+        return "#{given} #{middle} #{familly}"
+
     @load = (cb) ->
         module.exports.contactCollection.fetch
             success:     -> cb null

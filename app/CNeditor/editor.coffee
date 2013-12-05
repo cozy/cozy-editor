@@ -492,9 +492,9 @@ module.exports = class CNeditor
         # if the id stored in the hmtml line is a temporary id and that there is
         # task localy with this temporary id, then it's a rare case (can
         # happen if the html of the editor is saved and closed before the task
-        # has its final id). We choose in this case to create the task.
+        # has its final id). We choose in this case to turn the task back to normal
         if id.slice(0,12) == 'CNE_task_id_'
-            @_createTaskForLine(lineDiv)
+            @_turneTaskIntoLine lineDiv
             @editorTarget$.trigger jQuery.Event('onChange')
 
         else
@@ -503,7 +503,7 @@ module.exports = class CNeditor
             @_internalTaskCounter += 1
             t.internalId = 'CNE_task_id_' + @_internalTaskCounter
             lineDiv.task = t
-            lineDiv.dataset.id = t.internalId
+            # lineDiv.dataset.id = t.internalId
             t.lineDiv = lineDiv
             t.fetch(silent:true)
             .done () =>

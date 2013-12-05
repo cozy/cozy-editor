@@ -102,7 +102,6 @@ module.exports = class Tags
         iz = (a) -> (b) -> a.dataset.id is b.dataset.id
 
         unless @isFullReplaceContent
-            console.log "HERE"
             for oldseg in (@oldList or [])
                 unless @_tagList.some(iz oldseg)
                     # the segment have been deleted since empty
