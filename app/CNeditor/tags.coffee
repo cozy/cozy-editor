@@ -66,6 +66,10 @@ module.exports = class Tags
             when 'contact'
                 seg.classList.add 'CNE_contact'
                 seg.dataset.type = 'contact'
+                # a = document.createElement('a')
+                # a.textContent = seg.textContent
+                # seg.appendChild(a)
+                # a.href = '/#apps/contacts/contact/' + seg.dataset.id
                 @handle seg
 
             when 'reminder'

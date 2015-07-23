@@ -27,7 +27,7 @@ exports.config =
                 '../build/CNeditor.js': /^app\/CNeditor\/.*(\.coffee)|(\.js)$/
 
                 # for deployement directly in cozy-notes
-                '../../cozy-notes/client/vendor/scripts/CNeditor.js': /^app\/CNeditor\/.*(\.coffee)|(\.js)$/
+                '../../notes/client/vendor/scripts/CNeditor.js': /^app\/CNeditor\/.*(\.coffee)|(\.js)$/
 
                 'javascripts/tests.js': /^test/
 

@@ -1,14 +1,21 @@
+# IntentManager = require '../lib/intent_manager'
 
 module.exports = class ContactPopover
 
+    # intentManager: new IntentManager()
+    #
 
     constructor: ->
 
+        @talker = new Talker(window.parent,'*')
         @el = document.createElement('DIV')
         @el.id = 'contactpopover'
 
         @isOn = false
 
+    send : (nameSpace,intent, timeout) ->
+        @talker.timeout = if timeout then timeout else TIMEOUT
+        @talker.send('nameSpace',intent)
 
     hide: ->
 
@@ -24,13 +31,31 @@ module.exports = class ContactPopover
     show: (segment, model) ->
 
         datapoints = model.get 'datapoints'
-
         html = '<dl class="dl-horizontal">'
         html += @dp2html dp for dp in datapoints
         html += '</dl>'
+        html += "<a>éditer</a>"
 
         @el.innerHTML = html
         segment.appendChild @el
+
+        # @el.lastChild.addEventListener 'click', (e)->
+        @el.addEventListener 'click', (e)=>
+            if e.ctrlKey
+                target = '_blank'
+            else
+                target = '_parent'
+            intent =
+                type  : 'goto'
+                params:
+                    appUrl : 'contacts/contact/' + model.id
+                    target : target
+
+            timeout = 10800000 # 3 hours
+            choosePhoto_answer = @choosePhoto_answer
+            @send('nameSpace',intent, timeout)
+            console.log "turlututu"
+
 
         @isOn = true
 

@@ -822,6 +822,8 @@ module.exports = class CNeditor
         if ExternalModels.alarmCanBeUsed
             out.push 'reminder'
 
+        out.push('htag')
+
         return out
 
 
@@ -4962,6 +4964,7 @@ module.exports = class CNeditor
             when 'contact'
                 hs._forceUserHotString(autoItem.text, [])
                 hs._hsSegment.dataset.id = autoItem.model.id
+                hs._hsSegment.src = '/#apps/contacts/contact/48b0f8a3ff022f579cabfcf276006630'
                 @Tags.create 'contact', hs._hsSegment
                 bp = @insertSpaceAfterSeg(hs._hsSegment)
                 @_setCaret(bp.cont,1)

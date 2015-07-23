@@ -81,10 +81,19 @@ module.exports = class AutoComplete
             {text:'contact' , type:'ttag', value:'contact' , mention:' (@)' }
             {text:'todo'    , type:'ttag', value:'todo'                     }
             {text:'reminder', type:'ttag', value:'reminder', mention:' (@@)'}
-            # {text:'tag'     , type:'ttag', value:'htag'    , mention:' (#)' }
+            {text:'tag'     , type:'ttag', value:'htag'    , mention:' (#)' }
             ])
 
-        @setItems 'contact', []
+        @setItems 'contact', [
+            {text:'tata' , type:'contact', model:{id:123}}
+
+        ]
+
+        @setItems 'htag', [
+            {text:'tag1' , type:'htag'}
+            {text:'tag2' , type:'htag'}
+            {text:'tug2' , type:'htag'}
+            ]
 
         return this
 

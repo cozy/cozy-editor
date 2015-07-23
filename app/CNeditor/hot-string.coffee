@@ -13,7 +13,7 @@ module.exports = class HotString
         @_modes    =
             '@'  : 'contact'
             '@@' : 'reminder'
-            # '#'  : 'htag'
+            '#'  : 'htag'
         @isPreparing  = false # true if a hot sring is under construction
         @_hsType      = ''
         @_hsRight     = ''
@@ -130,16 +130,16 @@ module.exports = class HotString
                     @_currentMode = 'ttag'
                     @_autoToBeShowed = mode:'insertion'
 
-        # else if charCode == 35  # '#'
+        else if charCode == 35  # '#'
 
-            # if @editor._isStartingWord()
-            #     modes = @editor.getCurrentAllowedInsertions()
-            #     if 'htag' in modes
-            #         @_hsType = '#'
-            #         @isPreparing = true
-            #         @_currentMode = 'htag'
-            #         @_auto.setMode('htag')
-            #         @_autoToBeShowed = mode:'insertion'
+            if @editor._isStartingWord()
+                modes = @editor.getCurrentAllowedInsertions()
+                if 'htag' in modes
+                    @_hsType = '#'
+                    @isPreparing = true
+                    @_currentMode = 'htag'
+                    @_auto.setMode('htag')
+                    @_autoToBeShowed = mode:'insertion'
 
         return true
 
