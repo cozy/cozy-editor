@@ -40,7 +40,7 @@ exports.config =
         stylesheets:
             joinTo:
                 '../build/CNeditor.css': /^app\/CNeditor/
-                '../../cozy-notes/client/vendor/styles/CNeditor.css': /^app\/CNeditor/
+                '../../notes/client/vendor/styles/CNeditor.css': /^app\/CNeditor/
             order:
                 before:[
                     'app/CNeditor/datepicker.css'
