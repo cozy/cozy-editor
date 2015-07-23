@@ -37,7 +37,6 @@ actioncolor = #fe8800
 ///////////////////////
 
 #editor-frame
-    font-family      : main
     position         : absolute
     margin           : 0
     top              : 0
@@ -46,16 +45,14 @@ actioncolor = #fe8800
     bottom           : 0
     color            : darkgrey
     background-color : lightgrey
-    font             : normal 13px/20px main, "Helvetica Neue", Arial, Helvetica, sans-serif
-    font-family      : main
+    font             : normal 16px/24px "Source Sans Pro", Arial, Helvetica, sans-serif
     -moz-box-sizing  : border-box
     box-sizing       : border-box
 
 #editor-lines
     -moz-box-sizing : border-box
     box-sizing      : border-box
-    font            : normal 13px/20px main, "Helvetica Neue", Arial, Helvetica, sans-serif
-    font-family     : main
+    font            : normal 16px/24px "Source Sans Pro", Arial, Helvetica, sans-serif
     color           : darkgrey
     padding-top     : 4px
     padding-bottom  : 8px
@@ -284,7 +281,6 @@ else
     text-decoration : underline
 
 .CNE_hot_string
-    box-shadow      : 1px 1px 9px red
     border-radius   : 3px
     padding-left    : 4px
     padding-right   : 4px
@@ -320,27 +316,46 @@ a
     border-bottom-right-radius: 3px
     border-top-left-radius: 3px
     border-top-right-radius: 3px
-    background-color: #E3EC03
-    color: #494949
+    background-color: transparent
+    color: basecolor
     cursor pointer
     white-space: nowrap
-    padding-left: 4px
-    padding-right: 4px
     position relative
 
     #contactpopover
-        background-color #E3EC03
+        z-index 20
         position absolute
         left 0px
-        z-index 20
+        background-color #fff
+        border-radius 5px
+        border 1px solid #e5e5e5
+        box-shadow 0 3px 6px rgba(0,0,0,0.12)
+        font-weight normal
 
         dl
             margin-bottom 10px
         dt
             width 100px
+            color #999
+            text-transform uppercase
+            font-size 0.8rem
+            font-weight normal
+            line-height 1.8rem
         dd
             margin-left 120px
             margin-right 30px
+            color #333
+            line-height 1.8rem
+
+        a
+            display block
+            width 100%
+            margin-top 1em
+            padding 0.4em 0
+            border-top 1px solid #f5f5f5
+            color basecolor
+            font-size 0.85rem
+            text-align center
 
 
 .CNE_contact:hover
@@ -348,7 +363,7 @@ a
 
 
 .CNE_contact:before
-    content:'@ '
+    content:'@'
 
 
 .CNE_htag

@@ -1,4 +1,4 @@
-lineSelectedColor = #D6FF00
+basecolor= #34A6FF
 
 .reminder-title
     border-top-left-radius: 5px
@@ -17,9 +17,9 @@ lineSelectedColor = #D6FF00
 
 .reminder-title:hover
     cursor: pointer
-    background: #d6ff00
+    background: basecolor
     text-decoration : underline
-    color: #0048E0;
+    color: #fff
 
 .reminder-input
     border-width:1px
@@ -46,14 +46,16 @@ lineSelectedColor = #D6FF00
     font-size: 14px
 
 .datepicker td.day:hover
-    background: #d6ff00
+    background: basecolor
+    color #fff
 
 .datepicker td, .datepicker th
     padding:0px
     width: 1px
 
 .datepicker thead tr:first-child th:hover
-    background: #d6ff00
+    background: basecolor
+    color #fff
 
 #timepicker
     width:75px
@@ -64,25 +66,25 @@ lineSelectedColor = #D6FF00
     display:block
     position: absolute
     _moz_resizing:false
-    border-radius-top-right : 5px
-    border-radius-top-left : 5px
-    font-size:14px
-    background-color:whiteSmoke
-    border-color:#000
-    border-style:solid
-    border-width:1px
-    padding:0px
+    padding 0
+    padding-bottom 0.2em
+    background-color #fff
+    border-radius 5px
+    border 1px solid #e5e5e5
+    box-shadow 0 3px 6px rgba(0,0,0,0.12)
     list-style-type:none
 
 .SUGG_ttags
-    background-color:#313131
+    background-color #ededed
+    padding 0.2em 0
 
 .SUGG_line_ttag
-    cursor:pointer
-    display : block
-    padding-left:5px
-    padding-right:5px
-    color:#EBEBEC
+    cursor pointer
+    display block
+    padding 0 0.6em
+    font-size 0.85rem
+    color #777
+    line-height 1.8em
 
  .SUGG_line_ttag:before
     content:'@'
@@ -95,8 +97,8 @@ lineSelectedColor = #D6FF00
     color:#808080
 
 .SUGG_line_ttag:hover
-    background-color : lineSelectedColor
-    color:#888888
+    background-color : basecolor
+    color #fff
 
 .SUGG_line_htag
     cursor:pointer
@@ -109,36 +111,45 @@ lineSelectedColor = #D6FF00
     color:#979797
 
 .SUGG_line_htag:hover
-    background-color : lineSelectedColor
+    background-color : basecolor
+    color #fff
+
+    &:before
+        color rgba(255, 255, 255, 0.8)
 
 
 .SUGG_line_contact
-    cursor:pointer
-    display : block
-    padding-left:5px
-    padding-right:5px
+    cursor pointer
+    display block
+    padding 0 0.6em
+    line-height 1.8em
 
 .SUGG_line_contact:before
     content:'@'
     color:#979797
 
 .SUGG_line_contact:hover
-    background-color : lineSelectedColor
+    background-color : basecolor
+    color #fff
+
+    &:before
+        color rgba(255, 255, 255, 0.8)
 
 span.b
     font-weight:bold
     color:tomato
 
 .SUGG_selected
-    background-color:lineSelectedColor
+    background-color : basecolor
+    color #fff
 
-.SUGG_selected:before
-    // content:'*'
-    // background-color:red
-    color:#525252
+    &:before
+        // content:'*'
+        // background-color:red
+        color rgba(255, 255, 255, 0.8)
 
-.SUGG_selected > span
-    color: #464646
+    & > span
+        color #fff
 
 
 
